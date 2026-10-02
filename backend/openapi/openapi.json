@@ -2813,10 +2813,36 @@
       "UserAccountType": {
         "enum": [
           "REGULAR",
-          "DEMO"
+          "DEMO",
+          "ADMIN"
         ],
         "title": "UserAccountType",
         "type": "string"
+      },
+      "UserAccountTypeToUpdate": {
+        "properties": {
+          "account_type": {
+            "$ref": "#/components/schemas/UserAccountType"
+          }
+        },
+        "required": [
+          "account_type"
+        ],
+        "title": "UserAccountTypeToUpdate",
+        "type": "object"
+      },
+      "UserActiveToUpdate": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "UserActiveToUpdate",
+        "type": "object"
       },
       "UserPasswordToUpdate": {
         "properties": {
@@ -2837,6 +2863,11 @@
         "properties": {
           "account_type": {
             "$ref": "#/components/schemas/UserAccountType"
+          },
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
           },
           "created": {
             "format": "date-time",
@@ -2861,6 +2892,7 @@
           "name",
           "created",
           "account_type",
+          "active",
           "id"
         ],
         "title": "UserPublic",
@@ -2876,6 +2908,37 @@
           "data"
         ],
         "title": "UserPublicResponse",
+        "type": "object"
+      },
+      "UserToCreateByAdmin": {
+        "description": "Alta de usuario desde administracion (no expuesta publicamente).",
+        "properties": {
+          "account_type": {
+            "$ref": "#/components/schemas/UserAccountType",
+            "default": "REGULAR"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 48,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "password",
+          "account_type"
+        ],
+        "title": "UserToCreateByAdmin",
         "type": "object"
       },
       "UserToRegister": {
@@ -2922,6 +2985,22 @@
           "name"
         ],
         "title": "UserToUpdate",
+        "type": "object"
+      },
+      "UsersPublicResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/UserPublic"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "UsersPublicResponse",
         "type": "object"
       },
       "ValidationError": {
@@ -6086,6 +6165,250 @@
         "summary": "Create Multiple Teams",
         "tags": [
           "Teams"
+        ]
+      }
+    },
+    "/users/admin": {
+      "get": {
+        "description": "Lista todos los usuarios. Nunca incluye el hash de la contrasena.",
+        "operationId": "get_users_admin_users_admin_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersPublicResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Users Admin",
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "description": "Crea una cuenta. La contrasena se guarda unicamente como hash bcrypt.",
+        "operationId": "create_user_admin_users_admin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserToCreateByAdmin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublicResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create User Admin",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/admin/{user_id}/account-type": {
+      "put": {
+        "operationId": "put_user_account_type_admin_users_admin__user_id__account_type_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAccountTypeToUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublicResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Put User Account Type Admin",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/admin/{user_id}/active": {
+      "put": {
+        "operationId": "put_user_active_admin_users_admin__user_id__active_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserActiveToUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublicResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Put User Active Admin",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/admin/{user_id}/password": {
+      "put": {
+        "description": "Restablece la contrasena de otro usuario (no se devuelve ni se registra).",
+        "operationId": "put_user_password_admin_users_admin__user_id__password_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPasswordToUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Put User Password Admin",
+        "tags": [
+          "Users"
         ]
       }
     },

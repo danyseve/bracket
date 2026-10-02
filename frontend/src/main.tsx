@@ -15,6 +15,7 @@ import i18n from '../i18n';
 import { BracketSpotlight } from './components/modals/spotlight';
 import HomePage from './pages';
 import NotFoundPage from './pages/404';
+import AdminUsersPage from './pages/admin_users';
 import ClubsPage from './pages/clubs';
 import CreateAccountPage from './pages/create_account';
 import CreateDemoAccountPage from './pages/demo';
@@ -81,6 +82,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/user" element={<UserPage />} />
               <Route path="/password-reset" element={<PasswordResetPage />} />
               <Route path="/create-account" element={<CreateAccountPage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
 
               <Route path="/tournaments">
                 <Route path=":id">

@@ -10,6 +10,7 @@ from starlette.requests import Request
 
 from bracket.config import config
 from bracket.database import database
+from bracket.models.db.account import UserAccountType
 from bracket.models.db.tournament import Tournament
 from bracket.models.db.user import UserInDB, UserPublic
 from bracket.schema import tournaments
@@ -56,7 +57,7 @@ class TokenData(BaseModel):
 async def authenticate_user(email: str, password: str) -> UserInDB | None:
     user = await get_user(email)
 
-    if not user or not verify_password(password, user.password_hash):
+    if not user or not user.active or not verify_password(password, user.password_hash):
         return None
 
     return user
@@ -80,7 +81,7 @@ async def check_jwt_and_get_user(token: str) -> UserPublic | None:
         return None
 
     user = await get_user(email=assert_some(token_data.email))
-    if user is None:
+    if user is None or not user.active:
         return None
 
     return UserPublic.model_validate(user.model_dump())
@@ -96,6 +97,21 @@ async def user_authenticated(token: str = Depends(oauth2_scheme)) -> UserPublic:
         )
 
     return UserPublic.model_validate(user.model_dump())
+
+
+async def user_is_admin(user: UserPublic = Depends(user_authenticated)) -> UserPublic:
+    """Autorizacion administrativa explicita (JWT valido + active + ADMIN).
+
+    ``user_authenticated`` ya rechaza usuarios inactivos (ver
+    ``check_jwt_and_get_user``), de modo que aqui solo queda comprobar el rol.
+    """
+    if user.account_type != UserAccountType.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator privileges required",
+        )
+
+    return user
 
 
 async def user_authenticated_for_tournament(

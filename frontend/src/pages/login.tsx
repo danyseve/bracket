@@ -107,10 +107,6 @@ export default function LoginPage() {
             </Button>
           </form>
           <Text c="dimmed" size="sm" ta="center" mt={15}>
-            <Anchor<'a'> onClick={() => navigate('/create-account')} size="sm">
-              {t('create_account_button')}
-            </Anchor>
-            {' - '}
             <Anchor<'a'> onClick={() => navigate('/password-reset')} size="sm">
               {t('forgot_password_button')}
             </Anchor>

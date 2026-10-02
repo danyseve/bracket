@@ -10,6 +10,7 @@ import {
   IconHome,
   IconScoreboard,
   IconSettings,
+  IconShieldLock,
   IconTrophy,
   IconUser,
   IconUsers,
@@ -20,6 +21,7 @@ import { useLocation } from 'react-router';
 import PreloadLink from '@components/utils/link';
 import { capitalize } from '@components/utils/util';
 import { getBaseApiUrl } from '@services/adapter';
+import { isAdmin } from '@services/local_storage';
 import classes from './_main_links.module.css';
 
 interface MainLinkProps {
@@ -72,7 +74,7 @@ function MainLink({ item, pathName }: { item: MainLinkProps; pathName: String })
 export function getBaseLinksDict() {
   const { t } = useTranslation();
 
-  return [
+  const links = [
     { link: '/clubs', label: capitalize(t('clubs_title')), links: [], icon: IconUsers },
     { link: '/', label: capitalize(t('tournaments_title')), links: [], icon: IconHome },
     {
@@ -96,14 +98,37 @@ export function getBaseLinksDict() {
       ],
     },
   ];
+
+  // Gestion de usuarios: solo para administradores (el backend devuelve 403 al
+  // resto, la ocultacion es solo de interfaz).
+  if (isAdmin()) {
+    links.push({
+      icon: IconShieldLock,
+      link: '',
+      label: t('admin_nav_label'),
+      links: [{ link: '/admin/users', label: t('admin_users_title'), icon: IconUsers }],
+    });
+  }
+
+  return links;
 }
 
 export function getBaseLinks() {
   const location = useLocation();
+  const { t } = useTranslation();
   const pathName = location.pathname.replace(/\/+$/, '');
-  return getBaseLinksDict()
-    .filter((link) => link.links.length < 1)
-    .map((link) => <MainLinkMobile key={link.label} item={link} pathName={pathName} />);
+  const links = getBaseLinksDict().filter((link) => link.links.length < 1);
+
+  if (isAdmin()) {
+    links.push({
+      link: '/admin/users',
+      label: capitalize(t('admin_users_title')),
+      links: [],
+      icon: IconShieldLock,
+    });
+  }
+
+  return links.map((link) => <MainLinkMobile key={link.label} item={link} pathName={pathName} />);
 }
 
 export function TournamentLinks({ tournament_id }: any) {

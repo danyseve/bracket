@@ -4,8 +4,11 @@ import { NavigateFunction } from 'react-router';
 
 import { Translator } from '@components/utils/types';
 
+const ACCOUNT_TYPE_KEY = 'account_type';
+
 export function performLogout() {
   localStorage.removeItem('login');
+  localStorage.removeItem(ACCOUNT_TYPE_KEY);
 }
 
 export function performLogoutAndRedirect(t: Translator, navigate: NavigateFunction) {
@@ -28,4 +31,27 @@ export function getLogin() {
 
 export function tokenPresent() {
   return localStorage.getItem('login') != null;
+}
+
+/**
+ * Tipo de cuenta del usuario con sesion iniciada, cacheado para poder mostrar u
+ * ocultar la navegacion de administracion sin esperar a una peticion. La
+ * autorizacion real la decide siempre el backend (dependencia user_is_admin).
+ * No es un secreto y nunca contiene credenciales.
+ */
+export function setAccountType(accountType: string | null | undefined) {
+  if (accountType == null) {
+    localStorage.removeItem(ACCOUNT_TYPE_KEY);
+    return;
+  }
+
+  localStorage.setItem(ACCOUNT_TYPE_KEY, accountType);
+}
+
+export function getAccountType(): string | null {
+  return localStorage.getItem(ACCOUNT_TYPE_KEY);
+}
+
+export function isAdmin() {
+  return getAccountType() === 'ADMIN';
 }

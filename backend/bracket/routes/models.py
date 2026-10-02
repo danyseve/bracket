@@ -84,6 +84,10 @@ class UserPublicResponse(DataResponse[UserPublic]):
     pass
 
 
+class UsersPublicResponse(DataResponse[list[UserPublic]]):
+    pass
+
+
 class TokenResponse(DataResponse[Token]):
     pass
 

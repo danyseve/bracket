@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Annotated
 
 from heliclockter import datetime_utc
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, StringConstraints, field_validator
 
 from bracket.models.db.account import UserAccountType
 from bracket.models.db.shared import BaseModelORM
@@ -12,12 +12,13 @@ from bracket.utils.id_types import UserId
 if TYPE_CHECKING:
     from bracket.logic.subscriptions import Subscription
 
-
+# Un usuario inactivo no puede autenticarse (ni /token ni JWT ya emitidos).
 class UserBase(BaseModelORM):
     email: str
     name: str
     created: datetime_utc
     account_type: UserAccountType
+    active: bool = True
 
     @property
     def subscription(self) -> Subscription:
@@ -62,3 +63,34 @@ class UserToRegister(BaseModelORM):
 class UserInDB(UserBase):
     id: UserId
     password_hash: str
+
+
+class UserToCreateByAdmin(BaseModelORM):
+    """Alta de usuario desde administracion (no expuesta publicamente)."""
+
+    email: str
+    name: str
+    password: Annotated[str, StringConstraints(min_length=8, max_length=48)]
+    account_type: UserAccountType = UserAccountType.REGULAR
+
+    @field_validator("account_type")
+    @classmethod
+    def _only_regular_or_admin(cls, value: UserAccountType) -> UserAccountType:
+        if value not in (UserAccountType.REGULAR, UserAccountType.ADMIN):
+            raise ValueError("account_type should be REGULAR or ADMIN")
+        return value
+
+
+class UserActiveToUpdate(BaseModelORM):
+    active: bool
+
+
+class UserAccountTypeToUpdate(BaseModelORM):
+    account_type: UserAccountType
+
+    @field_validator("account_type")
+    @classmethod
+    def _only_regular_or_admin(cls, value: UserAccountType) -> UserAccountType:
+        if value not in (UserAccountType.REGULAR, UserAccountType.ADMIN):
+            raise ValueError("account_type should be REGULAR or ADMIN")
+        return value

@@ -11,12 +11,14 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { Icon, IconMoonStars, IconSun } from '@tabler/icons-react';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useLocation } from 'react-router';
 
 import { Brand } from '@components/navbar/_brand';
 import { getBaseLinks, getBaseLinksDict } from '@components/navbar/_main_links';
 import PreloadLink from '@components/utils/link';
+import { getUser } from '@services/adapter';
+import { setAccountType } from '@services/local_storage';
 import classes from './_layout.module.css';
 
 interface HeaderActionLink {
@@ -125,6 +127,14 @@ function NavBar({ links }: any) {
 export default function Layout({ children, additionalNavbarLinks, breadcrumbs }: any) {
   const navbarState = useDisclosure();
   const [opened] = navbarState;
+
+  // Mantiene cacheado el tipo de cuenta para mostrar la navegacion de
+  // administracion (la autorizacion real la decide el backend).
+  const currentUser = getUser();
+  const accountType = currentUser?.data?.data?.account_type;
+  useEffect(() => {
+    setAccountType(accountType);
+  }, [accountType]);
 
   const linksComponent = (
     <AppShell.Section grow>

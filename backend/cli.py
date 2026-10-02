@@ -14,11 +14,13 @@ from bracket.database import database
 from bracket.logger import get_logger
 from bracket.models.db.account import UserAccountType
 from bracket.models.db.user import UserInsertable
+from bracket.sql.clubs import sql_give_user_access_to_club
 from bracket.sql.users import (
     check_whether_email_is_in_use,
     create_user,
 )
 from bracket.utils.db_init import sql_create_dev_db
+from bracket.utils.id_types import ClubId
 from bracket.utils.security import hash_password
 from openapi import openapi  # noqa: F401
 
@@ -80,22 +82,46 @@ async def create_dev_db() -> None:
 
 @cli.command()
 @click.option("--email", prompt="Email", help="The email used to log into the account.")
-@click.option("--password", prompt="Password", help="The password used to log into the account.")
+@click.option(
+    "--password",
+    prompt="Password",
+    hide_input=True,
+    help="The password used to log into the account (not echoed).",
+)
 @click.option("--name", prompt="Name", help="The name associated with the account.")
+@click.option(
+    "--account-type",
+    type=click.Choice(["REGULAR", "ADMIN"]),
+    default="REGULAR",
+    show_default=True,
+    help="ADMIN grants access to Administracion -> Usuarios.",
+)
+@click.option(
+    "--club-id",
+    "club_ids",
+    type=int,
+    multiple=True,
+    help="Club to grant OWNER access to (repeatable).",
+)
 @run_async
-async def register_user(email: str, password: str, name: str) -> None:
+async def register_user(
+    email: str, password: str, name: str, account_type: str, club_ids: tuple[int, ...]
+) -> None:
     user = UserInsertable(
         email=email,
         password_hash=hash_password(password),
         name=name,
         created=datetime_utc.now(),
-        account_type=UserAccountType.REGULAR,
+        account_type=UserAccountType(account_type),
     )
     if await check_whether_email_is_in_use(email):
         logger.error("Email address already in use")
         raise SystemExit(1)
     user_created = await create_user(user)
     logger.info(f"Created user with id: {user_created.id}")
+    for club_id in club_ids:
+        await sql_give_user_access_to_club(user_created.id, ClubId(club_id))
+        logger.info(f"Granted OWNER access to club {club_id}")
 
 
 if __name__ == "__main__":

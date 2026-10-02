@@ -124,6 +124,38 @@ async def check_whether_email_is_in_use(email: str) -> bool:
     return result is not None
 
 
+async def get_all_users() -> list[UserPublic]:
+    """Listado completo para la seccion de administracion (sin password_hash)."""
+    query = """
+        SELECT *
+        FROM users
+        ORDER BY id
+        """
+    result = await database.fetch_all(query=query)
+    return [UserPublic.model_validate(dict(user._mapping)) for user in result]
+
+
+async def update_user_active(user_id: UserId, active: bool) -> None:
+    query = """
+        UPDATE users
+        SET active = :active
+        WHERE id = :user_id
+        """
+    await database.execute(query=query, values={"user_id": user_id, "active": active})
+
+
+async def count_active_admins() -> int:
+    """Numero de administradores que pueden seguir operando (active + ADMIN)."""
+    query = """
+        SELECT count(*) AS count
+        FROM users
+        WHERE account_type = :account_type
+        AND active = true
+        """
+    result = await database.fetch_one(query=query, values={"account_type": UserAccountType.ADMIN.value})
+    return int(result["count"]) if result is not None else 0
+
+
 async def get_user(email: str) -> UserInDB | None:
     return await fetch_one_parsed(database, UserInDB, users.select().where(users.c.email == email))
 

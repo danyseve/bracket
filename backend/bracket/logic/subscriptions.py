@@ -59,6 +59,9 @@ regular_subscription = Subscription(
 subscription_lookup = {
     UserAccountType.DEMO: demo_subscription,
     UserAccountType.REGULAR: regular_subscription,
+    # Los administradores usan las cuotas de una cuenta regular; ADMIN solo
+    # anade permisos administrativos, no limites distintos.
+    UserAccountType.ADMIN: regular_subscription,
 }
 
 

@@ -185,10 +185,12 @@ users = Table(
         Enum(
             "REGULAR",
             "DEMO",
+            "ADMIN",
             name="account_type",
         ),
         nullable=False,
     ),
+    Column("active", Boolean, nullable=False, server_default="t"),
 )
 
 users_x_clubs = Table(
