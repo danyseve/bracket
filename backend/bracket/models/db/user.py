@@ -12,6 +12,7 @@ from bracket.utils.id_types import UserId
 if TYPE_CHECKING:
     from bracket.logic.subscriptions import Subscription
 
+
 # Un usuario inactivo no puede autenticarse (ni /token ni JWT ya emitidos).
 class UserBase(BaseModelORM):
     email: str

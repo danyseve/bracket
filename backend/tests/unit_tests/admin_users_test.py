@@ -27,8 +27,8 @@ from bracket.models.db.account import UserAccountType
 from bracket.models.db.user import (
     DemoUserToRegister,
     User,
-    UserActiveToUpdate,
     UserAccountTypeToUpdate,
+    UserActiveToUpdate,
     UserPublic,
     UserToCreateByAdmin,
     UserToRegister,
@@ -214,9 +214,7 @@ async def test_no_se_puede_desactivar_al_ultimo_admin(monkeypatch: pytest.Monkey
     monkeypatch.setattr(routes_users, "count_active_admins", fake_count)
 
     with pytest.raises(HTTPException) as exc:
-        await routes_users.put_user_active_admin(
-            admin.id, UserActiveToUpdate(active=False), admin
-        )
+        await routes_users.put_user_active_admin(admin.id, UserActiveToUpdate(active=False), admin)
     assert exc.value.status_code == 400
     assert "last active administrator" in str(exc.value.detail)
 
@@ -356,16 +354,16 @@ def test_ninguna_ruta_devuelve_password_hash() -> None:
     """
     schemas = app.openapi()["components"]["schemas"]
     offenders = [
-        name for name, definition in schemas.items() if "password_hash" in definition.get("properties", {})
+        name
+        for name, definition in schemas.items()
+        if "password_hash" in definition.get("properties", {})
     ]
     assert offenders == []
 
 
 # I. frontend: /create-account sin formulario
 def create_account_source() -> str:
-    path = (
-        Path(__file__).resolve().parents[3] / "frontend" / "src" / "pages" / "create_account.tsx"
-    )
+    path = Path(__file__).resolve().parents[3] / "frontend" / "src" / "pages" / "create_account.tsx"
     return path.read_text(encoding="utf8")
 
 

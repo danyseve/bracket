@@ -152,7 +152,9 @@ async def count_active_admins() -> int:
         WHERE account_type = :account_type
         AND active = true
         """
-    result = await database.fetch_one(query=query, values={"account_type": UserAccountType.ADMIN.value})
+    result = await database.fetch_one(
+        query=query, values={"account_type": UserAccountType.ADMIN.value}
+    )
     return int(result["count"]) if result is not None else 0
 
 

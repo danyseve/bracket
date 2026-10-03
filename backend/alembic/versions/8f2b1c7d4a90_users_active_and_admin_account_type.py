@@ -17,6 +17,7 @@ aplicarse antes de desplegar la imagen nueva.
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str | None = "8f2b1c7d4a90"
