@@ -306,7 +306,7 @@
     "regenerate_bracket_modal_warning": "Esto cambiará la distribución actual del cuadro.",
     "generate_bracket_current_participants": "Participantes actuales: {{count}}",
     "generate_bracket_size": "Tamaño del cuadro: {{count}}",
-    "generate_bracket_expected_byes": "Pases directos esperados: {{count}}",
+    "generate_bracket_expected_byes": "Pases directos previstos: {{count}}",
     "generate_bracket_confirm_button": "Generar cuadro",
     "generate_bracket_success_title": "Cuadro generado",
     "generate_bracket_success_participants": "{{count}} participantes",
