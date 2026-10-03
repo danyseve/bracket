@@ -37,6 +37,10 @@ jobs:
         run: pnpm i
         working-directory: frontend
 
+      - name: Run frontend unit tests
+        run: pnpm test:unit
+        working-directory: frontend
+
       - name: Run prettier, lint, jest checks
         run: pnpm test
         working-directory: frontend
