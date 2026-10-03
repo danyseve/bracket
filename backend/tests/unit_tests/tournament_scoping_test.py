@@ -60,7 +60,8 @@ class SqliteProbe:
             )
 
     def fetch_one(self, statement: object) -> SimpleNamespace | None:
-        sql = str(statement.compile(compile_kwargs={"literal_binds": True}))  # type: ignore[attr-defined]
+        compiled = statement.compile(compile_kwargs={"literal_binds": True})  # type: ignore[attr-defined]
+        sql = str(compiled)
         self.statements.append(sql)
         with self.engine.connect() as connection:
             rows = connection.execute(text(sql)).mappings().all()
