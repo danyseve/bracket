@@ -1,7 +1,11 @@
+from typing import cast
+
 from fastapi import HTTPException
 from starlette import status
 
+from bracket.logic.scheduling.seeding import order_bye_aware
 from bracket.models.db.match import Match, MatchCreateBody
+from bracket.models.db.stage_item_inputs import StageItemInput
 from bracket.models.db.tournament import Tournament
 from bracket.models.db.util import RoundWithMatches, StageItemWithRounds
 from bracket.sql.matches import sql_create_match
@@ -10,14 +14,33 @@ from bracket.sql.tournaments import sql_get_tournament
 from bracket.utils.id_types import TournamentId
 
 
+def get_first_round_inputs(stage_item: StageItemWithRounds) -> list[StageItemInput]:
+    """
+    The first-round slots of a stage item, with the byes spread over the whole round.
+
+    The rows do not come out of the database in a guaranteed order, so they are sorted by slot
+    first. After that the empty ones are distributed bye-aware: a bye is paired with a real entrant
+    instead of with another empty slot, which is what used to create ghost matches. A full, empty
+    or already distributed bracket comes back unchanged, so this is safe for existing stage items.
+    """
+    inputs: list[StageItemInput] = sorted(stage_item.inputs, key=lambda input_: input_.slot)
+    if len(inputs) != stage_item.team_count:
+        return inputs
+
+    # Every slot holds an input row (an entrant or an empty one), so no element is None here.
+    ordered = cast("list[StageItemInput | None]", order_bye_aware(inputs, stage_item.team_count))
+    return [input_ for input_ in ordered if input_ is not None]
+
+
 def determine_matches_first_round(
     round_: RoundWithMatches, stage_item: StageItemWithRounds, tournament: Tournament
 ) -> list[MatchCreateBody]:
     suggestions: list[MatchCreateBody] = []
 
-    for i in range(0, len(stage_item.inputs), 2):
-        first_input = stage_item.inputs[i + 0]
-        second_input = stage_item.inputs[i + 1]
+    inputs = get_first_round_inputs(stage_item)
+    for i in range(0, len(inputs), 2):
+        first_input = inputs[i + 0]
+        second_input = inputs[i + 1]
         suggestions.append(
             MatchCreateBody(
                 round_id=round_.id,

@@ -56,7 +56,7 @@ async def get_full_tournament_details(
         ), rounds_with_matches AS (
             SELECT DISTINCT ON (rounds.id)
                 rounds.*,
-                to_json(array_agg(m.*)) AS matches
+                to_json(array_agg(m.* ORDER BY m.id)) AS matches
             FROM rounds
             LEFT JOIN matches_with_inputs m on m.round_id = rounds.id
             LEFT JOIN stage_items si on rounds.stage_item_id = si.id
@@ -78,7 +78,7 @@ async def get_full_tournament_details(
         ), stage_items_with_inputs AS (
             SELECT DISTINCT ON (stage_items.id)
                 stage_items.id,
-                to_json(array_agg(sii)) AS inputs
+                to_json(array_agg(sii ORDER BY sii.slot)) AS inputs
             FROM stage_items
             LEFT JOIN inputs_with_teams sii ON stage_items.id = sii.stage_item_id
             WHERE sii.tournament_id = :tournament_id
