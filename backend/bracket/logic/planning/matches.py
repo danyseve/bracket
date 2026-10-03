@@ -3,13 +3,14 @@ from typing import NamedTuple
 
 from heliclockter import timedelta
 
+from bracket.logic.scheduling.structural import get_playable_match_ids
 from bracket.models.db.match import (
     MatchRescheduleBody,
     MatchWithDetails,
     MatchWithDetailsDefinitive,
 )
 from bracket.models.db.tournament import Tournament
-from bracket.models.db.util import StageWithStageItems
+from bracket.models.db.util import StageItemWithRounds, StageWithStageItems
 from bracket.sql.courts import get_all_courts_in_tournament
 from bracket.sql.matches import (
     sql_reschedule_match_and_determine_duration_and_margin,
@@ -18,6 +19,26 @@ from bracket.sql.stages import get_full_tournament_details
 from bracket.sql.tournaments import sql_get_tournament
 from bracket.utils.id_types import CourtId, MatchId, TournamentId
 from bracket.utils.types import assert_some
+
+
+def get_matches_to_schedule(
+    stage_item: StageItemWithRounds,
+) -> list[MatchWithDetailsDefinitive | MatchWithDetails]:
+    """
+    The matches of a stage item that may take a court and a start time, in play order.
+
+    A structural match is not a fight: a bye or a walkover over a dead branch can only ever hold one
+    entrant, and an empty/empty match holds none. Nobody can play them, so they never reserve a
+    court, a start time or a position in the schedule. Matches whose feeders are still undecided do
+    stay in the list, because two entrants can still show up and it is a future fight.
+    """
+    playable = get_playable_match_ids(stage_item)
+    return [
+        match
+        for round_ in sorted(stage_item.rounds, key=lambda round_: round_.id)
+        for match in round_.matches
+        if match.id in playable
+    ]
 
 
 async def schedule_all_unscheduled_matches(
@@ -42,27 +63,26 @@ async def schedule_all_unscheduled_matches(
             court = courts[min(i, len(courts) - 1)]
             start_time = stage_start_time
             position_in_schedule = stage_position_in_schedule
-            for round_ in sorted(stage_item.rounds, key=lambda r: r.id):
-                for match in round_.matches:
-                    if match.start_time is None and match.position_in_schedule is None:
-                        await sql_reschedule_match_and_determine_duration_and_margin(
-                            court.id,
-                            start_time,
-                            position_in_schedule,
-                            match,
-                            tournament,
-                        )
-
-                    start_time += timedelta(minutes=match.duration_minutes)
-                    position_in_schedule += 1
-
-                    time_last_match_from_previous_stage = max(
-                        time_last_match_from_previous_stage, start_time
+            for match in get_matches_to_schedule(stage_item):
+                if match.start_time is None and match.position_in_schedule is None:
+                    await sql_reschedule_match_and_determine_duration_and_margin(
+                        court.id,
+                        start_time,
+                        position_in_schedule,
+                        match,
+                        tournament,
                     )
 
-                    position_last_match_from_previous_stage = max(
-                        position_last_match_from_previous_stage, position_in_schedule
-                    )
+                start_time += timedelta(minutes=match.duration_minutes)
+                position_in_schedule += 1
+
+                time_last_match_from_previous_stage = max(
+                    time_last_match_from_previous_stage, start_time
+                )
+
+                position_last_match_from_previous_stage = max(
+                    position_last_match_from_previous_stage, position_in_schedule
+                )
 
     await update_start_times_of_matches(tournament_id)
 
