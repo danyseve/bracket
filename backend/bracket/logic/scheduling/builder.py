@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 
 from bracket.logic.ranking.calculation import recalculate_ranking_for_stage_item
+from bracket.logic.ranking.elimination import update_inputs_in_complete_elimination_stage_item
 from bracket.logic.scheduling.elimination import (
     build_single_elimination_stage_item,
     get_number_of_rounds_to_create_single_elimination,
@@ -68,6 +69,14 @@ async def build_matches_for_stage_item(stage_item: StageItem, tournament_id: Tou
             )
 
     await recalculate_ranking_for_stage_item(tournament_id, stage_item_with_rounds)
+
+    if stage_item.type == StageType.SINGLE_ELIMINATION:
+        # A match that can only ever hold one entrant (a bye, or a walkover over a dead
+        # branch) is not a fight. Resolve that structural advancement right away, so that
+        # it never depends on someone entering a fictitious result by hand.
+        await update_inputs_in_complete_elimination_stage_item(
+            await get_stage_item(tournament_id, stage_item.id)
+        )
 
 
 def determine_available_inputs(
