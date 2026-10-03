@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Enable Corepack (pnpm 9.15.9: version fijada por la receta de build)
+      - name: Enable Corepack (pnpm 9.15.9, version fijada por la receta de build)
         run: |
           corepack enable
           corepack prepare pnpm@9.15.9 --activate
