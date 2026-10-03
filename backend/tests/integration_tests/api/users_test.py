@@ -29,6 +29,7 @@ async def test_users_endpoint(
             "id": auth_context.user.id,
             "name": "Donald Duck",
             "account_type": UserAccountType.REGULAR.value,
+            "active": True,
         },
     }
 
