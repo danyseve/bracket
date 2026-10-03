@@ -25,6 +25,7 @@ from bracket import config as config_module
 from bracket.app import app
 from bracket.models.db.account import UserAccountType
 from bracket.models.db.user import (
+    DemoUserToRegister,
     User,
     UserActiveToUpdate,
     UserAccountTypeToUpdate,
@@ -85,9 +86,12 @@ def make_user_in_db(
 def route_dependency_names(path: str, method: str) -> set[str]:
     for route in app.routes:
         if getattr(route, "path", None) == path and method in getattr(route, "methods", set()):
+            dependant = getattr(route, "dependant", None)
+            if dependant is None:
+                continue
             return {
                 dependency.call.__name__
-                for dependency in route.dependant.dependencies
+                for dependency in dependant.dependencies
                 if dependency.call is not None
             }
     raise AssertionError(f"ruta no encontrada: {method} {path}")
@@ -113,7 +117,7 @@ async def test_signup_demo_cerrado(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(routes_users, "config", closed_config)
 
     with pytest.raises(HTTPException) as exc:
-        await routes_users.register_demo_user(routes_users.DemoUserToRegister(captcha_token="x"))
+        await routes_users.register_demo_user(DemoUserToRegister(captcha_token="x"))
 
     assert exc.value.status_code == 401
 
