@@ -112,3 +112,14 @@ class StageItemInputOptionsResponse(
 
 class StageRankingResponse(DataResponse[dict[StageItemId, list[StageItemInputUpdate]]]):
     pass
+
+
+class GenerateBracketResponse(BaseModel):
+    """Result of explicitly generating the bracket of a single elimination stage item."""
+
+    stage_item_id: StageItemId
+    entrant_count: int
+    bracket_size: int
+    bye_count: int
+    ghost_count: int
+    changed: bool

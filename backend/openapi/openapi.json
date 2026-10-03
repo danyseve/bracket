@@ -348,6 +348,45 @@
         "title": "FullTeamWithPlayers",
         "type": "object"
       },
+      "GenerateBracketResponse": {
+        "description": "Result of explicitly generating the bracket of a single elimination stage item.",
+        "properties": {
+          "bracket_size": {
+            "title": "Bracket Size",
+            "type": "integer"
+          },
+          "bye_count": {
+            "title": "Bye Count",
+            "type": "integer"
+          },
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "entrant_count": {
+            "title": "Entrant Count",
+            "type": "integer"
+          },
+          "ghost_count": {
+            "title": "Ghost Count",
+            "type": "integer"
+          },
+          "stage_item_id": {
+            "title": "Stage Item Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stage_item_id",
+          "entrant_count",
+          "bracket_size",
+          "bye_count",
+          "ghost_count",
+          "changed"
+        ],
+        "title": "GenerateBracketResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5211,6 +5250,63 @@
           }
         ],
         "summary": "Update Stage Item",
+        "tags": [
+          "Stage Items"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/stage_items/{stage_item_id}/generate_bracket": {
+      "post": {
+        "description": "Distribute the entrants of a single elimination stage item over its slots, bye aware.\n\nThe bracket size of the stage item is kept: it is the smallest power of two that holds the\nentrants. Assigning, removing or editing a team never generates the bracket on its own, this\naction is always explicit, and it is refused as soon as the current layout has scores, a\nwinner or planning attached to it.",
+        "operationId": "generate_bracket_tournaments__tournament_id__stage_items__stage_item_id__generate_bracket_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "stage_item_id",
+            "required": true,
+            "schema": {
+              "title": "Stage Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateBracketResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Generate Bracket",
         "tags": [
           "Stage Items"
         ]

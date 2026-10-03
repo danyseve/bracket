@@ -18,6 +18,9 @@ from bracket.logic.ranking.elimination import (
 from bracket.logic.scheduling.builder import (
     build_matches_for_stage_item,
 )
+from bracket.logic.scheduling.generation import (
+    generate_bracket_for_stage_item,
+)
 from bracket.logic.scheduling.upcoming_matches import get_upcoming_matches_for_swiss
 from bracket.logic.subscriptions import check_requirement
 from bracket.models.db.match import MatchCreateBody, MatchFilter, SuggestedMatch
@@ -34,7 +37,7 @@ from bracket.models.db.util import StageItemWithRounds
 from bracket.routes.auth import (
     user_authenticated_for_tournament,
 )
-from bracket.routes.models import SuccessResponse
+from bracket.routes.models import GenerateBracketResponse, SuccessResponse
 from bracket.routes.util import disallow_archived_tournament, stage_item_dependency
 from bracket.sql.courts import get_all_courts_in_tournament
 from bracket.sql.matches import (
@@ -236,3 +239,33 @@ async def start_next_round(
     await set_round_active_or_draft(draft_round.id, tournament_id, is_draft=False)
     await handle_conflicts(await get_full_tournament_details(tournament_id))
     return SuccessResponse()
+
+
+@router.post(
+    "/tournaments/{tournament_id}/stage_items/{stage_item_id}/generate_bracket",
+    response_model=GenerateBracketResponse,
+)
+async def generate_bracket(
+    tournament_id: TournamentId,
+    stage_item_id: StageItemId,
+    _: UserPublic = Depends(user_authenticated_for_tournament),
+    __: Tournament = Depends(disallow_archived_tournament),
+    stage_item: StageItemWithRounds = Depends(stage_item_dependency),
+) -> GenerateBracketResponse:
+    """
+    Distribute the entrants of a single elimination stage item over its slots, bye aware.
+
+    The bracket size of the stage item is kept: it is the smallest power of two that holds the
+    entrants. Assigning, removing or editing a team never generates the bracket on its own, this
+    action is always explicit, and it is refused as soon as the current layout has scores, a
+    winner or planning attached to it.
+    """
+    plan = await generate_bracket_for_stage_item(tournament_id, stage_item)
+    return GenerateBracketResponse(
+        stage_item_id=stage_item_id,
+        entrant_count=plan.entrant_count,
+        bracket_size=plan.bracket_size,
+        bye_count=plan.bye_count,
+        ghost_count=plan.ghost_count,
+        changed=plan.changed,
+    )
