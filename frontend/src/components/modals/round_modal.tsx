@@ -7,6 +7,7 @@ import { LuConstruction } from 'react-icons/lu';
 import { SWRResponse } from 'swr';
 
 import DeleteButton from '@components/buttons/delete';
+import { getRoundDisplayName } from '@components/utils/round';
 import { TournamentMinimal } from '@components/utils/tournament';
 import { RoundWithMatches, StagesWithStageItemsResponse } from '@openapi';
 import { deleteRound, updateRound } from '@services/round';
@@ -107,7 +108,7 @@ export default function RoundModal({
       </Modal>
 
       <UnstyledButton onClick={() => setOpened(true)}>
-        <Title order={3}>{round.name}</Title>
+        <Title order={3}>{getRoundDisplayName(round, swrStagesResponse, t)}</Title>
       </UnstyledButton>
       <ActionIcon
         variant="subtle"

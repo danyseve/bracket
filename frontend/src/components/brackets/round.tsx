@@ -1,9 +1,11 @@
 import { Center, Grid, Title } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import { SWRResponse } from 'swr';
 
 import RoundModal from '@components/modals/round_modal';
 import { BracketDisplaySettings } from '@components/utils/brackets';
 import { isMatchHappening, isMatchInTheFutureOrPresent } from '@components/utils/match';
+import { getRoundDisplayName } from '@components/utils/round';
 import { TournamentMinimal } from '@components/utils/tournament';
 import { MatchWithDetails, RoundWithMatches, StagesWithStageItemsResponse } from '@openapi';
 import Match from './match';
@@ -23,6 +25,8 @@ export default function RoundComponent({
   readOnly: boolean;
   displaySettings: BracketDisplaySettings;
 }) {
+  const { t } = useTranslation();
+
   const matches = round.matches
     .sort((m1, m2) =>
       (m1.court ? m1.court.name : 'y') > (m2.court ? m2.court.name : 'z') ? 1 : -1
@@ -55,7 +59,7 @@ export default function RoundComponent({
       };
 
   const modal = readOnly ? (
-    <Title order={3}>{round.name}</Title>
+    <Title order={3}>{getRoundDisplayName(round, swrStagesResponse, t)}</Title>
   ) : (
     <RoundModal
       tournamentData={tournamentData}
