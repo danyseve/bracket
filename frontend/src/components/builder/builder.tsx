@@ -24,6 +24,7 @@ import { SWRResponse } from 'swr';
 
 import CreateStageButton from '@components/buttons/create_stage';
 import { CreateStageItemModal } from '@components/modals/create_stage_item';
+import GenerateBracketModal from '@components/modals/generate_bracket_modal';
 import { UpdateStageModal } from '@components/modals/update_stage';
 import { UpdateStageItemModal } from '@components/modals/update_stage_item';
 import { assert_not_none } from '@components/utils/assert';
@@ -298,6 +299,15 @@ function StageItemRow({
             rankings={rankings}
           />
           <Group gap="0rem">
+            {stageItem.type === 'SINGLE_ELIMINATION' ? (
+              <GenerateBracketModal
+                tournament={tournament}
+                stageItem={stageItem}
+                swrStagesResponse={swrStagesResponse}
+                swrAvailableInputsResponse={swrAvailableInputsResponse}
+                swrRankingsPerStageItemResponse={swrRankingsPerStageItemResponse}
+              />
+            ) : null}
             {stageItem.type === 'SWISS' ? (
               <Tooltip label={t('handle_swiss_system')}>
                 <ActionIcon

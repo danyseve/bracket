@@ -1,3 +1,7 @@
+import { AxiosError } from 'axios';
+
+import { buildGenerateBracketUrl } from '@components/utils/generate_bracket';
+
 import { createAxios, handleRequestError } from './adapter';
 
 export async function createStageItem(
@@ -26,4 +30,10 @@ export async function deleteStageItem(tournament_id: number, stage_item_id: numb
   return createAxios()
     .delete(`tournaments/${tournament_id}/stage_items/${stage_item_id}`)
     .catch((response: any) => handleRequestError(response));
+}
+
+export async function generateBracket(tournament_id: number, stage_item_id: number) {
+  return createAxios()
+    .post(buildGenerateBracketUrl(tournament_id, stage_item_id))
+    .catch((error: AxiosError<{ detail?: string }>) => error);
 }
