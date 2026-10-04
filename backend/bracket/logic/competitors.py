@@ -13,6 +13,9 @@ Reglas del contrato (docs/21 v3, S2):
 * El actor debe tener acceso al tenant (``users_x_clubs``). Si no lo tiene se
   levanta :class:`TenantNotAuthorizedError` sin distinguir entre "tenant
   inexistente" y "tenant no autorizado": asi no se filtra su existencia.
+* Politica de permisos (S2): OWNER y COLLABORATOR pueden dar de alta y editar datos
+  basicos; la **baja logica** exige OWNER (:class:`InsufficientPrivilegesError`).
+  No se modifica ningun permiso *legacy*: la politica vive solo en esta capa.
 * Sin deduplicacion automatica: dos altas con el mismo nombre son dos identidades.
 * Cada escritura confirmada deja un evento en ``domain_change_log`` con entidad,
   accion, actor, motivo y **nombres de campo** (jamas valores: sin PII en auditoria).
@@ -40,6 +43,7 @@ from __future__ import annotations
 
 from bracket.database import database
 from bracket.models.db.domain import ActorContext, Competitor, CompetitorBasicDataUpdate
+from bracket.models.db.user_x_club import UserXClubRelation
 from bracket.sql.domain_reads import get_competitor
 from bracket.sql.domain_writes import (
     sql_close_open_competitor_name_history,
@@ -49,7 +53,7 @@ from bracket.sql.domain_writes import (
     sql_insert_domain_change_log,
     sql_update_competitor_display_name,
 )
-from bracket.sql.users import get_user_access_to_club
+from bracket.sql.users import get_user_relation_to_club
 from bracket.utils.id_types import CompetitorId
 
 MAX_DISPLAY_NAME_LENGTH = 200
@@ -80,6 +84,14 @@ class InvalidCompetitorDataError(CompetitorDomainError):
     """Datos de entrada invalidos (nombre vacio, demasiado largo o con caracteres de control)."""
 
 
+class InsufficientPrivilegesError(CompetitorDomainError):
+    """El actor tiene acceso al tenant, pero su relacion no permite esta operacion.
+
+    Politica S2: OWNER y COLLABORATOR pueden dar de alta y editar datos basicos;
+    la baja logica (operacion historicamente sensible) exige OWNER.
+    """
+
+
 def _normalize_display_name(display_name: object) -> str:
     if not isinstance(display_name, str):
         raise InvalidCompetitorDataError("display_name debe ser texto")
@@ -104,14 +116,18 @@ def _normalize_reason(reason: object, action: str) -> str:
     return normalized
 
 
-async def _authorize(context: ActorContext) -> None:
-    """Comprueba el acceso del actor al tenant.
+async def _authorize(context: ActorContext, *, require_owner: bool = False) -> None:
+    """Comprueba el acceso del actor al tenant y, si procede, que sea OWNER.
 
     No distingue "tenant inexistente" de "tenant no autorizado": no se filtra la
-    existencia del tenant.
+    existencia del tenant. Tampoco distingue COLLABORATOR de "sin permiso" en el
+    mensaje de `InsufficientPrivilegesError`.
     """
-    if not await get_user_access_to_club(context.tenant_club_id, context.actor_user_id):
+    relation = await get_user_relation_to_club(context.tenant_club_id, context.actor_user_id)
+    if relation is None:
         raise TenantNotAuthorizedError("el actor no tiene acceso a este tenant")
+    if require_owner and relation is not UserXClubRelation.OWNER:
+        raise InsufficientPrivilegesError("esta operacion exige relacion OWNER con el tenant")
 
 
 async def create_competitor(
@@ -197,11 +213,14 @@ async def update_competitor_display_name(
 async def deactivate_competitor(
     context: ActorContext, competitor_id: CompetitorId, *, reason: str | None = None
 ) -> Competitor:
-    """Baja logica (``active = false``). Idempotente: una segunda baja no audita de nuevo."""
+    """Baja logica (``active = false``). Idempotente: una segunda baja no audita de nuevo.
+
+    Operacion historicamente sensible: exige relacion OWNER con el tenant.
+    """
     normalized_reason = _normalize_reason(reason, "DEACTIVATE")
 
     async with database.transaction():
-        await _authorize(context)
+        await _authorize(context, require_owner=True)
         current = await get_competitor(competitor_id, tenant_club_id=context.tenant_club_id)
         if current is None:
             raise CompetitorNotFoundError("competidor no encontrado")

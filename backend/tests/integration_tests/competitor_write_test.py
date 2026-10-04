@@ -36,6 +36,7 @@ from pydantic import ValidationError
 from bracket.database import database
 from bracket.logic.competitors import (
     CompetitorNotFoundError,
+    InsufficientPrivilegesError,
     InvalidCompetitorDataError,
     TenantNotAuthorizedError,
     create_competitor,
@@ -103,14 +104,18 @@ async def _cleanup_competitors_and_audit(tenant_ids: list[int]) -> None:
     await database.execute(query=_DELETE_COMPETITORS_FOR_TENANTS, values={"tenant_ids": tenant_ids})
 
 
+# Los 9 campos son el escenario S2 completo (dos tenants, tres actores y sus contextos);
+# agruparlos obligaria a reescribir los tests y empeoraria la legibilidad del fixture.
 @dataclass
-class WriteData:
+class WriteData:  # pylint: disable=too-many-instance-attributes
     tenant_a: Club
     tenant_b: Club
     actor: UserInDB
+    collaborator: UserInDB
     outsider: UserInDB
     competitor_b: Competitor
     context_a: ActorContext
+    context_collaborator: ActorContext
     context_outsider: ActorContext
 
 
@@ -124,11 +129,21 @@ async def write_data(reinit_database: Database) -> AsyncIterator[WriteData]:
             inserted_club(ClubInsertable(name="Tenant B", created=DUMMY_CLUB.created))
         )
         actor = await stack.enter_async_context(inserted_user(get_mock_user()))
+        collaborator = await stack.enter_async_context(inserted_user(get_mock_user()))
         outsider = await stack.enter_async_context(inserted_user(get_mock_user()))
         await stack.enter_async_context(
             inserted_user_x_club(
                 UserXClubInsertable(
                     user_id=actor.id, club_id=tenant_a.id, relation=UserXClubRelation.OWNER
+                )
+            )
+        )
+        await stack.enter_async_context(
+            inserted_user_x_club(
+                UserXClubInsertable(
+                    user_id=collaborator.id,
+                    club_id=tenant_a.id,
+                    relation=UserXClubRelation.COLLABORATOR,
                 )
             )
         )
@@ -140,9 +155,13 @@ async def write_data(reinit_database: Database) -> AsyncIterator[WriteData]:
             tenant_a=tenant_a,
             tenant_b=tenant_b,
             actor=actor,
+            collaborator=collaborator,
             outsider=outsider,
             competitor_b=competitor_b,
             context_a=ActorContext(tenant_club_id=tenant_a.id, actor_user_id=actor.id),
+            context_collaborator=ActorContext(
+                tenant_club_id=tenant_a.id, actor_user_id=collaborator.id
+            ),
             context_outsider=ActorContext(tenant_club_id=tenant_a.id, actor_user_id=outsider.id),
         )
 
@@ -443,6 +462,30 @@ async def test_deactivate_rejects_a_competitor_of_another_tenant(write_data: Wri
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_collaborator_can_create_and_rename_but_not_deactivate(
+    write_data: WriteData,
+) -> None:
+    """Politica: OWNER/COLLABORATOR para alta y edicion; solo OWNER para la baja logica."""
+    collaborator = write_data.context_collaborator
+
+    competitor = await create_competitor(collaborator, display_name="Persona Colaboradora")
+    assert competitor.managed_by_club_id == write_data.tenant_a.id
+
+    renamed = await update_competitor_display_name(
+        collaborator, competitor.id, CompetitorBasicDataUpdate(display_name="Persona Renombrada")
+    )
+    assert renamed.display_name == "Persona Renombrada"
+
+    with pytest.raises(InsufficientPrivilegesError):
+        await deactivate_competitor(collaborator, competitor.id, reason="baja por colaborador")
+
+    fresh = await get_competitor(competitor.id, tenant_club_id=write_data.tenant_a.id)
+    assert fresh is not None and fresh.active is True, "el colaborador no desactiva"
+    events = await _audit_events(competitor.id)
+    assert [event["action"] for event in events] == ["CREATE", "UPDATE"], "sin evento de baja"
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_deactivate_on_unknown_competitor_fails(write_data: WriteData) -> None:
     with pytest.raises(CompetitorNotFoundError):
         await deactivate_competitor(write_data.context_a, CompetitorId(999_999))
@@ -492,9 +535,14 @@ async def test_no_pii_in_logs_errors_or_audit(
         competitor = await create_competitor(
             write_data.context_a, display_name=sensitive_name, reason="motivo sin datos"
         )
+        with pytest.raises(InsufficientPrivilegesError) as privileges_exc:
+            await deactivate_competitor(
+                write_data.context_collaborator, competitor.id, reason="motivo sin datos"
+            )
         await deactivate_competitor(write_data.context_a, competitor.id)
 
     assert sensitive_name not in str(exc_info.value), "la excepcion no repite el nombre"
+    assert sensitive_name not in str(privileges_exc.value), "el error de permisos tampoco"
 
     module_leaks = [
         record.name

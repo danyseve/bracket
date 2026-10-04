@@ -2,6 +2,7 @@ from bracket.database import database
 from bracket.logic.tournaments import sql_delete_tournament_completely
 from bracket.models.db.account import UserAccountType
 from bracket.models.db.user import User, UserInDB, UserInsertable, UserPublic, UserToUpdate
+from bracket.models.db.user_x_club import UserXClubRelation
 from bracket.schema import users
 from bracket.sql.clubs import get_clubs_for_user_id, sql_delete_club
 from bracket.sql.tournaments import sql_get_tournaments
@@ -33,6 +34,21 @@ async def get_which_clubs_has_user_access_to(user_id: UserId) -> set[ClubId]:
 
 async def get_user_access_to_club(club_id: ClubId, user_id: UserId) -> bool:
     return club_id in await get_which_clubs_has_user_access_to(user_id)
+
+
+async def get_user_relation_to_club(club_id: ClubId, user_id: UserId) -> UserXClubRelation | None:
+    """Relacion del usuario con el club en `users_x_clubs`, o None si no tiene ninguna.
+
+    Distingue OWNER de COLLABORATOR, a diferencia de `get_user_access_to_club`, que
+    solo responde si hay acceso. No filtra la existencia del club ni del usuario.
+    """
+    query = """
+        SELECT relation
+        FROM users_x_clubs
+        WHERE user_id = :user_id AND club_id = :club_id
+        """
+    record = await database.fetch_one(query=query, values={"user_id": user_id, "club_id": club_id})
+    return None if record is None else UserXClubRelation(record["relation"])
 
 
 async def update_user(user_id: UserId, user: UserToUpdate) -> None:
