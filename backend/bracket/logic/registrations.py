@@ -546,10 +546,22 @@ async def _assert_represented_academy_active(registration: TournamentRegistratio
     (una academia con inscripciones no se borra), asi que desactivarla es la unica
     forma de dejar de ser representable. El error no distingue "no existe" de "no esta
     activa", y el borrador no se pierde: sigue editable.
+
+    La lectura toma ``FOR SHARE`` (RS-10) para que la elegibilidad de la academia quede
+    serializada con su desactivacion dentro de la transaccion de confirmacion: quien da de
+    baja la academia espera a que la confirmacion termine, y si la baja gana la carrera,
+    esta comprobacion ya no ve la fila. Es el **segundo** eslabon del orden de bloqueo:
+    se adquiere despues del competidor (RS-9) y antes de modificar la inscripcion, y ese
+    orden —competidor, academia, inscripcion— es el que deben respetar las operaciones
+    futuras que necesiten los dos recursos. Una participacion independiente
+    (``sports_club_id`` nulo) no bloquea ninguna academia porque no depende de ninguna.
     """
     if registration.sports_club_id is None:
         return
-    if await registration_writes.sql_selectable_sports_club(registration.sports_club_id) is None:
+    selectable = await registration_writes.sql_selectable_sports_club(
+        registration.sports_club_id, for_share=True
+    )
+    if selectable is None:
         raise SportsClubNotSelectableError(
             "la academia representada dejo de estar activa: el borrador sigue editable"
         )

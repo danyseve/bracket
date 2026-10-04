@@ -260,18 +260,31 @@ async def sql_tournament_is_in_tenant(
     )
 
 
-async def sql_selectable_sports_club(sports_club_id: SportsClubId) -> SportsClub | None:
+async def sql_selectable_sports_club(
+    sports_club_id: SportsClubId, *, for_share: bool = False
+) -> SportsClub | None:
     """Academia representable: existe y esta activa.
 
     **No se filtra por tenant a proposito**: una inscripcion puede representar a una
     academia de otro tenant o de plataforma (``docs/21`` v3 §6.2/§12.4), y de la
     academia solo se lee el nombre para el snapshot. ``None`` unifica "no existe" y
     "no esta activa": el error de dominio no revela cual de las dos cosas pasa.
+
+    ``for_share`` añade ``FOR SHARE`` (RS-10): es el bloqueo que toma la confirmacion para
+    que la elegibilidad de la academia quede serializada con su desactivacion **dentro de
+    su transaccion**. La baja (``UPDATE sports_clubs SET active = false``) toma
+    ``FOR NO KEY UPDATE``, que si conflictua con ``FOR SHARE``; cuando el ``FOR SHARE``
+    espera a que la baja comitee, PostgreSQL reevalua la condicion sobre la version
+    actualizada y la fila deja de aparecer (cero filas, sin ventana). ``FOR KEY SHARE`` no
+    serviria: es compatible con ``FOR NO KEY UPDATE``. El alta y la edicion de borrador no
+    bloquean: solo comprueban, y un borrador que represente una academia dada de baja sigue
+    siendo editable (aunque no confirmable) hasta que la academia se reactive.
     """
+    lock = " FOR SHARE" if for_share else ""
     query = f"""
         SELECT {_SPORTS_CLUB_COLUMNS}
         FROM sports_clubs
-        WHERE id = :sports_club_id AND active IS TRUE
+        WHERE id = :sports_club_id AND active IS TRUE{lock}
         """
     result = await database.fetch_one(query=query, values={"sports_club_id": sports_club_id})
     return None if result is None else SportsClub.model_validate(dict(result._mapping))
