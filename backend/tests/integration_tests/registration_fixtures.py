@@ -12,6 +12,7 @@ academias -> torneos -> clubes.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
@@ -433,3 +434,72 @@ async def fetch_all_audit_rows_as_text() -> list[str]:
     """
     records = await database.fetch_all(query=SELECT_ALL_AUDIT)
     return [str(dict(record._mapping)) for record in records]
+
+
+# --- S2-bis: auditoria de competidor y sondas de concurrencia compartidas -----------------------
+
+
+SELECT_COMPETITOR_AUDIT = """
+    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason
+    FROM domain_change_log
+    WHERE entity = 'competitor' AND entity_id = :competitor_id
+    ORDER BY id
+"""
+
+# Evidencia de espera: al menos `expected` backends detenidos por un bloqueo en esa sentencia.
+SELECT_WAITING_BACKENDS = """
+    SELECT count(*) >= :expected FROM pg_stat_activity
+    WHERE datname = current_database()
+        AND wait_event_type = 'Lock'
+        AND query LIKE :pattern
+"""
+
+# Evidencia de conflicto de fila: los bloqueos de fila solo aparecen en `pg_locks` mientras
+# hay contencion (el que espera y el que ya lo tiene), asi que su existencia es la senal.
+SELECT_TUPLE_CONTENTION = """
+    SELECT count(*) FROM pg_locks
+    WHERE locktype = 'tuple' AND relation = to_regclass(:relation)
+"""
+
+WAITING_TIMEOUT_SECONDS = 5.0
+POLL_INTERVAL_SECONDS = 0.01
+
+
+async def competitor_audit_rows(competitor_id: CompetitorId) -> list[dict[str, object]]:
+    """Eventos de auditoria de una identidad, en orden de insercion."""
+    records = await database.fetch_all(
+        query=SELECT_COMPETITOR_AUDIT, values={"competitor_id": competitor_id}
+    )
+    return [dict(record._mapping) for record in records]
+
+
+async def wait_until_true(query: str, values: dict[str, object], *, message: str) -> None:
+    """Espera acotada a que la consulta devuelva cierto; si no, falla con ese mensaje.
+
+    El limite no es el mecanismo de sincronizacion (para eso estan los eventos): es la red
+    que convierte "nunca llego a bloquearse" en un fallo explicito en vez de un cuelgue.
+    """
+    deadline = asyncio.get_running_loop().time() + WAITING_TIMEOUT_SECONDS
+    while asyncio.get_running_loop().time() < deadline:
+        if await database.fetch_val(query=query, values=values):
+            return
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+    raise AssertionError(message)
+
+
+async def wait_for_waiting_backends(pattern: str, *, expected: int = 1) -> None:
+    """Espera a que al menos ``expected`` backends esperen un bloqueo en esa sentencia."""
+    await wait_until_true(
+        SELECT_WAITING_BACKENDS,
+        {"pattern": pattern, "expected": expected},
+        message=f"menos de {expected} backend(s) esperaban un bloqueo con la sentencia {pattern!r}",
+    )
+
+
+async def wait_for_tuple_contention(relation: str) -> None:
+    """Espera a que haya contencion de bloqueo de fila (row lock) en esa tabla."""
+    await wait_until_true(
+        SELECT_TUPLE_CONTENTION,
+        {"relation": relation},
+        message=f"no aparecio contencion de bloqueo de fila en {relation!r}",
+    )
