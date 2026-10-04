@@ -1,10 +1,12 @@
 """Logica de dominio de competidores (S2 de F3B): identidad administrada por tenant.
 
-Tres operaciones internas, **sin HTTP todavia**:
+Cuatro operaciones internas, **sin HTTP todavia**:
 
 * :func:`create_competitor` — alta de identidad (puede existir sin academia);
 * :func:`update_competitor_display_name` — cambio controlado de datos basicos;
-* :func:`deactivate_competitor` — baja logica (``competitors.active = false``).
+* :func:`deactivate_competitor` — baja logica (``competitors.active = false``);
+* :func:`activate_competitor` — reactivacion de una identidad dada de baja
+  (``competitors.active = true``). La baja logica **no** es irreversible.
 
 Reglas del contrato (docs/21 v3, S2):
 
@@ -14,8 +16,9 @@ Reglas del contrato (docs/21 v3, S2):
   levanta :class:`TenantNotAuthorizedError` sin distinguir entre "tenant
   inexistente" y "tenant no autorizado": asi no se filtra su existencia.
 * Politica de permisos (S2): OWNER y COLLABORATOR pueden dar de alta y editar datos
-  basicos; la **baja logica** exige OWNER (:class:`InsufficientPrivilegesError`).
-  No se modifica ningun permiso *legacy*: la politica vive solo en esta capa.
+  basicos; la **baja logica** y su **reactivacion** exigen OWNER
+  (:class:`InsufficientPrivilegesError`). No se modifica ningun permiso *legacy*: la
+  politica vive solo en esta capa.
 * Sin deduplicacion automatica: dos altas con el mismo nombre son dos identidades.
 * Cada escritura confirmada deja un evento en ``domain_change_log`` con entidad,
   accion, actor, motivo y **nombres de campo** (jamas valores: sin PII en auditoria).
@@ -23,8 +26,13 @@ Reglas del contrato (docs/21 v3, S2):
   juntos: una unica transaccion por operacion.
 * Sin logs: ni los errores ni el modulo registran nombres ni identificadores.
   ``reason`` es texto libre del llamador y no debe llevar datos personales.
-* Idempotencia: si una operacion no cambia nada (mismo nombre, baja ya aplicada) no
-  se escribe historial ni auditoria.
+* Idempotencia: si una operacion no cambia nada (mismo nombre, baja ya aplicada,
+  reactivacion ya aplicada) no se escribe historial ni auditoria.
+* Baja y reactivacion escriben la **misma** columna (``active``) sobre la **misma**
+  fila filtrada por tenant: toman por tanto el mismo bloqueo de fila y compiten en el
+  mismo orden (competidor -> inscripcion) con el ``FOR SHARE`` de la confirmacion de
+  la inscripcion (RS-9). Ninguna de las dos toca ``tournament_registrations``,
+  snapshots ni inscripciones historicas: no introducen un bloqueo nuevo ni un ciclo.
 
 LIMITACIONES DE AUTORIZACION PENDIENTES (documentadas, no resueltas aqui):
 
@@ -46,6 +54,7 @@ from bracket.models.db.domain import ActorContext, Competitor, CompetitorBasicDa
 from bracket.models.db.user_x_club import UserXClubRelation
 from bracket.sql.domain_reads import get_competitor
 from bracket.sql.domain_writes import (
+    sql_activate_competitor,
     sql_close_open_competitor_name_history,
     sql_deactivate_competitor,
     sql_insert_competitor,
@@ -65,6 +74,7 @@ _DEFAULT_REASONS: dict[str, str] = {
     "CREATE": "alta de competidor",
     "UPDATE": "actualizacion de datos basicos",
     "DEACTIVATE": "baja logica de competidor",
+    "ACTIVATE": "reactivacion de competidor",
 }
 
 
@@ -88,7 +98,8 @@ class InsufficientPrivilegesError(CompetitorDomainError):
     """El actor tiene acceso al tenant, pero su relacion no permite esta operacion.
 
     Politica S2: OWNER y COLLABORATOR pueden dar de alta y editar datos basicos;
-    la baja logica (operacion historicamente sensible) exige OWNER.
+    la baja logica y su reactivacion (operaciones historicamente sensibles) exigen
+    OWNER.
     """
 
 
@@ -244,3 +255,52 @@ async def deactivate_competitor(
         )
 
     return deactivated
+
+
+async def activate_competitor(
+    context: ActorContext, competitor_id: CompetitorId, *, reason: str | None = None
+) -> Competitor:
+    """Reactivacion (``active = true``). Idempotente: si ya estaba activo no audita de nuevo.
+
+    Operacion simetrica de la baja logica y del mismo calibre: exige relacion OWNER.
+
+    Concurrencia (RS-9): la sentencia solo cambia la columna ``active`` de la fila del
+    competidor del tenant, asi que toma el mismo bloqueo de fila que la baja y compite en
+    el mismo orden con el ``FOR SHARE`` de la confirmacion. El estado se lee dentro de la
+    transaccion, pero la proteccion no es esa lectura previa: la sentencia vuelve a filtrar
+    por ``active IS FALSE``. Si otra reactivacion gano la carrera, la sentencia no escribe
+    nada y la operacion se limita a devolver el estado ya reactivado, sin duplicar auditoria.
+    """
+    normalized_reason = _normalize_reason(reason, "ACTIVATE")
+
+    async with database.transaction():
+        await _authorize(context, require_owner=True)
+        current = await get_competitor(competitor_id, tenant_club_id=context.tenant_club_id)
+        if current is None:
+            raise CompetitorNotFoundError("competidor no encontrado")
+        if current.active:
+            return current
+
+        activated = await sql_activate_competitor(
+            competitor_id=competitor_id, tenant_club_id=context.tenant_club_id
+        )
+        if activated is None:
+            # Carrera: otra reactivacion aplico el cambio entre la lectura y la sentencia.
+            # Se relee sin escribir auditoria; si ya esta activa, el resultado efectivo es
+            # el mismo y no se duplica el evento.
+            after = await get_competitor(competitor_id, tenant_club_id=context.tenant_club_id)
+            if after is None or not after.active:
+                raise CompetitorNotFoundError("competidor no encontrado")
+            return after
+
+        await sql_insert_domain_change_log(
+            entity=_COMPETITOR_ENTITY,
+            entity_id=competitor_id,
+            action="ACTIVATE",
+            changed_fields=["active"],
+            actor_user_id=context.actor_user_id,
+            actor_label=context.actor_label,
+            reason=normalized_reason,
+        )
+
+    return activated

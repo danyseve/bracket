@@ -13,9 +13,11 @@ Que se demuestra aqui, y con que evidencia (sin *sleeps* como mecanismo):
 * **La reactivacion espera a un lector con ``FOR SHARE``** sobre la fila del competidor, que
   es exactamente el bloqueo que toma la confirmacion de una inscripcion (RS-9). Es decir, RS-9
   sigue vigente con la operacion nueva sin tocarla.
-* **La confirmacion espera a una reactivacion en vuelo**: con la reactivacion detenida dentro
-  de su transaccion (ya con la fila bloqueada, esperando para insertar su auditoria), la
-  confirmacion se queda en su ``FOR SHARE`` y, al commitear la reactivacion, confirma.
+* **La reactivacion en vuelo no es visible**: con la reactivacion detenida dentro de su
+  transaccion (fila bloqueada, auditoria pendiente), la confirmacion no ve el cambio sin
+  commitear y **no** se bloquea: rechaza el borrador (reintentable) sin confirmacion parcial,
+  porque la fila visible no cumple el filtro ``active IS TRUE``. La direccion peligrosa —una
+  baja en vuelo con la fila visible activa— es la que RS-9 serializa, y tiene sus pruebas.
 * **Ningun ciclo de bloqueo**: la reactivacion **no** toma bloqueo sobre ninguna fila de
   ``tournament_registrations``; completa mientras otra transaccion tiene bloqueada la fila de
   la inscripcion. Con el orden competidor -> inscripcion ya fijado por RS-9, la reactivacion
@@ -185,10 +187,18 @@ async def test_reactivation_waits_for_a_share_lock_on_the_competitor_row(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_a_confirmation_waits_for_a_reactivation_in_flight(
+async def test_a_confirmation_never_sees_an_uncommitted_reactivation(
     registration_data: RegistrationData,
 ) -> None:
-    """Con la reactivacion en vuelo (fila bloqueada, auditoria pendiente), confirmar espera."""
+    """Una reactivacion en vuelo no es visible: la confirmacion rechaza (reintentable), no confirma.
+
+    La fila visible del competidor no cumple el filtro ``active IS TRUE`` del ``FOR SHARE``
+    mientras la reactivacion esta sin commitear, asi que la confirmacion **no** se bloquea: no
+    hay lectura sucia ni confirmacion parcial (el borrador sigue ``DRAFT`` y sin evento CONFIRM).
+    El resultado es un rechazo reintentable; en cuanto la reactivacion confirma, el mismo
+    borrador se confirma. La direccion peligrosa (una baja en vuelo con la fila visible activa)
+    es la que RS-9 serializa, y tiene sus propias pruebas.
+    """
     context = registration_data.context_owner_a
     competitor_id = registration_data.competitor_a
     registration = await create_registration(
@@ -215,26 +225,36 @@ async def test_a_confirmation_waits_for_a_reactivation_in_flight(
         activation = asyncio.create_task(
             activate_competitor(context, competitor_id, reason="reactivacion en vuelo")
         )
-        # Ya tiene la fila del competidor bloqueada y espera para escribir su auditoria.
+        # En vuelo de verdad: fila del competidor bloqueada y auditoria pendiente.
         await wait_for_waiting_backends("%INSERT INTO domain_change_log%")
         assert not activation.done()
         uncommitted = await get_competitor(competitor_id, tenant_club_id=registration_data.tenant_a)
         assert uncommitted is not None and uncommitted.active is False, "sin lectura sucia"
 
         confirmation = asyncio.create_task(confirm_registration(context, registration.id))
-        await wait_for_waiting_backends("%FOR SHARE%")
-        await wait_for_tuple_contention("competitors")
-        assert not confirmation.done(), "la confirmacion espera a la reactivacion"
+        # No se bloquea contra la reactivacion: la fila visible no cumple el filtro del FOR SHARE.
+        with pytest.raises(CompetitorNotSelectableError):
+            await asyncio.wait_for(confirmation, WAITING_TIMEOUT_SECONDS)
+        assert not activation.done(), "la reactivacion sigue en vuelo"
+
+        still_draft = await get_registration(
+            registration.id, tenant_club_id=registration_data.tenant_a
+        )
+        assert still_draft is not None, "la inscripcion sigue existiendo"
+        assert still_draft.status == "DRAFT", "sin confirmacion parcial"
     finally:
         release_audit_table.set()
         await asyncio.gather(holder, return_exceptions=True)
 
-    assert activation is not None and confirmation is not None
-    activated, confirmed = await asyncio.gather(activation, confirmation)
+    assert activation is not None
+    # La auditoria de la inscripcion se lee ya sin el bloqueo de la tabla: sigue sin CONFIRM.
+    assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE"]
+    activated = await activation
     assert activated.active is True
+
+    confirmed = await confirm_registration(context, registration.id)
     assert confirmed.status == "CONFIRMED"
     assert confirmed.competitor_id == competitor_id
-    assert await competitor_audit_rows(competitor_id) != []
     assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE", "CONFIRM"]
 
 
@@ -344,8 +364,8 @@ async def test_reactivation_keeps_confirmed_registrations_and_snapshots_intact(
 
     competitor = await get_competitor(competitor_id, tenant_club_id=registration_data.tenant_a)
     assert competitor is not None and competitor.active is True
+    # El competidor del soporte se inserta directamente (sin alta de dominio): no hay CREATE.
     assert [row["action"] for row in await competitor_audit_rows(competitor_id)] == [
-        "CREATE",
         "DEACTIVATE",
         "ACTIVATE",
     ]

@@ -83,6 +83,32 @@ async def sql_deactivate_competitor(
     return Competitor.model_validate(dict(result._mapping)) if result is not None else None
 
 
+async def sql_activate_competitor(
+    *, competitor_id: CompetitorId, tenant_club_id: ClubId
+) -> Competitor | None:
+    """Reactivacion logica del tenant. ``None`` si no existe, no es de ese tenant o ya estaba activo.
+
+    Simetrica de :func:`sql_deactivate_competitor`: mismo filtro de tenant, mismo cambio (la
+    columna ``active``) y mismo ``RETURNING``. Al escribir la misma columna, las dos operaciones
+    de estado toman el mismo bloqueo de fila (``FOR NO KEY UPDATE``) y por tanto compiten igual
+    con el ``FOR SHARE`` de la confirmacion (RS-9), sin anadir un orden de bloqueo nuevo.
+    ``competitors.active`` es ``NOT NULL`` (esquema F3A), asi que ``IS FALSE`` es exacto.
+    """
+    query = f"""
+        UPDATE competitors
+        SET active = true, updated_at = NOW()
+        WHERE id = :competitor_id
+        AND managed_by_club_id = :tenant_club_id
+        AND active IS FALSE
+        RETURNING {_COMPETITOR_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={"competitor_id": competitor_id, "tenant_club_id": tenant_club_id},
+    )
+    return Competitor.model_validate(dict(result._mapping)) if result is not None else None
+
+
 async def sql_close_open_competitor_name_history(*, competitor_id: CompetitorId) -> int:
     """Cierra la entrada de nombre vigente (``valid_to IS NULL``). Devuelve cuantas cerro."""
     query = """
