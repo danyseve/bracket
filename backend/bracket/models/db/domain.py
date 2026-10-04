@@ -53,6 +53,17 @@ type DomainChangeLogAction = Literal[
 type RegistrationUnknownIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS"]
 
 
+class DomainWriteScopeError(RuntimeError):
+    """Una escritura de dominio intento salir del tenant de su entidad (S3.3a).
+
+    La garantia **no** es la clave ajena a ``clubs(id)``: una referencia valida no demuestra
+    coherencia. La aplican las sentencias de ``bracket/sql/domain_writes.py``, que comprueban
+    dentro de la misma transaccion que la entidad pertenece al tenant que se le atribuye. Si
+    la comprobacion no encuentra la entidad en ese tenant no se escribe nada y se levanta este
+    error, de modo que la operacion y su evento de auditoria revierten juntos.
+    """
+
+
 class ActorContext(BaseModelORM):
     """Contexto autorizado de quien escribe: tenant y actor **explicitos** (S2).
 

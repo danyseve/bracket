@@ -457,6 +457,7 @@ async def create_registration(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
     return registration
 
@@ -521,6 +522,7 @@ async def update_registration_draft(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
     return updated
 
@@ -640,6 +642,7 @@ async def confirm_registration(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
     return confirmed
 
@@ -745,6 +748,7 @@ async def withdraw_registration(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
     return withdrawn
 
@@ -820,6 +824,7 @@ async def reinstate_registration(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
     return reinstated
 
@@ -871,5 +876,6 @@ async def disqualify_registration(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
     return disqualified

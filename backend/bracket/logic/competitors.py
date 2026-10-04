@@ -155,6 +155,7 @@ async def create_competitor(
         )
         await sql_insert_competitor_name_history(
             competitor_id=competitor.id,
+            tenant_club_id=context.tenant_club_id,
             display_name=normalized_name,
             changed_by_user_id=context.actor_user_id,
         )
@@ -166,6 +167,7 @@ async def create_competitor(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
 
     return competitor
@@ -202,9 +204,12 @@ async def update_competitor_display_name(
         if updated is None:
             raise CompetitorNotFoundError("competidor no encontrado")
 
-        await sql_close_open_competitor_name_history(competitor_id=competitor_id)
+        await sql_close_open_competitor_name_history(
+            competitor_id=competitor_id, tenant_club_id=context.tenant_club_id
+        )
         await sql_insert_competitor_name_history(
             competitor_id=competitor_id,
+            tenant_club_id=context.tenant_club_id,
             display_name=normalized_name,
             changed_by_user_id=context.actor_user_id,
         )
@@ -216,6 +221,7 @@ async def update_competitor_display_name(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
 
     return updated
@@ -252,6 +258,7 @@ async def deactivate_competitor(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
 
     return deactivated
@@ -301,6 +308,7 @@ async def activate_competitor(
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=normalized_reason,
+            tenant_club_id=context.tenant_club_id,
         )
 
     return activated

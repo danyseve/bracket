@@ -16,7 +16,7 @@ aqui de forma explicita para no acoplar la escritura a un simbolo privado de
 from __future__ import annotations
 
 from bracket.database import database
-from bracket.models.db.domain import Competitor, DomainChangeLogAction
+from bracket.models.db.domain import Competitor, DomainChangeLogAction, DomainWriteScopeError
 from bracket.utils.id_types import ClubId, CompetitorId, UserId
 from bracket.utils.types import assert_some
 
@@ -109,33 +109,102 @@ async def sql_activate_competitor(
     return Competitor.model_validate(dict(result._mapping)) if result is not None else None
 
 
-async def sql_close_open_competitor_name_history(*, competitor_id: CompetitorId) -> int:
-    """Cierra la entrada de nombre vigente (``valid_to IS NULL``). Devuelve cuantas cerro."""
+async def sql_close_open_competitor_name_history(
+    *, competitor_id: CompetitorId, tenant_club_id: ClubId
+) -> int:
+    """Cierra la entrada de nombre vigente (``valid_to IS NULL``). Devuelve cuantas cerro.
+
+    S3.3a: el cierre solo alcanza al competidor de ese tenant, asi que un llamador futuro que
+    use el helper suelto no puede tocar el historial de otro tenant.
+    """
     query = """
-        UPDATE competitors_name_history
-        SET valid_to = NOW()
-        WHERE competitor_id = :competitor_id AND valid_to IS NULL
+        WITH closed AS (
+            UPDATE competitors_name_history
+            SET valid_to = NOW()
+            WHERE competitor_id = :competitor_id
+              AND valid_to IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM competitors
+                  WHERE competitors.id = competitors_name_history.competitor_id
+                    AND competitors.managed_by_club_id = :tenant_club_id
+              )
+            RETURNING 1
+        )
+        SELECT count(*) FROM closed
         """
-    return int(await database.execute(query=query, values={"competitor_id": competitor_id}) or 0)
+    return int(
+        await database.execute(
+            query=query,
+            values={"competitor_id": competitor_id, "tenant_club_id": tenant_club_id},
+        )
+        or 0
+    )
 
 
 async def sql_insert_competitor_name_history(
-    *, competitor_id: CompetitorId, display_name: str, changed_by_user_id: UserId
+    *,
+    competitor_id: CompetitorId,
+    tenant_club_id: ClubId,
+    display_name: str,
+    changed_by_user_id: UserId,
 ) -> None:
-    """Abre una entrada de nombre. ``changed_by_user_id`` es el actor, no se proyecta en lectura."""
+    """Abre una entrada de nombre. ``changed_by_user_id`` es el actor, no se proyecta en lectura.
+
+    S3.3a: solo abre historial para el competidor de ese tenant. Si el competidor no pertenece
+    al tenant no se escribe nada y se levanta :class:`DomainWriteScopeError` (la operacion
+    revierte entera).
+    """
     query = """
-        INSERT INTO competitors_name_history
-            (competitor_id, display_name, valid_from, valid_to, changed_by_user_id)
-        VALUES (:competitor_id, :display_name, NOW(), NULL, :changed_by_user_id)
+        WITH inserted AS (
+            INSERT INTO competitors_name_history
+                (competitor_id, display_name, valid_from, valid_to, changed_by_user_id)
+            SELECT :competitor_id, :display_name, NOW(), NULL, :changed_by_user_id
+            WHERE EXISTS (
+                SELECT 1 FROM competitors
+                WHERE competitors.id = :competitor_id
+                  AND competitors.managed_by_club_id = :tenant_club_id
+            )
+            RETURNING 1
+        )
+        SELECT count(*) FROM inserted
         """
-    await database.execute(
-        query=query,
-        values={
-            "competitor_id": competitor_id,
-            "display_name": display_name,
-            "changed_by_user_id": changed_by_user_id,
-        },
+    inserted = int(
+        await database.execute(
+            query=query,
+            values={
+                "competitor_id": competitor_id,
+                "tenant_club_id": tenant_club_id,
+                "display_name": display_name,
+                "changed_by_user_id": changed_by_user_id,
+            },
+        )
+        or 0
     )
+    if inserted != 1:
+        raise DomainWriteScopeError("el historial no corresponde al tenant de su competidor")
+
+
+# Coherencia entidad <-> tenant, expresada en la propia sentencia de auditoria (S3.3a).
+# Una referencia valida a ``clubs(id)`` no demuestra que el evento corresponda a su entidad:
+# esto si. El nombre de entidad es un valor cerrado del dominio, no texto libre.
+_ENTITY_TENANT_PREDICATE: dict[str, str] = {
+    "competitor": (
+        "SELECT 1 FROM competitors "
+        "WHERE competitors.id = :entity_id "
+        "AND competitors.managed_by_club_id = :tenant_club_id"
+    ),
+    "sports_club": (
+        "SELECT 1 FROM sports_clubs "
+        "WHERE sports_clubs.id = :entity_id "
+        "AND sports_clubs.tenant_club_id = :tenant_club_id"
+    ),
+    "tournament_registration": (
+        "SELECT 1 FROM tournament_registrations "
+        "JOIN tournaments ON tournaments.id = tournament_registrations.tournament_id "
+        "WHERE tournament_registrations.id = :entity_id "
+        "AND tournaments.club_id = :tenant_club_id"
+    ),
+}
 
 
 async def sql_insert_domain_change_log(
@@ -147,25 +216,47 @@ async def sql_insert_domain_change_log(
     actor_user_id: UserId,
     actor_label: str | None,
     reason: str,
+    tenant_club_id: ClubId,
 ) -> None:
-    """Evento de auditoria. ``changed_fields`` guarda NOMBRES de campo, nunca valores (sin PII)."""
-    query = """
-        INSERT INTO domain_change_log
-            (entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason, created)
-        VALUES (
-            :entity, :entity_id, :action, :changed_fields,
-            :actor_user_id, :actor_label, :reason, NOW()
+    """Evento de auditoria **atribuido al tenant de su entidad**.
+
+    ``changed_fields`` guarda NOMBRES de campo, nunca valores (sin PII). El evento se escribe
+    solo si la entidad pertenece de verdad a ``tenant_club_id``; si no, no se escribe nada y se
+    levanta :class:`DomainWriteScopeError`, de modo que no queda una operacion sin evento ni un
+    evento sin operacion. Entidades de plataforma (tenant NULL) no tienen escritor autorizado
+    todavia: ninguna operacion de F3 audita una entidad sin tenant.
+    """
+    predicate = _ENTITY_TENANT_PREDICATE.get(entity)
+    if predicate is None:
+        raise DomainWriteScopeError("entidad de auditoria no soportada")
+
+    query = f"""
+        WITH inserted AS (
+            INSERT INTO domain_change_log
+                (entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
+                 tenant_club_id, created)
+            SELECT :entity, :entity_id, :action, :changed_fields, :actor_user_id, :actor_label,
+                   :reason, :tenant_club_id, NOW()
+            WHERE EXISTS ({predicate})
+            RETURNING 1
         )
+        SELECT count(*) FROM inserted
         """
-    await database.execute(
-        query=query,
-        values={
-            "entity": entity,
-            "entity_id": entity_id,
-            "action": action,
-            "changed_fields": changed_fields,
-            "actor_user_id": actor_user_id,
-            "actor_label": actor_label,
-            "reason": reason,
-        },
+    inserted = int(
+        await database.execute(
+            query=query,
+            values={
+                "entity": entity,
+                "entity_id": entity_id,
+                "action": action,
+                "changed_fields": changed_fields,
+                "actor_user_id": actor_user_id,
+                "actor_label": actor_label,
+                "reason": reason,
+                "tenant_club_id": tenant_club_id,
+            },
+        )
+        or 0
     )
+    if inserted != 1:
+        raise DomainWriteScopeError("el evento no corresponde al tenant de su entidad")

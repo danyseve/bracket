@@ -570,7 +570,19 @@ domain_change_log = Table(
     Column("actor_label", String, nullable=True),
     Column("reason", Text, nullable=False),
     Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    # S3.3a: atribucion explicita de tenant. NULLABLE a proposito: las filas historicas no
+    # tienen tenant derivable y las entidades de plataforma no tienen tenant. NULL significa
+    # "anterior a la migracion / sin tenant derivable", nunca "sin tenant". La coherencia
+    # (tenant del evento == tenant de su entidad) no es expresable con un CHECK simple porque
+    # cruza tablas: la garantiza ``sql_insert_domain_change_log`` y la verifica la suite.
+    Column(
+        "tenant_club_id",
+        BigInteger,
+        ForeignKey("clubs.id", ondelete="RESTRICT", name="fk_domain_change_log_tenant_club_id"),
+        nullable=True,
+    ),
     Index("ix_domain_change_log_entity", "entity", "entity_id"),
+    Index("ix_domain_change_log_tenant_created", "tenant_club_id", "created"),
 )
 
 # Cuotas configurables por tenant (override del valor por defecto de la cuenta). Es
