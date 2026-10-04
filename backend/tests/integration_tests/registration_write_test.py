@@ -32,6 +32,7 @@ from bracket.logic.competitors import (
     update_competitor_display_name,
 )
 from bracket.logic.registrations import (
+    CompetitorNotSelectableError,
     DuplicateRegistrationError,
     InvalidRegistrationStateError,
     RegistrationNotFoundError,
@@ -46,7 +47,7 @@ from bracket.models.db.domain import (
     TournamentRegistration,
 )
 from bracket.sql import registration_writes
-from bracket.sql.domain_reads import get_registration
+from bracket.sql.domain_reads import get_registration, get_tournament_registrations
 from bracket.utils.id_types import (
     TournamentRegistrationId,
 )
@@ -58,6 +59,7 @@ from tests.integration_tests.registration_fixtures import (
     count_current_registrations,
     fetch_all_audit_rows_as_text,
     registration_data_context,
+    set_competitor_active,
     set_sports_club_active,
 )
 
@@ -531,6 +533,147 @@ async def test_confirm_statement_refuses_an_inactive_academy(
     assert untouched.status == "DRAFT"
 
     await set_sports_club_active(registration_data.sports_club_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_confirm_rejects_a_competitor_deactivated_after_the_draft(
+    registration_data: RegistrationData,
+) -> None:
+    """S3.1a: un borrador cuyo competidor se ha dado de baja despues no puede confirmarse.
+
+    La recuperacion del borrador se prueba con el *fixture* (``set_competitor_active``):
+    S2-bis (``activate_competitor``) todavia no existe y no se simula como API.
+    """
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_id=registration_data.competitor_a),
+    )
+    await set_competitor_active(registration_data.competitor_a, active=False)
+
+    with pytest.raises(CompetitorNotSelectableError):
+        await confirm_registration(registration_data.context_owner_a, registration.id)
+
+    untouched = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert untouched is not None
+    assert untouched.status == "DRAFT"
+    assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE"]
+
+    await set_competitor_active(registration_data.competitor_a, active=True)
+    confirmed = await confirm_registration(registration_data.context_owner_a, registration.id)
+
+    assert confirmed.status == "CONFIRMED"
+    assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE", "CONFIRM"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_confirm_statement_refuses_an_inactive_competitor(
+    registration_data: RegistrationData,
+) -> None:
+    """La elegibilidad vive tambien en la sentencia: sin el chequeo de Python la fila no cambia."""
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_id=registration_data.competitor_a),
+    )
+    await set_competitor_active(registration_data.competitor_a, active=False)
+
+    statement_result = await registration_writes.sql_confirm_registration(
+        registration_id=registration.id, tenant_club_id=registration_data.tenant_a
+    )
+
+    assert statement_result is None
+    untouched = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert untouched is not None
+    assert untouched.status == "DRAFT"
+
+    await set_competitor_active(registration_data.competitor_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_confirmed_registration_survives_the_deactivation_of_its_competitor(
+    registration_data: RegistrationData,
+) -> None:
+    """La baja logica no borra ni altera el historico: snapshots, auditoria y consulta intactos."""
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(
+            competitor_id=registration_data.competitor_a,
+            representation="CLUB",
+            sports_club_id=registration_data.sports_club_a,
+            affiliation_id=registration_data.affiliation_a,
+        ),
+    )
+    confirmed = await confirm_registration(registration_data.context_owner_a, registration.id)
+    await set_competitor_active(registration_data.competitor_a, active=False)
+
+    stored = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert stored is not None
+    assert stored.status == "CONFIRMED"
+    assert stored.competitor_id == registration_data.competitor_a
+    assert stored.competitor_name_snapshot == confirmed.competitor_name_snapshot == "Ana Gomez"
+    assert stored.sports_club_name_snapshot == "Academia Propia A"
+    assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE", "CONFIRM"]
+
+    listed = await get_tournament_registrations(
+        tournament_id=registration_data.tournament_a, tenant_club_id=registration_data.tenant_a
+    )
+    assert [row.id for row in listed] == [registration.id]
+    assert (
+        await count_current_registrations(
+            tournament_id=registration_data.tournament_a,
+            competitor_id=registration_data.competitor_a,
+        )
+        == 1
+    )
+
+    await set_competitor_active(registration_data.competitor_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_deactivation_racing_a_confirmation_leaves_no_partial_state(
+    registration_data: RegistrationData,
+) -> None:
+    """Carrera baja logica <-> confirmacion: gane quien gane, no puede quedar estado parcial.
+
+    Ambos ordenes de commit son legales (confirmar y despues dar de baja conserva el
+    historico). Lo que la prueba fija es que no existe un tercer resultado: CONFIRMED sin
+    evento CONFIRM, DRAFT con evento CONFIRM, o una transicion a medias.
+    """
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_id=registration_data.competitor_a),
+    )
+
+    confirmation, deactivation = await asyncio.gather(
+        confirm_registration(registration_data.context_owner_a, registration.id),
+        set_competitor_active(registration_data.competitor_a, active=False),
+        return_exceptions=True,
+    )
+
+    outcome = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert outcome is not None
+    actions = [row["action"] for row in await audit_rows(registration.id)]
+
+    if isinstance(confirmation, CompetitorNotSelectableError):
+        assert outcome.status == "DRAFT"
+        assert actions == ["CREATE"]
+    else:
+        assert isinstance(confirmation, TournamentRegistration)
+        assert outcome.status == "CONFIRMED"
+        assert actions == ["CREATE", "CONFIRM"]
+    assert deactivation is None
+    assert (
+        await count_current_registrations(
+            tournament_id=registration_data.tournament_a,
+            competitor_id=registration_data.competitor_a,
+        )
+        == 1
+    )
+
+    await set_competitor_active(registration_data.competitor_a, active=True)
 
 
 @pytest.mark.asyncio(loop_scope="session")

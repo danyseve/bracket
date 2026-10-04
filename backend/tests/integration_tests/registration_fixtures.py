@@ -61,6 +61,12 @@ INSERT_COMPETITOR = """
     RETURNING id
 """
 
+# La baja logica de un competidor es un UPDATE de `active`: el FK de `competitor_id`
+# en las inscripciones es RESTRICT, asi que no borra ni arrastra nada.
+UPDATE_COMPETITOR_ACTIVE = """
+    UPDATE competitors SET active = :active, updated_at = NOW() WHERE id = :competitor_id
+"""
+
 INSERT_AFFILIATION = """
     INSERT INTO competitors_x_sports_clubs
         (competitor_id, sports_club_id, valid_from, valid_to, is_primary, created)
@@ -165,18 +171,33 @@ async def set_sports_club_active(sports_club_id: SportsClubId, *, active: bool) 
 
 
 async def insert_competitor(
-    display_name: str, managed_by_club_id: ClubId | None, *, created: datetime_utc
+    display_name: str,
+    managed_by_club_id: ClubId | None,
+    *,
+    created: datetime_utc,
+    active: bool = True,
 ) -> CompetitorId:
     competitor_id = await database.fetch_val(
         query=INSERT_COMPETITOR,
         values={
             "display_name": display_name,
             "managed_by_club_id": managed_by_club_id,
-            "active": True,
+            "active": active,
             "created": created,
         },
     )
     return CompetitorId(competitor_id)
+
+
+async def set_competitor_active(competitor_id: CompetitorId, *, active: bool) -> None:
+    """Baja logica o reactivacion directa en la BBDD (S2-bis aun no existe como API).
+
+    Se usa para probar la elegibilidad sin simular una operacion que no esta implementada.
+    """
+    await database.execute(
+        query=UPDATE_COMPETITOR_ACTIVE,
+        values={"competitor_id": competitor_id, "active": active},
+    )
 
 
 async def insert_affiliation(

@@ -19,10 +19,10 @@ import pytest_asyncio
 from databases import Database
 
 from bracket.logic.competitors import (
-    CompetitorNotFoundError,
     TenantNotAuthorizedError,
 )
 from bracket.logic.registrations import (
+    CompetitorNotSelectableError,
     InvalidRegistrationDataError,
     SportsClubNotSelectableError,
     TournamentNotFoundError,
@@ -33,7 +33,9 @@ from bracket.logic.registrations import (
 from bracket.models.db.domain import (
     ActorContext,
 )
+from bracket.sql.domain_reads import get_registration
 from bracket.utils.id_types import (
+    CompetitorId,
     TournamentId,
     TournamentRegistrationId,
     UserId,
@@ -44,6 +46,7 @@ from tests.integration_tests.registration_fixtures import (
     build_draft,
     count_current_registrations,
     registration_data_context,
+    set_competitor_active,
 )
 
 
@@ -225,14 +228,136 @@ async def test_academy_of_another_tenant_can_be_represented(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_unknown_competitor_is_rejected(registration_data: RegistrationData) -> None:
-    """Un competidor que no es del tenant no existe para esta operacion."""
-    with pytest.raises(CompetitorNotFoundError):
+async def test_an_inactive_competitor_cannot_create_a_registration(
+    registration_data: RegistrationData,
+) -> None:
+    """S3.1a: un competidor inactivo no crea altas nuevas; reactivado (fixture) si crea."""
+    await set_competitor_active(registration_data.competitor_a, active=False)
+
+    with pytest.raises(CompetitorNotSelectableError):
+        await create_registration(
+            registration_data.context_owner_a,
+            registration_data.tournament_a,
+            build_draft(competitor_id=registration_data.competitor_a),
+        )
+    assert (
+        await count_current_registrations(
+            tournament_id=registration_data.tournament_a,
+            competitor_id=registration_data.competitor_a,
+        )
+        == 0
+    )
+
+    # S2-bis no existe todavia: la reactivacion se prueba con el fixture, no con una API.
+    await set_competitor_active(registration_data.competitor_a, active=True)
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_id=registration_data.competitor_a),
+    )
+
+    assert registration.status == "DRAFT"
+    assert registration.competitor_name_snapshot == "Ana Gomez"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_draft_update_refuses_an_identity_that_is_no_longer_active(
+    registration_data: RegistrationData,
+) -> None:
+    """Un borrador existente no puede re-guardarse si su competidor ya esta dado de baja."""
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_id=registration_data.competitor_a),
+    )
+    await set_competitor_active(registration_data.competitor_a, active=False)
+
+    with pytest.raises(CompetitorNotSelectableError):
+        await update_registration_draft(
+            registration_data.context_owner_a,
+            registration.id,
+            build_draft(
+                competitor_id=registration_data.competitor_a,
+                category_key="gi-absoluto",
+                category_label="Gi Absoluto",
+            ),
+        )
+
+    untouched = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert untouched is not None
+    assert untouched.category_key is None
+    assert untouched.competitor_id == registration_data.competitor_a
+
+    await set_competitor_active(registration_data.competitor_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_draft_update_cannot_link_an_inactive_competitor(
+    registration_data: RegistrationData,
+) -> None:
+    """El alta sin identidad puede quedarse sin ella (caso valido), pero no enlazar un inactivo."""
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_name_snapshot="Juan Perez"),
+    )
+    assert registration.competitor_id is None
+    await set_competitor_active(registration_data.competitor_a, active=False)
+
+    with pytest.raises(CompetitorNotSelectableError):
+        await update_registration_draft(
+            registration_data.context_owner_a,
+            registration.id,
+            build_draft(competitor_id=registration_data.competitor_a),
+        )
+
+    untouched = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert untouched is not None
+    assert untouched.competitor_id is None
+    assert untouched.identity_status == "UNVERIFIED"
+
+    await set_competitor_active(registration_data.competitor_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_competitor_of_another_tenant_is_indistinguishable_from_a_missing_one(
+    registration_data: RegistrationData,
+) -> None:
+    """Competidor ajeno (activo o inactivo) y competidor inexistente: mismo error, sin oraculo."""
+    await set_competitor_active(registration_data.competitor_b, active=False)
+
+    with pytest.raises(CompetitorNotSelectableError) as foreign_inactive:
         await create_registration(
             registration_data.context_owner_a,
             registration_data.tournament_a,
             build_draft(competitor_id=registration_data.competitor_b),
         )
+    await set_competitor_active(registration_data.competitor_b, active=True)
+
+    with pytest.raises(CompetitorNotSelectableError) as foreign_active:
+        await create_registration(
+            registration_data.context_owner_a,
+            registration_data.tournament_a,
+            build_draft(competitor_id=registration_data.competitor_b),
+        )
+    with pytest.raises(CompetitorNotSelectableError) as missing:
+        await create_registration(
+            registration_data.context_owner_a,
+            registration_data.tournament_a,
+            build_draft(competitor_id=CompetitorId(999_999_999)),
+        )
+
+    assert str(foreign_inactive.value) == str(missing.value)
+    assert str(foreign_active.value) == str(missing.value)
+
+    # Y no se ha creado nada en el tenant ajeno.
+    assert (
+        await count_current_registrations(
+            tournament_id=registration_data.tournament_b,
+            competitor_id=registration_data.competitor_b,
+        )
+        == 0
+    )
 
 
 @pytest.mark.asyncio(loop_scope="session")
