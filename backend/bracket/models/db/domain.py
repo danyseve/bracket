@@ -1,9 +1,12 @@
-"""Modelos de lectura del dominio Competitor/SportsClub/Registration (S1 de F3B).
+"""Modelos del dominio Competitor/SportsClub/Registration.
 
-Solo lectura: estos modelos proyectan exactamente las columnas que necesita el
-contrato de consultas de ``bracket/sql/domain_reads.py``. **No hay variantes
-``*Insertable``/``*Updatable``**: la creacion y modificacion de registros llega en
-slices posteriores (S2+) con su propio contrato y sus propios gates.
+S1 (``bracket/sql/domain_reads.py``): proyeccion **solo lectura**, minima y sin PII.
+
+S2 (``bracket/sql/domain_writes.py`` + ``bracket/logic/competitors.py``) anade el
+contexto de escritura (:class:`ActorContext`) y el contrato de datos basicos
+editables (:class:`CompetitorBasicDataUpdate`). Sigue sin haber variantes
+``*Insertable``: las escrituras usan parametros explicitos y ``managed_by_club_id``
+no es un dato de entrada, sale siempre del contexto autorizado.
 
 Acceso minimo a PII: se excluyen a proposito los campos que no hacen falta para
 consultar el dominio:
@@ -30,11 +33,37 @@ from bracket.utils.id_types import (
     SportsClubId,
     TournamentId,
     TournamentRegistrationId,
+    UserId,
 )
 
 type RegistrationIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS", "VERIFIED"]
 type RegistrationRepresentation = Literal["INDEPENDENT", "CLUB"]
 type RegistrationStatus = Literal["DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED", "CORRECTED"]
+type DomainChangeLogAction = Literal["CREATE", "UPDATE", "DEACTIVATE"]
+
+
+class ActorContext(BaseModelORM):
+    """Contexto autorizado de quien escribe: tenant y actor **explicitos** (S2).
+
+    Lo construye el llamador. Hoy lo fabrica el servicio interno que invoca la
+    operacion; cuando exista la capa HTTP tendra que derivarse de la sesion
+    autenticada, nunca del payload (ver la limitacion documentada en
+    ``bracket/logic/competitors.py``).
+    """
+
+    tenant_club_id: ClubId
+    actor_user_id: UserId
+    actor_label: str | None = None
+
+
+class CompetitorBasicDataUpdate(BaseModelORM):
+    """Datos basicos editables de un competidor.
+
+    ``managed_by_club_id`` (tenant) **no** es editable: el tenant sale del
+    :class:`ActorContext`. El estado se cambia con la baja logica dedicada, no aqui.
+    """
+
+    display_name: str
 
 
 class SportsClub(BaseModelORM):
