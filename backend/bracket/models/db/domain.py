@@ -45,7 +45,9 @@ from bracket.utils.id_types import (
 type RegistrationIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS", "VERIFIED"]
 type RegistrationRepresentation = Literal["INDEPENDENT", "CLUB"]
 type RegistrationStatus = Literal["DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED", "CORRECTED"]
-type DomainChangeLogAction = Literal["CREATE", "UPDATE", "DEACTIVATE", "ACTIVATE", "CONFIRM"]
+type DomainChangeLogAction = Literal[
+    "CREATE", "UPDATE", "DEACTIVATE", "ACTIVATE", "CONFIRM", "WITHDRAW", "REINSTATE", "DISQUALIFY"
+]
 # Estado de identidad que el llamador puede declarar en una inscripcion **sin**
 # competidor. ``VERIFIED`` no se acepta desde fuera: se deriva de ``competitor_id``.
 type RegistrationUnknownIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS"]

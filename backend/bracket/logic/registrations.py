@@ -1,10 +1,13 @@
 """Logica de dominio del nucleo de inscripciones (S3.1 de F3B).
 
-Tres operaciones internas, **sin HTTP ni UI todavia**:
+Seis operaciones internas, **sin HTTP ni UI todavia** (S3.1 y S3.2):
 
 * :func:`create_registration` — alta en borrador (``DRAFT``);
 * :func:`update_registration_draft` — edicion del borrador (reemplazo explicito);
-* :func:`confirm_registration` — ``DRAFT -> CONFIRMED`` (congela los snapshots).
+* :func:`confirm_registration` — ``DRAFT -> CONFIRMED`` (congela los snapshots);
+* :func:`withdraw_registration` — O5: ``DRAFT|CONFIRMED -> WITHDRAWN``;
+* :func:`reinstate_registration` — O5b: ``WITHDRAWN -> CONFIRMED`` (confirmacion en sitio);
+* :func:`disqualify_registration` — O6: ``CONFIRMED -> DISQUALIFIED``.
 
 Las consultas no se duplican aqui: se usan las de S1
 (``bracket/sql/domain_reads.py``), que ya aplican el aislamiento por tenant.
@@ -29,9 +32,23 @@ Reglas del contrato (``docs/26`` §2-§9; decisiones aprobadas el 2026-10-04):
   ``SELECT`` previo.
 * Sin PII: ni los errores ni la auditoria llevan valores, solo nombres de campo.
 
-Permisos (S3.1 §5): OWNER y COLLABORATOR pueden dar de alta, editar borradores y
-confirmar. Retirar una inscripcion confirmada, descalificar y corregir exigiran OWNER
-en sus propios incrementos; aqui no hay ninguna operacion de ese tipo.
+Permisos (S3.1 §5 y S3.2): OWNER y COLLABORATOR pueden dar de alta, editar borradores,
+confirmar, retirar un **borrador** y readmitir. Retirar una inscripcion ya confirmada y
+descalificarla exigen OWNER. ``DISQUALIFIED`` y ``CORRECTED`` son estados terminales:
+ninguna operacion del ciclo de vida sale de ellos. Corregir una inscripcion es S6.
+
+Ciclo de vida (S3.2, ``docs/26`` §12-§16):
+
+* Solo se admite la matriz aprobada de transiciones: cualquier otra combinacion de estado
+  de origen y operacion da :class:`InvalidRegistrationStateError`. Repetir una retirada o
+  una descalificacion es un no-op que **no** escribe un segundo evento de auditoria.
+* La retirada nunca exige competidor ni academia activos (es la salida de un borrador
+  bloqueado); no toca snapshots, clave de categoria ni resultados, y no integra nada con
+  el cuadro ya generado (esa sincronizacion es S4/S5).
+* La readmision revalida competidor y academia con los mismos bloqueos compartidos que la
+  confirmacion, en el orden fijado (competidor -> academia), y conserva los snapshots ya
+  materializados. La plaza sigue ocupada por la misma fila en el indice unico.
+* El motivo es obligatorio y no vacio en las tres operaciones nuevas.
 
 LIMITACIONES PENDIENTES (heredadas de S2, no resueltas aqui):
 
@@ -51,14 +68,16 @@ import asyncpg  # type: ignore[import-untyped]
 from heliclockter import datetime_utc
 
 from bracket.database import database
-from bracket.logic.competitors import TenantNotAuthorizedError
+from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
 from bracket.models.db.domain import (
     ActorContext,
     RegistrationDraftData,
     RegistrationIdentityStatus,
     RegistrationRepresentation,
+    RegistrationStatus,
     TournamentRegistration,
 )
+from bracket.models.db.user_x_club import UserXClubRelation
 from bracket.sql import registration_writes
 from bracket.sql.domain_reads import get_competitor_affiliations, get_registration
 from bracket.sql.domain_writes import sql_insert_domain_change_log
@@ -623,3 +642,234 @@ async def confirm_registration(
             reason=normalized_reason,
         )
     return confirmed
+
+
+# --------------------------------------------------------------------------------------
+# Ciclo de vida de la inscripcion (S3.2): O5 retirada, O5b readmision, O6 descalificacion.
+# --------------------------------------------------------------------------------------
+
+
+async def _load_relation(context: ActorContext) -> UserXClubRelation | None:
+    """Relacion del actor con el tenant del contexto (``OWNER`` o ``COLLABORATOR``)."""
+    return await get_user_relation_to_club(context.tenant_club_id, context.actor_user_id)
+
+
+def _require_relation(relation: UserXClubRelation | None, *, require_owner: bool) -> None:
+    """Exige acceso al tenant y, cuando la transicion lo pide, relacion ``OWNER``.
+
+    Igual que :func:`_authorize` no distingue "tenant inexistente" de "tenant no
+    autorizado": no se filtra la existencia del tenant.
+    """
+    if relation is None:
+        raise TenantNotAuthorizedError("el actor no tiene acceso a este tenant")
+    if require_owner and relation is not UserXClubRelation.OWNER:
+        raise InsufficientPrivilegesError("esta operacion exige relacion OWNER con el tenant")
+
+
+def _normalize_required_reason(reason: object, action: str) -> str:
+    """Motivo **obligatorio** para O5, O5b y O6: aqui no hay valor por defecto."""
+    if reason is None:
+        raise InvalidRegistrationDataError(f"reason es obligatorio para {action}")
+    return _normalize_reason(reason, action)
+
+
+async def _reread_after_lost_race(
+    context: ActorContext,
+    registration_id: TournamentRegistrationId,
+    *,
+    expected: RegistrationStatus,
+    message: str,
+) -> TournamentRegistration:
+    """Relee una fila cuya sentencia de transicion afecto a cero filas.
+
+    Si el estado ya es el destino, la carrera la gano otra transaccion equivalente y se
+    devuelve la fila **sin** escribir un segundo evento (idempotencia real, no un
+    ``SELECT`` previo que decida la transicion).
+    """
+    after = await get_registration(registration_id, tenant_club_id=context.tenant_club_id)
+    if after is None:
+        raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+    if after.status == expected:
+        return after
+    raise InvalidRegistrationStateError(message)
+
+
+async def withdraw_registration(
+    context: ActorContext, registration_id: TournamentRegistrationId, *, reason: str
+) -> TournamentRegistration:
+    """O5: retirada de una inscripcion (``DRAFT|CONFIRMED -> WITHDRAWN``).
+
+    Un borrador lo retira OWNER o COLLABORATOR y **sin** exigir competidor ni academia
+    activos: es la salida de un borrador bloqueado por una baja. Una inscripcion ya
+    confirmada (plaza ocupada, snapshots congelados) solo la retira OWNER.
+
+    Retirar algo ya retirado es un no-op sin evento; ``DISQUALIFIED`` y ``CORRECTED`` son
+    terminales. No toca snapshots, clave de categoria, revision ni resultados, y no
+    sincroniza nada con un cuadro ya generado (esa integracion es S4/S5).
+    """
+    normalized_reason = _normalize_required_reason(reason, "WITHDRAW")
+
+    async with database.transaction():
+        relation = await _load_relation(context)
+        _require_relation(relation, require_owner=False)
+        current = await get_registration(registration_id, tenant_club_id=context.tenant_club_id)
+        if current is None:
+            raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+        if current.status == "WITHDRAWN":
+            return current
+        if current.status not in ("DRAFT", "CONFIRMED"):
+            raise InvalidRegistrationStateError(
+                "solo un borrador o una inscripcion confirmada se pueden retirar"
+            )
+        _require_relation(relation, require_owner=current.status == "CONFIRMED")
+
+        withdrawn = await registration_writes.sql_update_registration_status(
+            registration_id=registration_id,
+            tenant_club_id=context.tenant_club_id,
+            from_statuses=("DRAFT", "CONFIRMED"),
+            to_status="WITHDRAWN",
+        )
+        if withdrawn is None:
+            return await _reread_after_lost_race(
+                context,
+                registration_id,
+                expected="WITHDRAWN",
+                message="no se pudo retirar la inscripcion: vuelve a intentarlo",
+            )
+
+        await sql_insert_domain_change_log(
+            entity=_REGISTRATION_ENTITY,
+            entity_id=withdrawn.id,
+            action="WITHDRAW",
+            changed_fields=["status"],
+            actor_user_id=context.actor_user_id,
+            actor_label=context.actor_label,
+            reason=normalized_reason,
+        )
+    return withdrawn
+
+
+async def reinstate_registration(
+    context: ActorContext, registration_id: TournamentRegistrationId, *, reason: str
+) -> TournamentRegistration:
+    """O5b: readmision de una inscripcion retirada (``WITHDRAWN -> CONFIRMED``).
+
+    Es una **confirmacion en sitio**: la fila es la misma —por eso la plaza sigue siendo
+    suya en el indice unico— y revalida exactamente lo mismo que
+    :func:`confirm_registration`: competidor y academia activos, con los bloqueos
+    compartidos en el orden fijado (competidor -> academia), mas las mismas guardas SQL.
+    Los snapshots no se regeneran: los materializados en su momento siguen siendo validos.
+
+    Consecuencia buscada: readmitir una inscripcion que se retiro **siendo borrador** no la
+    convierte en una confirmacion silenciosa; pasa por el mismo control de elegibilidad que
+    una confirmacion inicial y conserva los snapshots y la clave de categoria del borrador
+    (que son los que habria congelado una confirmacion directa, porque la confirmacion
+    tampoco los reescribe). El resultado es identico al de una confirmacion inicial; solo
+    cambia el evento de auditoria (``REINSTATE``).
+
+    Permisos: los de la retirada de un borrador (OWNER o COLLABORATOR). Solo se readmite
+    desde ``WITHDRAWN``; cualquier otro origen es un error, porque la lista aprobada de
+    idempotencias es ``WITHDRAWN -> WITHDRAWN`` y ``DISQUALIFIED -> DISQUALIFIED``.
+    """
+    normalized_reason = _normalize_required_reason(reason, "REINSTATE")
+
+    async with database.transaction():
+        relation = await _load_relation(context)
+        _require_relation(relation, require_owner=False)
+        current = await get_registration(registration_id, tenant_club_id=context.tenant_club_id)
+        if current is None:
+            raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+        if current.status != "WITHDRAWN":
+            raise InvalidRegistrationStateError("solo una inscripcion retirada se puede readmitir")
+
+        # Misma elegibilidad, y mismo orden de bloqueo, que una confirmacion inicial.
+        await _assert_registered_competitor_active(current, context)
+        await _assert_represented_academy_active(current)
+
+        reinstated = await registration_writes.sql_update_registration_status(
+            registration_id=registration_id,
+            tenant_club_id=context.tenant_club_id,
+            from_statuses=("WITHDRAWN",),
+            to_status="CONFIRMED",
+            require_active_eligibility=True,
+        )
+        if reinstated is None:
+            # Readmision simultanea: la otra transaccion gano la carrera.
+            after = await get_registration(registration_id, tenant_club_id=context.tenant_club_id)
+            if after is None:
+                raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+            if after.status == "CONFIRMED":
+                return after
+            if after.status != "WITHDRAWN":
+                raise InvalidRegistrationStateError(
+                    "solo una inscripcion retirada se puede readmitir"
+                )
+            # Sigue retirada: lo unico que puede haber impedido la sentencia es que el
+            # competidor o la academia dejaran de estar activos.
+            await _assert_registered_competitor_active(after, context)
+            await _assert_represented_academy_active(after)
+            raise InvalidRegistrationStateError(
+                "no se pudo readmitir la inscripcion: vuelve a intentarlo"
+            )
+
+        await sql_insert_domain_change_log(
+            entity=_REGISTRATION_ENTITY,
+            entity_id=reinstated.id,
+            action="REINSTATE",
+            changed_fields=["status"],
+            actor_user_id=context.actor_user_id,
+            actor_label=context.actor_label,
+            reason=normalized_reason,
+        )
+    return reinstated
+
+
+async def disqualify_registration(
+    context: ActorContext, registration_id: TournamentRegistrationId, *, reason: str
+) -> TournamentRegistration:
+    """O6: descalificacion de una inscripcion confirmada (``CONFIRMED -> DISQUALIFIED``).
+
+    Solo OWNER. Se conserva el historico (snapshots, clave de categoria, revision) y la
+    plaza **sigue ocupada** por el indice unico: descalificar no libera el hueco de la
+    categoria, y no sincroniza nada con un cuadro ya generado. ``DISQUALIFIED`` es
+    terminal y repetir la descalificacion es un no-op sin evento.
+    """
+    normalized_reason = _normalize_required_reason(reason, "DISQUALIFY")
+
+    async with database.transaction():
+        relation = await _load_relation(context)
+        _require_relation(relation, require_owner=True)
+        current = await get_registration(registration_id, tenant_club_id=context.tenant_club_id)
+        if current is None:
+            raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+        if current.status == "DISQUALIFIED":
+            return current
+        if current.status != "CONFIRMED":
+            raise InvalidRegistrationStateError(
+                "solo una inscripcion confirmada se puede descalificar"
+            )
+
+        disqualified = await registration_writes.sql_update_registration_status(
+            registration_id=registration_id,
+            tenant_club_id=context.tenant_club_id,
+            from_statuses=("CONFIRMED",),
+            to_status="DISQUALIFIED",
+        )
+        if disqualified is None:
+            return await _reread_after_lost_race(
+                context,
+                registration_id,
+                expected="DISQUALIFIED",
+                message="no se pudo descalificar la inscripcion: vuelve a intentarlo",
+            )
+
+        await sql_insert_domain_change_log(
+            entity=_REGISTRATION_ENTITY,
+            entity_id=disqualified.id,
+            action="DISQUALIFY",
+            changed_fields=["status"],
+            actor_user_id=context.actor_user_id,
+            actor_label=context.actor_label,
+            reason=normalized_reason,
+        )
+    return disqualified

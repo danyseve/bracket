@@ -21,6 +21,11 @@ Las guardas de lectura de este modulo (torneo del tenant, academia representable
 etiqueta ya congelada para una ``category_key``) existen para que la capa de dominio
 pueda dar un error de negocio en vez de un fallo de clave foranea.
 
+S3.2 anade las transiciones del ciclo de vida de la inscripcion (retirada, readmision y
+descalificacion) en una unica sentencia, ``sql_update_registration_status``: la
+elegibilidad se expresa con las mismas guardas que la confirmacion
+(``_ELIGIBILITY_GUARDS``) y el estado de origen forma parte del ``WHERE``.
+
 Proyeccion de retorno: la misma que la capa de lectura de S1, declarada aqui de forma
 explicita para no acoplar la escritura a un simbolo privado de ``domain_reads``.
 """
@@ -34,6 +39,7 @@ from bracket.models.db.domain import (
     Competitor,
     RegistrationIdentityStatus,
     RegistrationRepresentation,
+    RegistrationStatus,
     SportsClub,
     TournamentRegistration,
 )
@@ -76,6 +82,32 @@ _COMPETITOR_COLUMNS = (
 _REGISTRATION_IN_TENANT = (
     "EXISTS (SELECT 1 FROM tournaments t "
     "WHERE t.id = tr.tournament_id AND t.club_id = :tenant_club_id)"
+)
+
+# Elegibilidad de una transicion hacia un estado vigente: la academia representada y el
+# competidor tienen que seguir activos. Es **defensa en profundidad dentro de la propia
+# sentencia**; la serializacion real de la carrera la hacen las lecturas ``FOR SHARE`` de
+# la capa de dominio (RS-9, RS-10), en el orden competidor -> academia.
+_ELIGIBILITY_GUARDS = """
+            AND (
+                tr.sports_club_id IS NULL
+                OR EXISTS (
+                    SELECT 1 FROM sports_clubs sc
+                    WHERE sc.id = tr.sports_club_id AND sc.active IS TRUE
+                )
+            )
+            AND (
+                tr.competitor_id IS NULL
+                OR EXISTS (
+                    SELECT 1 FROM competitors c
+                    WHERE c.id = tr.competitor_id AND c.active IS TRUE
+                )
+            )"""
+
+# Estados que una transicion puede declarar como origen o destino. Whitelist cerrado: de
+# aqui salen los literales que se interpolan en la sentencia, nunca de un valor recibido.
+_TRANSITION_STATUSES: frozenset[str] = frozenset(
+    {"DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED", "CORRECTED"}
 )
 
 
@@ -219,26 +251,67 @@ async def sql_confirm_registration(
         SET status = CAST('CONFIRMED' AS registration_status), updated_at = NOW()
         WHERE tr.id = :registration_id
             AND tr.status = CAST('DRAFT' AS registration_status)
-            AND {_REGISTRATION_IN_TENANT}
-            AND (
-                tr.sports_club_id IS NULL
-                OR EXISTS (
-                    SELECT 1 FROM sports_clubs sc
-                    WHERE sc.id = tr.sports_club_id AND sc.active IS TRUE
-                )
-            )
-            AND (
-                tr.competitor_id IS NULL
-                OR EXISTS (
-                    SELECT 1 FROM competitors c
-                    WHERE c.id = tr.competitor_id AND c.active IS TRUE
-                )
-            )
+            AND {_REGISTRATION_IN_TENANT}{_ELIGIBILITY_GUARDS}
         RETURNING {_REGISTRATION_COLUMNS_ALIASED}
         """
     result = await database.fetch_one(
         query=query,
         values={"registration_id": registration_id, "tenant_club_id": tenant_club_id},
+    )
+    return None if result is None else TournamentRegistration.model_validate(dict(result._mapping))
+
+
+def _origins_predicate(from_statuses: tuple[RegistrationStatus, ...]) -> str:
+    """Lista ``IN`` de estados de origen a partir del whitelist cerrado del modulo."""
+    origins: list[str] = []
+    for status in from_statuses:
+        if status not in _TRANSITION_STATUSES:
+            raise ValueError("estado de transicion no valido")
+        if status not in origins:
+            origins.append(status)
+    if not origins:
+        raise ValueError("una transicion necesita al menos un estado de origen")
+    return ", ".join(f"'{status}'" for status in origins)
+
+
+async def sql_update_registration_status(
+    *,
+    registration_id: TournamentRegistrationId,
+    tenant_club_id: ClubId,
+    from_statuses: tuple[RegistrationStatus, ...],
+    to_status: RegistrationStatus,
+    require_active_eligibility: bool = False,
+) -> TournamentRegistration | None:
+    """Transicion de estado decidida en la sentencia. ``None`` si el origen ya no aplica.
+
+    Es la sentencia de O5 (retirada), O5b (readmision) y O6 (descalificacion) de S3.2. La
+    transicion se decide en el ``WHERE`` (estado de origen, tenant y, si procede,
+    elegibilidad), nunca en un ``SELECT`` previo: una operacion repetida o simultanea
+    afecta a cero filas en vez de a dos. No toca snapshots, clave de categoria, revision
+    ni enlaces de correccion; solo el estado y ``updated_at``.
+
+    Con ``require_active_eligibility`` se aplican **las mismas guardas** que
+    :func:`sql_confirm_registration`: readmitir una inscripcion retirada tiene que
+    revalidar exactamente lo mismo que una confirmacion inicial.
+    """
+    if to_status not in _TRANSITION_STATUSES:
+        raise ValueError("estado de transicion no valido")
+    guards = _ELIGIBILITY_GUARDS if require_active_eligibility else ""
+    query = f"""
+        UPDATE tournament_registrations tr
+        SET status = CAST(:to_status AS registration_status), updated_at = NOW()
+        WHERE tr.id = :registration_id
+            AND tr.status IN ({_origins_predicate(from_statuses)})
+            AND {_REGISTRATION_IN_TENANT}{guards}
+        RETURNING {_REGISTRATION_COLUMNS_ALIASED}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "registration_id": registration_id,
+            "tenant_club_id": tenant_club_id,
+            "to_status": to_status,
+        },
     )
     return None if result is None else TournamentRegistration.model_validate(dict(result._mapping))
 
