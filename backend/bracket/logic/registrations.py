@@ -497,6 +497,23 @@ async def update_registration_draft(
     return updated
 
 
+async def _assert_represented_academy_active(registration: TournamentRegistration) -> None:
+    """Regla A5 al confirmar: una inscripcion nueva no representa una academia inactiva.
+
+    Se comprueba al escribir el borrador **y** al confirmarlo: una academia puede
+    desactivarse entre las dos operaciones. El FK de ``sports_club_id`` es ``RESTRICT``
+    (una academia con inscripciones no se borra), asi que desactivarla es la unica
+    forma de dejar de ser representable. El error no distingue "no existe" de "no esta
+    activa", y el borrador no se pierde: sigue editable.
+    """
+    if registration.sports_club_id is None:
+        return
+    if await registration_writes.sql_selectable_sports_club(registration.sports_club_id) is None:
+        raise SportsClubNotSelectableError(
+            "la academia representada dejo de estar activa: el borrador sigue editable"
+        )
+
+
 async def confirm_registration(
     context: ActorContext,
     registration_id: TournamentRegistrationId,
@@ -520,6 +537,7 @@ async def confirm_registration(
             return current
         if current.status != "DRAFT":
             raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
+        await _assert_represented_academy_active(current)
 
         confirmed = await registration_writes.sql_confirm_registration(
             registration_id=registration_id, tenant_club_id=context.tenant_club_id
@@ -531,7 +549,14 @@ async def confirm_registration(
                 raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
             if after.status == "CONFIRMED":
                 return after
-            raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
+            if after.status != "DRAFT":
+                raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
+            # Sigue siendo un borrador del tenant: lo unico que puede haber impedido la
+            # sentencia es que la academia representada dejara de estar activa.
+            await _assert_represented_academy_active(after)
+            raise InvalidRegistrationStateError(
+                "no se pudo confirmar el borrador: vuelve a intentarlo"
+            )
 
         await sql_insert_domain_change_log(
             entity=_REGISTRATION_ENTITY,

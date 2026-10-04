@@ -58,6 +58,7 @@ from tests.integration_tests.registration_fixtures import (
     count_current_registrations,
     fetch_all_audit_rows_as_text,
     registration_data_context,
+    set_sports_club_active,
 )
 
 
@@ -471,7 +472,88 @@ async def test_confirm_is_idempotent_and_does_not_duplicate_audit(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_confirm_rejects_a_registration_that_is_not_abuild_draft(
+async def test_confirm_rejects_an_academy_deactivated_after_the_draft(
+    registration_data: RegistrationData,
+) -> None:
+    """A5 tambien al confirmar: si la academia se desactiva despues del borrador, no se confirma.
+
+    El borrador no se pierde ni queda a medias: sigue ``DRAFT``, sin evento ``CONFIRM``, y
+    vuelve a ser confirmable en cuanto la academia se reactiva.
+    """
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(
+            competitor_id=registration_data.competitor_a,
+            representation="CLUB",
+            sports_club_id=registration_data.sports_club_a,
+        ),
+    )
+    await set_sports_club_active(registration_data.sports_club_a, active=False)
+
+    with pytest.raises(SportsClubNotSelectableError):
+        await confirm_registration(registration_data.context_owner_a, registration.id)
+
+    pending = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert pending is not None
+    assert pending.status == "DRAFT"
+    assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE"]
+
+    await set_sports_club_active(registration_data.sports_club_a, active=True)
+    confirmed = await confirm_registration(registration_data.context_owner_a, registration.id)
+    assert confirmed.status == "CONFIRMED"
+    assert confirmed.sports_club_name_snapshot == "Academia Propia A"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_confirm_statement_refuses_an_inactive_academy(
+    registration_data: RegistrationData,
+) -> None:
+    """La regla A5 vive tambien en la sentencia: sin el chequeo de Python, la fila no cambia."""
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(
+            competitor_id=registration_data.competitor_a,
+            representation="CLUB",
+            sports_club_id=registration_data.sports_club_a,
+        ),
+    )
+    await set_sports_club_active(registration_data.sports_club_a, active=False)
+
+    statement_result = await registration_writes.sql_confirm_registration(
+        registration_id=registration.id, tenant_club_id=registration_data.tenant_a
+    )
+
+    assert statement_result is None
+    untouched = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert untouched is not None
+    assert untouched.status == "DRAFT"
+
+    await set_sports_club_active(registration_data.sports_club_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_confirm_of_an_independent_registration_ignores_deactivations(
+    registration_data: RegistrationData,
+) -> None:
+    """Un independiente no representa academia: desactivar una no le afecta."""
+    await set_sports_club_active(registration_data.sports_club_a, active=False)
+    registration = await create_registration(
+        registration_data.context_owner_a,
+        registration_data.tournament_a,
+        build_draft(competitor_id=registration_data.competitor_a),
+    )
+
+    confirmed = await confirm_registration(registration_data.context_owner_a, registration.id)
+
+    assert confirmed.status == "CONFIRMED"
+    assert confirmed.sports_club_id is None
+    await set_sports_club_active(registration_data.sports_club_a, active=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_confirm_rejects_a_registration_that_is_not_a_draft(
     registration_data: RegistrationData,
 ) -> None:
     """La transicion se valida: no basta con que la fila exista."""
@@ -603,7 +685,7 @@ async def test_concurrent_confirms_leave_a_single_audit_event(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_draft_update_sql_refuses_a_row_that_is_not_abuild_draft(
+async def test_draft_update_sql_refuses_a_row_that_is_not_a_draft(
     registration_data: RegistrationData,
 ) -> None:
     """La proteccion contra sobrescrituras vive en el ``WHERE``, no en la lectura previa.

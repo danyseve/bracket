@@ -49,6 +49,12 @@ INSERT_SPORTS_CLUB = """
     RETURNING id
 """
 
+# Desactivar es la unica forma de dejar de representar una academia: el FK de
+# `sports_club_id` en las inscripciones es RESTRICT.
+UPDATE_SPORTS_CLUB_ACTIVE = """
+    UPDATE sports_clubs SET active = :active, updated_at = NOW() WHERE id = :sports_club_id
+"""
+
 INSERT_COMPETITOR = """
     INSERT INTO competitors (display_name, managed_by_club_id, active, created)
     VALUES (:display_name, :managed_by_club_id, :active, :created)
@@ -148,6 +154,14 @@ async def insert_sports_club(
         },
     )
     return SportsClubId(sports_club_id)
+
+
+async def set_sports_club_active(sports_club_id: SportsClubId, *, active: bool) -> None:
+    """Activa o desactiva una academia: sirve para probar la regla A5 al confirmar."""
+    await database.execute(
+        query=UPDATE_SPORTS_CLUB_ACTIVE,
+        values={"sports_club_id": sports_club_id, "active": active},
+    )
 
 
 async def insert_competitor(

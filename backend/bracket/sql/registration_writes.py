@@ -198,6 +198,11 @@ async def sql_confirm_registration(
     La transicion se decide en la propia sentencia (``status = 'DRAFT'`` en el
     ``WHERE``), no en un ``SELECT`` previo: una confirmacion repetida o simultanea
     afecta a cero filas en vez de a dos. No toca ningun snapshot.
+
+    La segunda condicion cierra la carrera de la regla A5: si la academia representada
+    se desactiva entre la lectura del dominio y esta sentencia, la confirmacion no
+    ocurre. Un independiente (``sports_club_id IS NULL``) no depende de ninguna
+    academia.
     """
     query = f"""
         UPDATE tournament_registrations tr
@@ -205,6 +210,13 @@ async def sql_confirm_registration(
         WHERE tr.id = :registration_id
             AND tr.status = CAST('DRAFT' AS registration_status)
             AND {_REGISTRATION_IN_TENANT}
+            AND (
+                tr.sports_club_id IS NULL
+                OR EXISTS (
+                    SELECT 1 FROM sports_clubs sc
+                    WHERE sc.id = tr.sports_club_id AND sc.active IS TRUE
+                )
+            )
         RETURNING {_REGISTRATION_COLUMNS_ALIASED}
         """
     result = await database.fetch_one(
