@@ -31,6 +31,7 @@ from heliclockter import datetime_utc
 
 from bracket.database import database
 from bracket.models.db.domain import (
+    Competitor,
     RegistrationIdentityStatus,
     RegistrationRepresentation,
     SportsClub,
@@ -64,6 +65,11 @@ _REGISTRATION_COLUMNS_ALIASED = """
 """
 
 _SPORTS_CLUB_COLUMNS = "id, name, active, tenant_club_id, created, updated_at"
+
+# Misma proyeccion que la lectura de S1 para un competidor, con alias de tabla.
+_COMPETITOR_COLUMNS = (
+    "c.id, c.display_name, c.active, c.managed_by_club_id, c.created, c.updated_at"
+)
 
 # Alcance del tenant, dentro de la propia sentencia. El torneo es el unico punto por
 # el que una inscripcion puede pertenecer a un tenant.
@@ -203,6 +209,10 @@ async def sql_confirm_registration(
     se desactiva entre la lectura del dominio y esta sentencia, la confirmacion no
     ocurre. Un independiente (``sports_club_id IS NULL``) no depende de ninguna
     academia.
+
+    La tercera hace lo mismo con la regla S3.1a: un competidor dado de baja entre el
+    borrador y la confirmacion impide la transicion. Un alta sin identidad
+    (``competitor_id IS NULL``) es un caso valido y no depende de ningun competidor.
     """
     query = f"""
         UPDATE tournament_registrations tr
@@ -215,6 +225,13 @@ async def sql_confirm_registration(
                 OR EXISTS (
                     SELECT 1 FROM sports_clubs sc
                     WHERE sc.id = tr.sports_club_id AND sc.active IS TRUE
+                )
+            )
+            AND (
+                tr.competitor_id IS NULL
+                OR EXISTS (
+                    SELECT 1 FROM competitors c
+                    WHERE c.id = tr.competitor_id AND c.active IS TRUE
                 )
             )
         RETURNING {_REGISTRATION_COLUMNS_ALIASED}
@@ -258,6 +275,30 @@ async def sql_selectable_sports_club(sports_club_id: SportsClubId) -> SportsClub
         """
     result = await database.fetch_one(query=query, values={"sports_club_id": sports_club_id})
     return None if result is None else SportsClub.model_validate(dict(result._mapping))
+
+
+async def sql_selectable_competitor(
+    *, competitor_id: CompetitorId, tenant_club_id: ClubId
+) -> Competitor | None:
+    """Competidor elegible como identidad: del tenant **y** activo (S3.1a).
+
+    A diferencia de la academia representada (que puede ser de otro tenant), la identidad
+    personal solo puede salir del tenant del contexto, y la baja logica la deshabilita para
+    altas nuevas. Pertenencia y estado se comprueban en la propia sentencia, no con un
+    ``SELECT`` previo. ``None`` unifica "no existe", "es de otro club" y "esta dado de baja":
+    el error de dominio no revela cual de las tres cosas pasa.
+    """
+    query = f"""
+        SELECT {_COMPETITOR_COLUMNS}
+        FROM competitors c
+        WHERE c.id = :competitor_id
+            AND c.managed_by_club_id = :tenant_club_id
+            AND c.active IS TRUE
+        """
+    result = await database.fetch_one(
+        query=query, values={"competitor_id": competitor_id, "tenant_club_id": tenant_club_id}
+    )
+    return None if result is None else Competitor.model_validate(dict(result._mapping))
 
 
 async def sql_category_labels_for_key(

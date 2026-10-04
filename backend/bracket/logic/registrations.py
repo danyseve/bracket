@@ -51,7 +51,7 @@ import asyncpg  # type: ignore[import-untyped]
 from heliclockter import datetime_utc
 
 from bracket.database import database
-from bracket.logic.competitors import CompetitorNotFoundError, TenantNotAuthorizedError
+from bracket.logic.competitors import TenantNotAuthorizedError
 from bracket.models.db.domain import (
     ActorContext,
     RegistrationDraftData,
@@ -60,7 +60,7 @@ from bracket.models.db.domain import (
     TournamentRegistration,
 )
 from bracket.sql import registration_writes
-from bracket.sql.domain_reads import get_competitor, get_competitor_affiliations, get_registration
+from bracket.sql.domain_reads import get_competitor_affiliations, get_registration
 from bracket.sql.domain_writes import sql_insert_domain_change_log
 from bracket.sql.users import get_user_relation_to_club
 from bracket.utils.id_types import (
@@ -150,6 +150,10 @@ class InvalidRegistrationDataError(RegistrationDomainError):
 
 class SportsClubNotSelectableError(InvalidRegistrationDataError):
     """La academia representada no existe o no esta activa: no es elegible."""
+
+
+class CompetitorNotSelectableError(InvalidRegistrationDataError):
+    """El competidor no existe, no es del tenant o esta dado de baja: no es elegible (S3.1a)."""
 
 
 class InvalidRegistrationStateError(RegistrationDomainError):
@@ -295,9 +299,14 @@ async def _resolve_identity(
         raise InvalidRegistrationDataError(
             "el nombre de un competidor verificado se deriva: no se acepta desde el payload"
         )
-    competitor = await get_competitor(data.competitor_id, tenant_club_id=context.tenant_club_id)
+    competitor = await registration_writes.sql_selectable_competitor(
+        competitor_id=data.competitor_id, tenant_club_id=context.tenant_club_id
+    )
     if competitor is None:
-        raise CompetitorNotFoundError("competidor no encontrado en este tenant")
+        # Un solo error para inexistente, ajeno e inactivo: no se filtra su existencia.
+        raise CompetitorNotSelectableError(
+            "el competidor no existe, no es de este club o esta dado de baja"
+        )
     return (
         competitor.id,
         "VERIFIED",
@@ -497,6 +506,30 @@ async def update_registration_draft(
     return updated
 
 
+async def _assert_registered_competitor_active(
+    registration: TournamentRegistration, context: ActorContext
+) -> None:
+    """Regla S3.1a al confirmar: un borrador cuyo competidor esta dado de baja no se confirma.
+
+    Se comprueba al escribir el borrador **y** al confirmarlo: la baja logica puede llegar
+    entre las dos operaciones. El FK de ``competitor_id`` es ``RESTRICT`` (una baja no borra
+    ni arrastra inscripciones), asi que desactivar es la unica forma de dejar de ser elegible.
+    ``competitor_id`` nulo (alta sin identidad) es un caso valido y permanente. El error no
+    distingue "no existe", "es de otro club" ni "esta dado de baja": no hay oraculo de
+    existencia. El borrador no se pierde, sigue en ``DRAFT``; su salida es retirarlo (S3.2)
+    o reactivar el competidor (S2-bis).
+    """
+    if registration.competitor_id is None:
+        return
+    selectable = await registration_writes.sql_selectable_competitor(
+        competitor_id=registration.competitor_id, tenant_club_id=context.tenant_club_id
+    )
+    if selectable is None:
+        raise CompetitorNotSelectableError(
+            "el competidor de la inscripcion no esta activo: el borrador sigue editable"
+        )
+
+
 async def _assert_represented_academy_active(registration: TournamentRegistration) -> None:
     """Regla A5 al confirmar: una inscripcion nueva no representa una academia inactiva.
 
@@ -537,6 +570,7 @@ async def confirm_registration(
             return current
         if current.status != "DRAFT":
             raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
+        await _assert_registered_competitor_active(current, context)
         await _assert_represented_academy_active(current)
 
         confirmed = await registration_writes.sql_confirm_registration(
@@ -552,7 +586,8 @@ async def confirm_registration(
             if after.status != "DRAFT":
                 raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
             # Sigue siendo un borrador del tenant: lo unico que puede haber impedido la
-            # sentencia es que la academia representada dejara de estar activa.
+            # sentencia es que la academia representada o el competidor dejaran de estar activos.
+            await _assert_registered_competitor_active(after, context)
             await _assert_represented_academy_active(after)
             raise InvalidRegistrationStateError(
                 "no se pudo confirmar el borrador: vuelve a intentarlo"
