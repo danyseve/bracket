@@ -8,6 +8,12 @@ editables (:class:`CompetitorBasicDataUpdate`). Sigue sin haber variantes
 ``*Insertable``: las escrituras usan parametros explicitos y ``managed_by_club_id``
 no es un dato de entrada, sale siempre del contexto autorizado.
 
+S3.1 (``bracket/sql/registration_writes.py`` + ``bracket/logic/registrations.py``)
+anade el contrato de datos de una inscripcion en borrador
+(:class:`RegistrationDraftData`). Tampoco hay ``*Insertable`` de inscripcion: el
+estado, la revision, los enlaces de correccion y los snapshots derivados no son
+datos de entrada y el ``tournament_id`` se valida contra el tenant del contexto.
+
 Acceso minimo a PII: se excluyen a proposito los campos que no hacen falta para
 consultar el dominio:
 
@@ -39,7 +45,10 @@ from bracket.utils.id_types import (
 type RegistrationIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS", "VERIFIED"]
 type RegistrationRepresentation = Literal["INDEPENDENT", "CLUB"]
 type RegistrationStatus = Literal["DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED", "CORRECTED"]
-type DomainChangeLogAction = Literal["CREATE", "UPDATE", "DEACTIVATE"]
+type DomainChangeLogAction = Literal["CREATE", "UPDATE", "DEACTIVATE", "CONFIRM"]
+# Estado de identidad que el llamador puede declarar en una inscripcion **sin**
+# competidor. ``VERIFIED`` no se acepta desde fuera: se deriva de ``competitor_id``.
+type RegistrationUnknownIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS"]
 
 
 class ActorContext(BaseModelORM):
@@ -140,3 +149,35 @@ class TournamentRegistration(BaseModelORM):
     superseded_by_registration_id: TournamentRegistrationId | None = None
     created: datetime_utc
     updated_at: datetime_utc | None = None
+
+
+class RegistrationDraftData(BaseModelORM):
+    """Estado deseado de una inscripcion en borrador (alta y edicion).
+
+    Modelo de **reemplazo explicito**: los campos son obligatorios (salvo los
+    opcionales declarados ``| None``) y describen el estado completo, de modo que una
+    edicion no puede dejar campos a medias ni sobrescribir sin querer lo que no
+    menciona.
+
+    Lo que **no** esta aqui, a proposito:
+
+    * ``tournament_id``: se pasa como parametro explicito y se valida contra el
+      tenant del contexto;
+    * ``status``, ``revision``, ``corrects_registration_id``,
+      ``superseded_by_registration_id``: los cambian las operaciones de ciclo de vida,
+      nunca el payload;
+    * ``sports_club_name_snapshot``: se deriva de la academia elegida.
+
+    ``competitor_name_snapshot`` solo aporta valor cuando no hay identidad verificada
+    (``competitor_id`` NULL): el nombre de un competidor verificado se deriva de su
+    identidad y no se acepta desde el payload.
+    """
+
+    competitor_id: CompetitorId | None
+    identity_status: RegistrationUnknownIdentityStatus | None
+    representation: RegistrationRepresentation
+    sports_club_id: SportsClubId | None
+    affiliation_id: CompetitorXSportsClubId | None
+    category_key: str | None
+    category_label: str | None
+    competitor_name_snapshot: str | None
