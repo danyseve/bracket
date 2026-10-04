@@ -179,30 +179,36 @@ def test_catalog_entries_are_immutable() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_code_of_another_action_is_rejected() -> None:
+@pytest.mark.parametrize(
+    ("scope", "action", "code"),
+    [
+        ("competitor", "UPDATE", "CATEGORY_CHANGE"),
+        ("competitor", "DEACTIVATE", "WITHDRAWAL_REQUEST"),
+        ("tournament_registration", "UPDATE", "READY"),
+        ("tournament_registration", "CONFIRM", "WITHDRAWAL_REQUEST"),
+        ("tournament_registration", "WITHDRAW", "DATA_VERIFIED"),
+    ],
+)
+def test_code_of_another_action_is_rejected(scope: str, action: str, code: str) -> None:
     with pytest.raises(audit_reasons.ReasonCodeNotAllowedError):
-        audit_reasons.validate_reason_code(
-            scope="tournament_registration", action="CONFIRM", code="WITHDRAWAL_REQUEST"
-        )
-
-
-def test_code_of_another_scope_is_rejected() -> None:
-    with pytest.raises(audit_reasons.ReasonCodeNotAllowedError):
-        audit_reasons.validate_reason_code(
-            scope="competitor", action="WITHDRAW", code="WITHDRAWAL_REQUEST"
-        )
+        audit_reasons.validate_reason_code(scope=scope, action=action, code=code)
 
 
 def test_registration_update_only_accepts_its_three_codes() -> None:
-    assert set(
-        audit_reasons.allowed_codes(scope="tournament_registration", action="UPDATE")
-    ) == {"DATA_CORRECTION", "CATEGORY_CHANGE", "REPRESENTATION_CHANGE"}
+    assert set(audit_reasons.allowed_codes(scope="tournament_registration", action="UPDATE")) == {
+        "DATA_CORRECTION",
+        "CATEGORY_CHANGE",
+        "REPRESENTATION_CHANGE",
+    }
 
 
 def test_allowed_codes_returns_the_approved_order() -> None:
-    assert audit_reasons.allowed_codes(
-        scope="tournament_registration", action="DISQUALIFY"
-    ) == ("SCHEDULING_NO_SHOW", "RULE_VIOLATION", "ELIGIBILITY", "ADMINISTRATIVE")
+    assert audit_reasons.allowed_codes(scope="tournament_registration", action="DISQUALIFY") == (
+        "SCHEDULING_NO_SHOW",
+        "RULE_VIOLATION",
+        "ELIGIBILITY",
+        "ADMINISTRATIVE",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +405,7 @@ def test_find_personal_data_reports_kinds_not_values() -> None:
 
 
 def test_find_personal_data_returns_empty_for_clean_text() -> None:
-    assert audit_reasons.find_personal_data("gestion ordinaria del comite") == ()
+    assert not audit_reasons.find_personal_data("gestion ordinaria del comite")
 
 
 def test_find_personal_data_is_deterministic_in_order() -> None:
@@ -415,7 +421,7 @@ def test_canonical_texts_pass_their_own_filter(scope: str, action: str) -> None:
 
     for code in audit_reasons.CATALOG[(scope, action)]:
         text = audit_reasons.canonical_text(scope=scope, action=action, code=code)
-        assert audit_reasons.find_personal_data(text) == ()
+        assert not audit_reasons.find_personal_data(text)
         assert text.isprintable()
         assert len(text) <= audit_reasons.MAX_REASON_NOTE_LENGTH
 
@@ -493,9 +499,7 @@ def test_competitor_defaults_are_reproducible_by_the_catalog() -> None:
         "DEACTIVATE": ("ADMINISTRATIVE", "baja logica de competidor"),
         "ACTIVATE": ("ADMINISTRATIVE", "reactivacion de competidor"),
     }
-    assert competitors._DEFAULT_REASONS == {
-        action: text for action, (_, text) in expected.items()
-    }
+    assert competitors._DEFAULT_REASONS == {action: text for action, (_, text) in expected.items()}
     for action, (code, text) in expected.items():
         reason = audit_reasons.build_audit_reason(scope="competitor", action=action)
         assert (reason.code, reason.text) == (code, text)
@@ -547,19 +551,26 @@ def test_optional_and_required_actions_match_the_current_contracts() -> None:
 
 
 def test_module_does_not_write_audit_or_touch_persistence() -> None:
+    """El modulo es puro: ni escritor de auditoria, ni cliente de datos, ni transporte."""
+
     source = Path(audit_reasons.__file__).read_text(encoding="utf-8")
     for forbidden in (
         "sql_insert_domain_change_log",
         "domain_writes",
         "sqlalchemy",
         "asyncpg",
-        "database",
-        "routes",
-        "app",
-        "INSERT",
-        "UPDATE ",
+        "INSERT INTO",
+        "fastapi",
+        "quote_ident",
     ):
         assert forbidden not in source, forbidden
+
+    imported = {
+        name
+        for name, value in vars(audit_reasons).items()
+        if not name.startswith("__") and type(value).__name__ == "module"
+    }
+    assert imported <= {"re", "unicodedata"}
 
 
 def test_existing_audit_writer_keeps_its_signature() -> None:
@@ -672,7 +683,9 @@ def test_build_audit_reason_with_note() -> None:
         note="  retirada acordada por el comite  ",
     )
     assert reason == audit_reasons.AuditReason(
-        code="ADMINISTRATIVE", text="retirada administrativa", note="retirada acordada por el comite"
+        code="ADMINISTRATIVE",
+        text="retirada administrativa",
+        note="retirada acordada por el comite",
     )
 
 
