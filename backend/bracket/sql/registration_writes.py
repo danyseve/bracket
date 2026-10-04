@@ -278,7 +278,7 @@ async def sql_selectable_sports_club(sports_club_id: SportsClubId) -> SportsClub
 
 
 async def sql_selectable_competitor(
-    *, competitor_id: CompetitorId, tenant_club_id: ClubId
+    *, competitor_id: CompetitorId, tenant_club_id: ClubId, for_share: bool = False
 ) -> Competitor | None:
     """Competidor elegible como identidad: del tenant **y** activo (S3.1a).
 
@@ -287,13 +287,22 @@ async def sql_selectable_competitor(
     altas nuevas. Pertenencia y estado se comprueban en la propia sentencia, no con un
     ``SELECT`` previo. ``None`` unifica "no existe", "es de otro club" y "esta dado de baja":
     el error de dominio no revela cual de las tres cosas pasa.
+
+    ``for_share`` añade ``FOR SHARE`` (RS-9): es el bloqueo que toma la confirmacion para que
+    la elegibilidad quede serializada con la baja logica **dentro de su transaccion**. La baja
+    (``UPDATE competitors SET active = false``) toma ``FOR NO KEY UPDATE``, que si conflictua
+    con ``FOR SHARE``; cuando el ``FOR SHARE`` espera a que la baja comitee, PostgreSQL
+    reevalua la condicion sobre la version actualizada y la fila deja de aparecer (cero filas,
+    sin ventana). ``FOR KEY SHARE`` no serviria: es compatible con ``FOR NO KEY UPDATE``. El
+    alta y la edicion de borrador no bloquean: solo comprueban.
     """
+    lock = " FOR SHARE" if for_share else ""
     query = f"""
         SELECT {_COMPETITOR_COLUMNS}
         FROM competitors c
         WHERE c.id = :competitor_id
             AND c.managed_by_club_id = :tenant_club_id
-            AND c.active IS TRUE
+            AND c.active IS TRUE{lock}
         """
     result = await database.fetch_one(
         query=query, values={"competitor_id": competitor_id, "tenant_club_id": tenant_club_id}

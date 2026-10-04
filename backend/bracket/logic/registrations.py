@@ -518,11 +518,19 @@ async def _assert_registered_competitor_active(
     distingue "no existe", "es de otro club" ni "esta dado de baja": no hay oraculo de
     existencia. El borrador no se pierde, sigue en ``DRAFT``; su salida es retirarlo (S3.2)
     o reactivar el competidor (S2-bis).
+
+    La lectura toma ``FOR SHARE`` (RS-9) para que la elegibilidad quede serializada con la
+    baja logica dentro de la transaccion de confirmacion: quien da de baja espera a que la
+    confirmacion termine, y si la baja gana la carrera, esta comprobacion ya no ve la fila.
+    Es lo primero que se bloquea en la confirmacion (orden competidor -> inscripcion), asi que
+    no puede cerrar un ciclo con la baja, que solo bloquea esa misma fila e inserta auditoria.
     """
     if registration.competitor_id is None:
         return
     selectable = await registration_writes.sql_selectable_competitor(
-        competitor_id=registration.competitor_id, tenant_club_id=context.tenant_club_id
+        competitor_id=registration.competitor_id,
+        tenant_club_id=context.tenant_club_id,
+        for_share=True,
     )
     if selectable is None:
         raise CompetitorNotSelectableError(
