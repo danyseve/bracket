@@ -14,6 +14,11 @@ class UniqueIndex(EnumAutoStr):
     ix_users_email = auto()
     stage_item_inputs_stage_item_id_team_id_key = auto()
     stage_item_inputs_stage_item_id_winner_from_stage_item_id_w_key = auto()
+    # F3A: indices unicos parciales del modelo de dominio (docs/21 v3 §12.1/§12.3).
+    uq_competitors_x_sports_clubs_primary = auto()
+    uq_tenant_quota_overrides_club_key = auto()
+    uq_tournament_registrations_current_category = auto()
+    uq_tournament_registrations_current_uncategorized = auto()
 
 
 class ForeignKey(EnumAutoStr):
@@ -36,6 +41,18 @@ unique_index_violation_error_lookup = {
     ),
     UniqueIndex.stage_item_inputs_stage_item_id_winner_from_stage_item_id_w_key: (
         "This stage item winner is already assigned to another stage item"
+    ),
+    # F3A: mensajes de las UNIQUE del modelo de dominio. No hay endpoints todavia (F3B/F3C),
+    # pero la base ya impone estas reglas y el mapeo evita un 500 si se violan.
+    UniqueIndex.uq_competitors_x_sports_clubs_primary: (
+        "This competitor already has a primary sports club"
+    ),
+    UniqueIndex.uq_tenant_quota_overrides_club_key: "This quota is already set for this club",
+    UniqueIndex.uq_tournament_registrations_current_category: (
+        "This competitor already has a valid registration in this category"
+    ),
+    UniqueIndex.uq_tournament_registrations_current_uncategorized: (
+        "This competitor already has a valid registration in this tournament"
     ),
 }
 

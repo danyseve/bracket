@@ -1,6 +1,17 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Table,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import declarative_base  # type: ignore[attr-defined]
-from sqlalchemy.sql.sqltypes import BigInteger, Boolean, DateTime, Enum, Float, Text
+from sqlalchemy.sql.sqltypes import ARRAY, BigInteger, Boolean, DateTime, Enum, Float, Text
 
 Base = declarative_base()
 metadata = Base.metadata
@@ -164,6 +175,23 @@ players = Table(
     Column("name", String, nullable=False, index=True),
     Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
     Column("tournament_id", BigInteger, ForeignKey("tournaments.id"), index=True, nullable=False),
+    # F3A: vinculos opcionales y nullable con el modelo nuevo de dominio. Se anaden
+    # vacios a proposito: el backfill conservador es F3B y no se altera ninguna
+    # relacion existente de `players` (participacion legacy por torneo).
+    Column(
+        "registration_id",
+        BigInteger,
+        ForeignKey("tournament_registrations.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    ),
+    Column(
+        "competitor_id",
+        BigInteger,
+        ForeignKey("competitors.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    ),
     Column("elo_score", Float, nullable=False),
     Column("swiss_score", Float, nullable=False),
     Column("wins", Integer, nullable=False),
@@ -239,4 +267,333 @@ rankings = Table(
     Column("draw_points", Float, nullable=False),
     Column("loss_points", Float, nullable=False),
     Column("add_score_points", Boolean, nullable=False),
+)
+
+# --------------------------------------------------------------------------------------
+# F3A — Fundamentos del modelo de dominio (Competitor / Academia / Inscripcion).
+#
+# Aditivo y sin backfill: ninguna tabla existente cambia de significado.
+# ``clubs`` sigue siendo el tenant/organizacion, ``players`` la participacion legacy por
+# torneo, ``teams`` la unidad competitiva y ``stage_item_inputs.team_id`` el entrant del
+# motor (intacto). El Entrant explicito (F3E) esta aplazado y no se crea aqui.
+#
+# Politica de borrado (doc 21 v3, §12.2): el historico de competicion nunca se elimina en
+# cascada desde ``tournaments``; las relaciones de identidad son RESTRICT y solo las
+# relaciones auxiliares (SET NULL) o de configuracion (CASCADE) pueden desaparecer.
+# --------------------------------------------------------------------------------------
+
+sports_clubs = Table(
+    "sports_clubs",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column("name", String, nullable=False),
+    Column("active", Boolean, nullable=False, server_default="t", index=True),
+    # Tenant/organizacion que administra el registro. NULL = academia sin cuenta
+    # administrativa (solo mantenible por un administrador de plataforma).
+    Column(
+        "tenant_club_id",
+        BigInteger,
+        ForeignKey("clubs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    ),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTimeTZ, nullable=True),
+    Index("ix_sports_clubs_name_normalized", func.lower(func.btrim(text("name")))),
+)
+
+sports_clubs_name_history = Table(
+    "sports_clubs_name_history",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column(
+        "sports_club_id",
+        BigInteger,
+        ForeignKey("sports_clubs.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    ),
+    Column("name", String, nullable=False),
+    Column("valid_from", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("valid_to", DateTimeTZ, nullable=True),
+    Column(
+        "changed_by_user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    CheckConstraint(
+        "valid_to IS NULL OR valid_to > valid_from",
+        name="ck_sports_clubs_name_history_range",
+    ),
+)
+
+competitors = Table(
+    "competitors",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column("display_name", String, nullable=False),
+    Column("active", Boolean, nullable=False, server_default="t", index=True),
+    # Tenant que administra el registro del competidor. NULL = registro de plataforma.
+    Column(
+        "managed_by_club_id",
+        BigInteger,
+        ForeignKey("clubs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    ),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTimeTZ, nullable=True),
+    Index("ix_competitors_display_name_normalized", func.lower(func.btrim(text("display_name")))),
+)
+
+competitors_name_history = Table(
+    "competitors_name_history",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column(
+        "competitor_id",
+        BigInteger,
+        ForeignKey("competitors.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    ),
+    Column("display_name", String, nullable=False),
+    Column("valid_from", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("valid_to", DateTimeTZ, nullable=True),
+    Column(
+        "changed_by_user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    CheckConstraint(
+        "valid_to IS NULL OR valid_to > valid_from",
+        name="ck_competitors_name_history_range",
+    ),
+)
+
+competitors_x_sports_clubs = Table(
+    "competitors_x_sports_clubs",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column(
+        "competitor_id",
+        BigInteger,
+        ForeignKey("competitors.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    ),
+    Column(
+        "sports_club_id",
+        BigInteger,
+        ForeignKey("sports_clubs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    ),
+    Column("valid_from", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("valid_to", DateTimeTZ, nullable=True),
+    Column("is_primary", Boolean, nullable=False, server_default="f"),
+    Column("note", Text, nullable=True),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    CheckConstraint(
+        "valid_to IS NULL OR valid_to > valid_from",
+        name="ck_competitors_x_sports_clubs_range",
+    ),
+    # Una unica afiliacion primaria vigente por competidor (afiliaciones simultaneas
+    # no primarias permitidas).
+    Index(
+        "uq_competitors_x_sports_clubs_primary",
+        "competitor_id",
+        unique=True,
+        postgresql_where=text("valid_to IS NULL AND is_primary"),
+    ),
+)
+
+tournament_registrations = Table(
+    "tournament_registrations",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    # RESTRICT: eliminar un torneo no puede borrar inscripciones historicas en cascada.
+    Column(
+        "tournament_id",
+        BigInteger,
+        ForeignKey("tournaments.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    ),
+    Column(
+        "competitor_id",
+        BigInteger,
+        ForeignKey("competitors.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    ),
+    Column(
+        "identity_status",
+        Enum(
+            "UNVERIFIED",
+            "AMBIGUOUS",
+            "VERIFIED",
+            name="registration_identity_status",
+        ),
+        nullable=False,
+        server_default="UNVERIFIED",
+    ),
+    Column(
+        "representation",
+        Enum("INDEPENDENT", "CLUB", name="registration_representation"),
+        nullable=False,
+        server_default="INDEPENDENT",
+    ),
+    Column(
+        "sports_club_id",
+        BigInteger,
+        ForeignKey("sports_clubs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    ),
+    Column(
+        "affiliation_id",
+        BigInteger,
+        ForeignKey("competitors_x_sports_clubs.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("category_key", String, nullable=True, index=True),
+    Column("category_label", String, nullable=True),
+    Column("competitor_name_snapshot", String, nullable=False),
+    Column("sports_club_name_snapshot", String, nullable=True),
+    Column(
+        "status",
+        Enum(
+            "DRAFT",
+            "CONFIRMED",
+            "WITHDRAWN",
+            "DISQUALIFIED",
+            "CORRECTED",
+            name="registration_status",
+        ),
+        nullable=False,
+        server_default="DRAFT",
+        index=True,
+    ),
+    Column("revision", Integer, nullable=False, server_default="1"),
+    # Cadena de revisiones (docs/21 v3 §12.3, con desviacion documentada en F3A):
+    #  - `corrects_registration_id` RESTRICT: una revision no puede quedarse sin su origen,
+    #    y el original no se borra mientras exista una revision que lo corrija.
+    #  - `superseded_by_registration_id` SET NULL: permitir el borrado ordenado
+    #    (hoja -> raiz). Con RESTRICT en ambos lados la pareja original/revision era
+    #    indeleble, y el CHECK "CORRECTED => superseded_by" chocaba con el SET NULL.
+    #    Esa invariante pasa a la capa de aplicacion (F3B/F3C), no se simula en la BBDD.
+    Column(
+        "corrects_registration_id",
+        BigInteger,
+        ForeignKey("tournament_registrations.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    ),
+    Column(
+        "superseded_by_registration_id",
+        BigInteger,
+        ForeignKey("tournament_registrations.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column(
+        "verified_by_user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("verified_at", DateTimeTZ, nullable=True),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTimeTZ, nullable=True),
+    CheckConstraint(
+        "(representation = 'CLUB') = (sports_club_id IS NOT NULL)",
+        name="ck_tournament_registrations_representation",
+    ),
+    CheckConstraint(
+        "(identity_status = 'VERIFIED') = (competitor_id IS NOT NULL)",
+        name="ck_tournament_registrations_identity",
+    ),
+    CheckConstraint(
+        "(representation = 'CLUB') = (sports_club_name_snapshot IS NOT NULL)",
+        name="ck_tournament_registrations_club_snapshot",
+    ),
+    CheckConstraint(
+        "length(btrim(competitor_name_snapshot)) > 0",
+        name="ck_tournament_registrations_snapshot_not_empty",
+    ),
+    CheckConstraint(
+        "revision = 1 OR corrects_registration_id IS NOT NULL",
+        name="ck_tournament_registrations_revision",
+    ),
+    # Una sola inscripcion vigente por (torneo, competidor, categoria). Las filas
+    # CORRECTED (sustituidas) quedan fuera del indice para no chocar con su revision.
+    Index(
+        "uq_tournament_registrations_current_category",
+        "tournament_id",
+        "competitor_id",
+        "category_key",
+        unique=True,
+        postgresql_where=text("competitor_id IS NOT NULL AND status <> 'CORRECTED'"),
+    ),
+    # Inscripciones legacy sincronizadas sin categoria declarada: en PostgreSQL los
+    # NULL no colisionan entre si, asi que la unicidad necesita un indice propio.
+    Index(
+        "uq_tournament_registrations_current_uncategorized",
+        "tournament_id",
+        "competitor_id",
+        unique=True,
+        postgresql_where=text(
+            "competitor_id IS NOT NULL AND category_key IS NULL AND status <> 'CORRECTED'"
+        ),
+    ),
+)
+
+# Auditoria de rectificaciones. Sin FK hacia las entidades auditadas (el registro debe
+# sobrevivir al objeto) y con el actor como SET NULL mas una etiqueta congelada.
+# ``changed_fields`` guarda NOMBRES DE CAMPO, nunca valores (evita PII en la auditoria).
+domain_change_log = Table(
+    "domain_change_log",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column("entity", String, nullable=False),
+    Column("entity_id", BigInteger, nullable=False),
+    Column("action", String, nullable=False),
+    Column("changed_fields", ARRAY(String), nullable=False, server_default=text("'{}'")),
+    Column(
+        "actor_user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("actor_label", String, nullable=True),
+    Column("reason", Text, nullable=False),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    Index("ix_domain_change_log_entity", "entity", "entity_id"),
+)
+
+# Cuotas configurables por tenant (override del valor por defecto de la cuenta). Es
+# configuracion, no historico: se elimina con el tenant.
+tenant_quota_overrides = Table(
+    "tenant_quota_overrides",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column(
+        "club_id",
+        BigInteger,
+        ForeignKey("clubs.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    ),
+    Column("quota_key", String, nullable=False),
+    Column("quota_value", Integer, nullable=False),
+    Column(
+        "updated_by_user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("updated_at", DateTimeTZ, nullable=False, server_default=func.now()),
+    UniqueConstraint("club_id", "quota_key", name="uq_tenant_quota_overrides_club_key"),
 )
