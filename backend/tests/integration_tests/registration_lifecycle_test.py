@@ -362,13 +362,9 @@ async def test_withdrawn_from_confirmed_keeps_the_historic_and_the_unique_slot(
     assert withdrawn.competitor_name_snapshot == confirmed.competitor_name_snapshot
     assert withdrawn.sports_club_id == confirmed.sports_club_id
     assert withdrawn.revision == confirmed.revision
-    assert (
-        await count_current_registrations(
-            tournament_id=registration_data.tournament_a,
-            competitor_id=registration_data.competitor_a,
-        )
-        == 1
-    )
+    assert await count_current_registrations(
+        tournament_id=registration_data.tournament_a, competitor_id=registration_data.competitor_a
+    ) == 1
     with pytest.raises(DuplicateRegistrationError):
         await create_registration(
             registration_data.context_owner_a,
@@ -444,13 +440,9 @@ async def test_disqualify_is_idempotent_and_a_disqualified_row_still_occupies_th
 
     assert second.status == "DISQUALIFIED"
     assert await _actions(registration.id) == ["CREATE", "CONFIRM", "DISQUALIFY"]
-    assert (
-        await count_current_registrations(
-            tournament_id=registration_data.tournament_a,
-            competitor_id=registration_data.competitor_a,
-        )
-        == 1
-    )
+    assert await count_current_registrations(
+        tournament_id=registration_data.tournament_a, competitor_id=registration_data.competitor_a
+    ) == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -722,7 +714,9 @@ async def test_lifecycle_operations_reject_an_actor_without_relation_to_the_tena
 
     for operation in (withdraw_registration, reinstate_registration, disqualify_registration):
         with pytest.raises(TenantNotAuthorizedError):
-            await operation(registration_data.context_outsider_a, registration.id, reason="intento")
+            await operation(
+                registration_data.context_outsider_a, registration.id, reason="intento"
+            )
     after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
     assert after is not None
     assert after.status == "DRAFT"
@@ -784,9 +778,7 @@ async def test_the_category_key_cannot_change_once_the_draft_is_left(
         registration_data.tournament_a,
         _categorized(registration_data, "gi-congelada-confirmada"),
     )
-    await confirm_registration(
-        registration_data.context_owner_a, reinstated.id, reason="confirmada"
-    )
+    await confirm_registration(registration_data.context_owner_a, reinstated.id, reason="confirmada")
 
     for registration in (a, reinstated):
         with pytest.raises(InvalidRegistrationStateError):
@@ -815,9 +807,7 @@ async def test_an_audit_failure_rolls_back_the_transition(
         registration_data.tournament_a,
         _categorized(registration_data, "gi-rollback"),
     )
-    await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="retirada"
-    )
+    await withdraw_registration(registration_data.context_owner_a, registration.id, reason="retirada")
     monkeypatch.setattr(registrations_module, "sql_insert_domain_change_log", _boom)
 
     with pytest.raises(RuntimeError):
@@ -848,9 +838,7 @@ async def test_no_pii_in_the_lifecycle_audit_or_errors(
             category_label="Gi Absoluto Pii",
         ),
     )
-    await confirm_registration(
-        registration_data.context_owner_a, registration.id, reason="confirmada"
-    )
+    await confirm_registration(registration_data.context_owner_a, registration.id, reason="confirmada")
     with pytest.raises(InsufficientPrivilegesError) as exc_info:
         await disqualify_registration(
             registration_data.context_collaborator_a, registration.id, reason="intento"
@@ -862,13 +850,13 @@ async def test_no_pii_in_the_lifecycle_audit_or_errors(
     )
     await set_competitor_active(registration_data.competitor_a, active=False)
     try:
-        with pytest.raises(CompetitorNotSelectableError) as exc_info:
+        with pytest.raises(CompetitorNotSelectableError) as exc_info_reinstate:
             await reinstate_registration(
                 registration_data.context_owner_a, registration.id, reason="intento invalido"
             )
     finally:
         await set_competitor_active(registration_data.competitor_a, active=True)
-    assert all(token not in str(exc_info.value) for token in sensitive_tokens)
+    assert all(token not in str(exc_info_reinstate.value) for token in sensitive_tokens)
 
     dump = str(await audit_rows(registration.id))
     assert all(token not in dump for token in sensitive_tokens)
