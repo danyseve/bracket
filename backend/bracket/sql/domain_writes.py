@@ -86,7 +86,7 @@ async def sql_deactivate_competitor(
 async def sql_activate_competitor(
     *, competitor_id: CompetitorId, tenant_club_id: ClubId
 ) -> Competitor | None:
-    """Reactivacion logica del tenant. ``None`` si no existe, no es de ese tenant o ya estaba activo.
+    """Reactivacion logica del tenant. ``None`` si no existe, no es de ese tenant o ya activo.
 
     Simetrica de :func:`sql_deactivate_competitor`: mismo filtro de tenant, mismo cambio (la
     columna ``active``) y mismo ``RETURNING``. Al escribir la misma columna, las dos operaciones
