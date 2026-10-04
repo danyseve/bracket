@@ -149,7 +149,9 @@ async def test_sql_selectable_sports_club_takes_a_share_lock_that_blocks_a_deact
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_the_plain_read_does_not_lock_the_academy(registration_data: RegistrationData) -> None:
+async def test_the_plain_read_does_not_lock_the_academy(
+    registration_data: RegistrationData,
+) -> None:
     """Alta y edicion de borrador solo comprueban: sin ``for_share`` la lectura no bloquea."""
     sports_club_id = registration_data.sports_club_a
     deactivation_ready = asyncio.Event()
