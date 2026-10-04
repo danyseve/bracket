@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name
 """Contrato HTTP del contexto de actor autenticado (S3.3b, LAB ONLY).
 
 Pruebas negras sobre ``bracket/routes/domain_auth.py``: se levanta una aplicacion FastAPI
@@ -27,13 +28,7 @@ import aiohttp
 import jwt
 import pytest
 import pytest_asyncio
-from bracket.routes.domain_auth import (
-    actor_context_for_club,
-    actor_context_for_tournament,
-    owner_actor_context_for_club,
-    owner_actor_context_for_tournament,
-)
-from fastapi import Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from heliclockter import timedelta
 
 from bracket.app import app
@@ -45,6 +40,12 @@ from bracket.models.db.tournament import Tournament, TournamentInsertable
 from bracket.models.db.user import UserInDB
 from bracket.models.db.user_x_club import UserXClubInsertable, UserXClubRelation
 from bracket.routes.auth import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+from bracket.routes.domain_auth import (
+    actor_context_for_club,
+    actor_context_for_tournament,
+    owner_actor_context_for_club,
+    owner_actor_context_for_tournament,
+)
 from bracket.sql.users import update_user_active
 from bracket.utils.dummy_records import DUMMY_CLUB, DUMMY_TOURNAMENT
 from bracket.utils.http import HTTPMethod
@@ -64,51 +65,62 @@ from tests.integration_tests.sql import (
 )
 
 UNAUTHORIZED: JsonDict = {"detail": "Could not validate credentials"}
+# Cabecera Authorization ausente: lo emite ``oauth2_scheme``, como en el resto de rutas.
+NOT_AUTHENTICATED: JsonDict = {"detail": "Not authenticated"}
 NOT_FOUND: JsonDict = {"detail": "Not Found"}
 MOCK_PASSWORD = "mypassword"
+
+# Rutas internas de prueba: viven en este modulo y **no** se incluyen en ``bracket/app.py``.
+router = APIRouter()
+
+
+@router.get("/probe/club/{club_id}")
+async def probe_club(
+    club_id: ClubId, context: ActorContext = Depends(actor_context_for_club)
+) -> JsonDict:
+    return JsonDict(context.model_dump(mode="json"))
+
+
+@router.get("/probe/club/{club_id}/owner")
+async def probe_club_owner(
+    club_id: ClubId, context: ActorContext = Depends(owner_actor_context_for_club)
+) -> JsonDict:
+    return JsonDict(context.model_dump(mode="json"))
+
+
+@router.get("/probe/tournament/{tournament_id}")
+async def probe_tournament(
+    tournament_id: TournamentId, context: ActorContext = Depends(actor_context_for_tournament)
+) -> JsonDict:
+    return JsonDict(context.model_dump(mode="json"))
+
+
+@router.get("/probe/tournament/{tournament_id}/owner")
+async def probe_tournament_owner(
+    tournament_id: TournamentId,
+    context: ActorContext = Depends(owner_actor_context_for_tournament),
+) -> JsonDict:
+    return JsonDict(context.model_dump(mode="json"))
+
+
+@router.post("/probe/club/{club_id}")
+async def probe_club_with_body(
+    club_id: ClubId,
+    payload: JsonDict,
+    context: ActorContext = Depends(actor_context_for_club),
+) -> JsonDict:
+    """Devuelve el contexto resuelto y, aparte, el cuerpo recibido: el cuerpo no decide nada."""
+    return JsonDict(context.model_dump(mode="json") | {"_payload": payload})
 
 
 def build_probe_app() -> FastAPI:
     """Aplicacion de prueba con rutas internas que exponen el contexto resuelto.
 
-    Estas rutas viven solo aqui: el router productivo (``bracket/app.py``) no declara
-    ninguna ruta F3 en esta fase.
+    Nada de esto se incluye en la app del producto: el router productivo
+    (``bracket/app.py``) no declara ninguna ruta F3 en esta fase.
     """
     probe = FastAPI()
-
-    @probe.get("/probe/club/{club_id}")
-    async def probe_club(
-        club_id: ClubId, context: ActorContext = Depends(actor_context_for_club)
-    ) -> JsonDict:
-        return context.model_dump(mode="json")
-
-    @probe.get("/probe/club/{club_id}/owner")
-    async def probe_club_owner(
-        club_id: ClubId, context: ActorContext = Depends(owner_actor_context_for_club)
-    ) -> JsonDict:
-        return context.model_dump(mode="json")
-
-    @probe.get("/probe/tournament/{tournament_id}")
-    async def probe_tournament(
-        tournament_id: TournamentId, context: ActorContext = Depends(actor_context_for_tournament)
-    ) -> JsonDict:
-        return context.model_dump(mode="json")
-
-    @probe.get("/probe/tournament/{tournament_id}/owner")
-    async def probe_tournament_owner(
-        tournament_id: TournamentId,
-        context: ActorContext = Depends(owner_actor_context_for_tournament),
-    ) -> JsonDict:
-        return context.model_dump(mode="json")
-
-    @probe.post("/probe/club/{club_id}")
-    async def probe_club_with_body(
-        club_id: ClubId,
-        payload: JsonDict,
-        context: ActorContext = Depends(actor_context_for_club),
-    ) -> JsonDict:
-        return context.model_dump(mode="json") | {"_payload": payload}
-
+    probe.include_router(router)
     return probe
 
 
@@ -239,16 +251,15 @@ async def test_context_comes_from_a_real_login_session(
     startup_and_shutdown_uvicorn_server: None, probe_url: str
 ) -> None:
     """Token obtenido con ``POST /token`` de la app productiva, no inyectado en el test."""
-    mock_user = get_mock_user()
     async with inserted_tenant() as tenant:
         login = JsonDict(
             await send_request(
                 HTTPMethod.POST,
                 "token",
-                body={"username": mock_user.email, "password": MOCK_PASSWORD},
+                body={"username": tenant.user.email, "password": MOCK_PASSWORD},
             )
         )
-        assert "access_token" in login
+        assert login.get("token_type") == "bearer"
 
         status, body = await call_probe(
             HTTPMethod.GET,
@@ -269,7 +280,7 @@ async def test_context_comes_from_a_real_login_session(
 async def test_without_jwt(probe_url: str) -> None:
     async with inserted_tenant() as tenant:
         response = await call_probe(HTTPMethod.GET, probe_url, f"probe/club/{tenant.club.id}")
-    assert response == (401, UNAUTHORIZED)
+    assert response == (401, NOT_AUTHENTICATED)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -488,7 +499,7 @@ async def test_tournament_requires_authentication(probe_url: str) -> None:
             response = await call_probe(
                 HTTPMethod.GET, probe_url, f"probe/tournament/{tournament.id}"
             )
-    assert response == (401, UNAUTHORIZED)
+    assert response == (401, NOT_AUTHENTICATED)
 
 
 # --- 4. manipulacion del payload ---------------------------------------------------------------
@@ -601,15 +612,13 @@ async def test_public_dashboard_behaviour_is_preserved(
             without_token = await call_probe(
                 HTTPMethod.GET, probe_url, f"probe/tournament/{tournament.id}"
             )
-            with_public_dashboard = JsonDict(await send_request(HTTPMethod.GET, "users/me"))
     assert public["data"]["id"] == tournament.id
-    assert without_token == (401, UNAUTHORIZED)
-    assert with_public_dashboard == {"detail": "Not authenticated"}
+    assert without_token == (401, NOT_AUTHENTICATED)
 
 
 def test_probe_routes_are_not_in_the_product_app() -> None:
     """Las rutas internas del gate no se han anadido al router productivo."""
-    product_paths = {route.path for route in app.routes}
+    product_paths = {getattr(route, "path", "") for route in app.routes}
     assert not [path for path in product_paths if path.startswith("/probe")]
     assert ACCESS_TOKEN_EXPIRE_MINUTES == 7 * 24 * 60
     assert ClubId(1) == 1

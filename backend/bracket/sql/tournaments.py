@@ -7,7 +7,7 @@ from bracket.models.db.tournament import (
     TournamentChangeStatusBody,
     TournamentUpdateBody,
 )
-from bracket.utils.id_types import TournamentId
+from bracket.utils.id_types import ClubId, TournamentId
 
 
 async def sql_get_tournament(tournament_id: TournamentId) -> Tournament:
@@ -19,6 +19,21 @@ async def sql_get_tournament(tournament_id: TournamentId) -> Tournament:
     result = await database.fetch_one(query=query, values={"tournament_id": tournament_id})
     assert result is not None
     return Tournament.model_validate(result)
+
+
+async def sql_get_tournament_club_id(tournament_id: TournamentId) -> ClubId | None:
+    """Club (organizador/tenant) autoritativo de un torneo, o ``None`` si el torneo no existe.
+
+    Es la unica fuente del tenant en el ambito por torneo: el identificador llega en la ruta
+    y se resuelve aqui, de modo que modificar el ``tournament_id`` no permite acceso cruzado.
+    """
+    query = """
+        SELECT club_id
+        FROM tournaments
+        WHERE id = :tournament_id
+        """
+    result = await database.fetch_one(query=query, values={"tournament_id": tournament_id})
+    return None if result is None else ClubId(result["club_id"])
 
 
 async def sql_get_tournament_by_endpoint_name(endpoint_name: str) -> Tournament | None:
