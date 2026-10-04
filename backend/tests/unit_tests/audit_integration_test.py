@@ -34,15 +34,27 @@ from bracket.sql import domain_writes
 # auditoria hoy: cuatro en competidores y seis en inscripciones.
 AUDIT_OPERATIONS: tuple[tuple[Any, str, str, str, bool], ...] = (
     (competitors, "create_competitor", audit_reasons.SCOPE_COMPETITOR, "CREATE", False),
-    (competitors, "update_competitor_display_name", audit_reasons.SCOPE_COMPETITOR, "UPDATE", False),
+    (
+        competitors,
+        "update_competitor_display_name",
+        audit_reasons.SCOPE_COMPETITOR,
+        "UPDATE",
+        False,
+    ),
     (competitors, "deactivate_competitor", audit_reasons.SCOPE_COMPETITOR, "DEACTIVATE", False),
     (competitors, "activate_competitor", audit_reasons.SCOPE_COMPETITOR, "ACTIVATE", False),
     (registrations, "create_registration", audit_reasons.SCOPE_REGISTRATION, "CREATE", False),
-    (registrations, "update_registration", audit_reasons.SCOPE_REGISTRATION, "UPDATE", False),
+    (registrations, "update_registration_draft", audit_reasons.SCOPE_REGISTRATION, "UPDATE", False),
     (registrations, "confirm_registration", audit_reasons.SCOPE_REGISTRATION, "CONFIRM", False),
     (registrations, "withdraw_registration", audit_reasons.SCOPE_REGISTRATION, "WITHDRAW", True),
     (registrations, "reinstate_registration", audit_reasons.SCOPE_REGISTRATION, "REINSTATE", True),
-    (registrations, "disqualify_registration", audit_reasons.SCOPE_REGISTRATION, "DISQUALIFY", True),
+    (
+        registrations,
+        "disqualify_registration",
+        audit_reasons.SCOPE_REGISTRATION,
+        "DISQUALIFY",
+        True,
+    ),
 )
 
 # Motivos por defecto historicos (S2 y S3.2), congelados aqui: son los textos que ya estan
@@ -101,7 +113,9 @@ def test_catalog_covers_exactly_the_ten_audit_operations() -> None:
     written = {(scope, action) for _, _, scope, action, _ in AUDIT_OPERATIONS}
 
     assert len(AUDIT_OPERATIONS) == 10
-    assert set(audit_reasons.CATALOG) == written, "el catalogo no cubre exactamente esas diez parejas"
+    assert set(audit_reasons.CATALOG) == written, (
+        "el catalogo no cubre exactamente esas diez parejas"
+    )
     for _, _, scope, action, _ in AUDIT_OPERATIONS:
         assert audit_reasons.allowed_codes(scope=scope, action=action)
 
@@ -148,12 +162,19 @@ def test_operations_accept_an_optional_note(
         (competitors, ("_DEFAULT_REASONS", "_normalize_reason", "MAX_REASON_LENGTH")),
         (
             registrations,
-            ("_DEFAULT_REASONS", "_normalize_reason", "_normalize_required_reason", "MAX_REASON_LENGTH"),
+            (
+                "_DEFAULT_REASONS",
+                "_normalize_reason",
+                "_normalize_required_reason",
+                "MAX_REASON_LENGTH",
+            ),
         ),
     ],
     ids=["competitors", "registrations"],
 )
-def test_domain_modules_no_longer_keep_free_text_reason_paths(module: Any, names: tuple[str, ...]) -> None:
+def test_domain_modules_no_longer_keep_free_text_reason_paths(
+    module: Any, names: tuple[str, ...]
+) -> None:
     for name in names:
         assert not hasattr(module, name), f"{module.__name__} conserva la via de texto libre {name}"
 
@@ -185,7 +206,11 @@ def test_table_declares_the_two_nullable_columns() -> None:
 def test_table_declares_the_catalog_coherence_and_note_checks() -> None:
     constraints = _check_constraints()
 
-    assert set(constraints) >= {REASON_CODE_CATALOG_CHECK, REASON_CODE_ACTION_CHECK, REASON_NOTE_CHECK}
+    assert set(constraints) >= {
+        REASON_CODE_CATALOG_CHECK,
+        REASON_CODE_ACTION_CHECK,
+        REASON_NOTE_CHECK,
+    }
     assert _quoted_upper_tokens(str(constraints[REASON_CODE_CATALOG_CHECK].sqltext)) == set(
         audit_reasons.REASON_CODES
     )
@@ -216,6 +241,6 @@ def test_canonical_texts_reproduce_the_historical_defaults() -> None:
 
 def test_every_canonical_text_is_poor_in_data_shaped_tokens() -> None:
     for (scope, action, code), text in audit_reasons.CANONICAL_TEXTS.items():
-        assert audit_reasons.find_personal_data(text) == (), f"{scope}/{action}/{code}"
+        assert not audit_reasons.find_personal_data(text), f"{scope}/{action}/{code}"
         assert not re.search(r"\d", text), f"{scope}/{action}/{code} contiene digitos"
         assert "@" not in text and "://" not in text

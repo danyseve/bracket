@@ -68,6 +68,12 @@ import asyncpg  # type: ignore[import-untyped]
 from heliclockter import datetime_utc
 
 from bracket.database import database
+from bracket.logic.audit_reasons import (
+    SCOPE_REGISTRATION,
+    AuditReason,
+    AuditReasonError,
+    build_audit_reason,
+)
 from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
 from bracket.models.db.domain import (
     ActorContext,
@@ -95,18 +101,11 @@ from bracket.utils.types import assert_some
 MAX_COMPETITOR_NAME_LENGTH = 200
 MAX_CATEGORY_KEY_LENGTH = 64
 MAX_CATEGORY_LABEL_LENGTH = 200
-MAX_REASON_LENGTH = 500
 
 _REGISTRATION_ENTITY = "tournament_registration"
 
 # Una clave de categoria estable: minusculas, digitos y guiones simples.
 _CATEGORY_KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-
-_DEFAULT_REASONS: dict[str, str] = {
-    "CREATE": "alta de inscripcion",
-    "UPDATE": "edicion de borrador de inscripcion",
-    "CONFIRM": "confirmacion de inscripcion",
-}
 
 # Nombres de campo del alta (jamas valores: sin PII en auditoria).
 _CREATE_CHANGED_FIELDS: tuple[str, ...] = (
@@ -210,15 +209,17 @@ def _normalize_text(value: object, *, field: str, max_length: int) -> str:
     return normalized
 
 
-def _normalize_reason(reason: object, action: str) -> str:
-    if reason is None:
-        return _DEFAULT_REASONS[action]
-    if not isinstance(reason, str) or not reason.strip():
-        raise InvalidRegistrationDataError("reason no puede estar vacio")
-    normalized = reason.strip()
-    if len(normalized) > MAX_REASON_LENGTH or not normalized.isprintable():
-        raise InvalidRegistrationDataError("reason no es valido")
-    return normalized
+def _resolve_audit_reason(*, action: str, code: object, note: object) -> AuditReason:
+    """Resuelve el motivo cerrado del evento (S3.3c-2) o lo rechaza como dato invalido.
+
+    Un motivo invalido es un dato invalido de la operacion: se traduce a la **misma**
+    excepcion que el resto de entradas para no cambiar el contrato externo. El mensaje
+    describe la categoria del rechazo y nunca repite el valor recibido.
+    """
+    try:
+        return build_audit_reason(scope=SCOPE_REGISTRATION, action=action, code=code, note=note)
+    except AuditReasonError as error:
+        raise InvalidRegistrationDataError(str(error)) from error
 
 
 def _is_duplicate_registration(exc: asyncpg.exceptions.UniqueViolationError) -> bool:
@@ -421,10 +422,11 @@ async def create_registration(
     tournament_id: TournamentId,
     data: RegistrationDraftData,
     *,
-    reason: str | None = None,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> TournamentRegistration:
     """Alta de una inscripcion en borrador. El tenant sale del contexto, no del payload."""
-    normalized_reason = _normalize_reason(reason, "CREATE")
+    audit_reason = _resolve_audit_reason(action="CREATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context)
@@ -456,7 +458,9 @@ async def create_registration(
             changed_fields=list(_CREATE_CHANGED_FIELDS),
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
     return registration
@@ -467,14 +471,15 @@ async def update_registration_draft(
     registration_id: TournamentRegistrationId,
     data: RegistrationDraftData,
     *,
-    reason: str | None = None,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> TournamentRegistration:
     """Edita un borrador del tenant (reemplazo explicito) y lo audita como ``UPDATE``.
 
     Solo ``DRAFT``: una inscripcion confirmada no se sobrescribe en sitio, se corrige
     de forma auditada (S6). Si el reemplazo no cambia nada no se escribe auditoria.
     """
-    normalized_reason = _normalize_reason(reason, "UPDATE")
+    audit_reason = _resolve_audit_reason(action="UPDATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context)
@@ -521,7 +526,9 @@ async def update_registration_draft(
             changed_fields=changed_fields,
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
     return updated
@@ -592,7 +599,8 @@ async def confirm_registration(
     context: ActorContext,
     registration_id: TournamentRegistrationId,
     *,
-    reason: str | None = None,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> TournamentRegistration:
     """``DRAFT -> CONFIRMED``: congela los snapshots y deja de ser editable.
 
@@ -600,7 +608,7 @@ async def confirm_registration(
     de auditoria. Confirmar algo que no es un borrador (retirada, descalificada,
     corregida) es un error de estado, no un exito silencioso.
     """
-    normalized_reason = _normalize_reason(reason, "CONFIRM")
+    audit_reason = _resolve_audit_reason(action="CONFIRM", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context)
@@ -641,7 +649,9 @@ async def confirm_registration(
             changed_fields=["status"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
     return confirmed
@@ -669,13 +679,6 @@ def _require_relation(relation: UserXClubRelation | None, *, require_owner: bool
         raise InsufficientPrivilegesError("esta operacion exige relacion OWNER con el tenant")
 
 
-def _normalize_required_reason(reason: object, action: str) -> str:
-    """Motivo **obligatorio** para O5, O5b y O6: aqui no hay valor por defecto."""
-    if reason is None:
-        raise InvalidRegistrationDataError(f"reason es obligatorio para {action}")
-    return _normalize_reason(reason, action)
-
-
 async def _reread_after_lost_race(
     context: ActorContext,
     registration_id: TournamentRegistrationId,
@@ -698,7 +701,11 @@ async def _reread_after_lost_race(
 
 
 async def withdraw_registration(
-    context: ActorContext, registration_id: TournamentRegistrationId, *, reason: str
+    context: ActorContext,
+    registration_id: TournamentRegistrationId,
+    *,
+    reason_code: str | None,
+    reason_note: str | None = None,
 ) -> TournamentRegistration:
     """O5: retirada de una inscripcion (``DRAFT|CONFIRMED -> WITHDRAWN``).
 
@@ -710,7 +717,7 @@ async def withdraw_registration(
     terminales. No toca snapshots, clave de categoria, revision ni resultados, y no
     sincroniza nada con un cuadro ya generado (esa integracion es S4/S5).
     """
-    normalized_reason = _normalize_required_reason(reason, "WITHDRAW")
+    audit_reason = _resolve_audit_reason(action="WITHDRAW", code=reason_code, note=reason_note)
 
     async with database.transaction():
         relation = await _load_relation(context)
@@ -747,14 +754,20 @@ async def withdraw_registration(
             changed_fields=["status"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
     return withdrawn
 
 
 async def reinstate_registration(
-    context: ActorContext, registration_id: TournamentRegistrationId, *, reason: str
+    context: ActorContext,
+    registration_id: TournamentRegistrationId,
+    *,
+    reason_code: str | None,
+    reason_note: str | None = None,
 ) -> TournamentRegistration:
     """O5b: readmision de una inscripcion retirada (``WITHDRAWN -> CONFIRMED``).
 
@@ -775,7 +788,7 @@ async def reinstate_registration(
     desde ``WITHDRAWN``; cualquier otro origen es un error, porque la lista aprobada de
     idempotencias es ``WITHDRAWN -> WITHDRAWN`` y ``DISQUALIFIED -> DISQUALIFIED``.
     """
-    normalized_reason = _normalize_required_reason(reason, "REINSTATE")
+    audit_reason = _resolve_audit_reason(action="REINSTATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         relation = await _load_relation(context)
@@ -823,14 +836,20 @@ async def reinstate_registration(
             changed_fields=["status"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
     return reinstated
 
 
 async def disqualify_registration(
-    context: ActorContext, registration_id: TournamentRegistrationId, *, reason: str
+    context: ActorContext,
+    registration_id: TournamentRegistrationId,
+    *,
+    reason_code: str | None,
+    reason_note: str | None = None,
 ) -> TournamentRegistration:
     """O6: descalificacion de una inscripcion confirmada (``CONFIRMED -> DISQUALIFIED``).
 
@@ -839,7 +858,7 @@ async def disqualify_registration(
     categoria, y no sincroniza nada con un cuadro ya generado. ``DISQUALIFIED`` es
     terminal y repetir la descalificacion es un no-op sin evento.
     """
-    normalized_reason = _normalize_required_reason(reason, "DISQUALIFY")
+    audit_reason = _resolve_audit_reason(action="DISQUALIFY", code=reason_code, note=reason_note)
 
     async with database.transaction():
         relation = await _load_relation(context)
@@ -875,7 +894,9 @@ async def disqualify_registration(
             changed_fields=["status"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
     return disqualified

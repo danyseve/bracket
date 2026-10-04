@@ -93,7 +93,7 @@ async def test_two_concurrent_activations_leave_a_single_audit_event(
     """La fila del competidor serializa: una escribe, la otra se relee; un solo ``ACTIVATE``."""
     competitor_id = registration_data.competitor_a
     await deactivate_competitor(
-        registration_data.context_owner_a, competitor_id, reason="baja previa"
+        registration_data.context_owner_a, competitor_id, reason_code="ADMINISTRATIVE"
     )
     assert [row["action"] for row in await competitor_audit_rows(competitor_id)] == ["DEACTIVATE"]
 
@@ -117,7 +117,7 @@ async def test_two_concurrent_activations_leave_a_single_audit_event(
                 activate_competitor(
                     registration_data.context_owner_a,
                     competitor_id,
-                    reason="reactivacion concurrente",
+                    reason_code="ADMINISTRATIVE",
                 )
             )
             for _ in range(2)
@@ -137,7 +137,8 @@ async def test_two_concurrent_activations_leave_a_single_audit_event(
     assert [row["action"] for row in events] == ["DEACTIVATE", "ACTIVATE"], (
         "dos reactivaciones concurrentes no duplican la auditoria"
     )
-    assert events[1]["reason"] == "reactivacion concurrente"
+    assert events[1]["reason_code"] == "ADMINISTRATIVE"
+    assert events[1]["reason"] == "reactivacion de competidor"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -165,7 +166,7 @@ async def test_reactivation_waits_for_a_share_lock_on_the_competitor_row(
         await asyncio.wait_for(row_is_held.wait(), WAITING_TIMEOUT_SECONDS)
         activation = asyncio.create_task(
             activate_competitor(
-                registration_data.context_owner_a, competitor_id, reason="reactivacion serializada"
+                registration_data.context_owner_a, competitor_id, reason_code="ADMINISTRATIVE"
             )
         )
         await wait_for_waiting_backends("%UPDATE competitors%")
@@ -206,7 +207,7 @@ async def test_a_confirmation_never_sees_an_uncommitted_reactivation(
         registration_data.tournament_a,
         build_draft(competitor_id=competitor_id),
     )
-    await deactivate_competitor(context, competitor_id, reason="baja previa")
+    await deactivate_competitor(context, competitor_id, reason_code="ADMINISTRATIVE")
 
     audit_table_is_locked = asyncio.Event()
     release_audit_table = asyncio.Event()
@@ -223,7 +224,7 @@ async def test_a_confirmation_never_sees_an_uncommitted_reactivation(
     try:
         await asyncio.wait_for(audit_table_is_locked.wait(), WAITING_TIMEOUT_SECONDS)
         activation = asyncio.create_task(
-            activate_competitor(context, competitor_id, reason="reactivacion en vuelo")
+            activate_competitor(context, competitor_id, reason_code="ADMINISTRATIVE")
         )
         # En vuelo de verdad: fila del competidor bloqueada y auditoria pendiente.
         await wait_for_waiting_backends("%INSERT INTO domain_change_log%")
@@ -290,7 +291,7 @@ async def test_reactivation_does_not_touch_a_locked_registration_row(
         # Se acota la espera: si la reactivacion tomara la fila de la inscripcion, no terminaria.
         activated = await asyncio.wait_for(
             activate_competitor(
-                registration_data.context_owner_a, competitor_id, reason="reactivacion sin ciclo"
+                registration_data.context_owner_a, competitor_id, reason_code="ADMINISTRATIVE"
             ),
             WAITING_TIMEOUT_SECONDS,
         )
@@ -313,7 +314,7 @@ async def test_a_blocked_draft_becomes_confirmable_after_reactivation(
     )
     registration = await create_registration(context, registration_data.tournament_a, draft)
 
-    await deactivate_competitor(context, competitor_id, reason="baja con borrador abierto")
+    await deactivate_competitor(context, competitor_id, reason_code="ADMINISTRATIVE")
 
     with pytest.raises(CompetitorNotSelectableError):
         await confirm_registration(context, registration.id)
@@ -324,7 +325,7 @@ async def test_a_blocked_draft_becomes_confirmable_after_reactivation(
     assert blocked is not None and blocked.status == "DRAFT"
     assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE"]
 
-    await activate_competitor(context, competitor_id, reason="reactivacion para desbloquear")
+    await activate_competitor(context, competitor_id, reason_code="ADMINISTRATIVE")
 
     confirmed = await confirm_registration(context, registration.id)
     assert confirmed.status == "CONFIRMED"

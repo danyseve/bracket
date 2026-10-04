@@ -94,14 +94,16 @@ COUNT_REGISTRATIONS = """
 """
 
 SELECT_REGISTRATION_AUDIT = """
-    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason
+    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
+        reason_code, reason_note
     FROM domain_change_log
     WHERE entity = 'tournament_registration' AND entity_id = :registration_id
     ORDER BY id
 """
 
 SELECT_ALL_AUDIT = """
-    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason
+    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
+        reason_code, reason_note
     FROM domain_change_log
 """
 
@@ -440,7 +442,8 @@ async def fetch_all_audit_rows_as_text() -> list[str]:
 
 
 SELECT_COMPETITOR_AUDIT = """
-    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason
+    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
+        reason_code, reason_note
     FROM domain_change_log
     WHERE entity = 'competitor' AND entity_id = :competitor_id
     ORDER BY id

@@ -65,7 +65,8 @@ _INSERT_COMPETITOR_DIRECT = """
 """
 
 _AUDIT_EVENTS = """
-    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason, created
+    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
+        reason_code, reason_note, created
     FROM domain_change_log
     WHERE entity = 'competitor' AND entity_id = :entity_id
     ORDER BY id
@@ -220,7 +221,7 @@ async def test_create_competitor_persists_identity_without_sports_club(
     write_data: WriteData,
 ) -> None:
     competitor = await create_competitor(
-        write_data.context_a, display_name="  Persona Uno  ", reason="alta inicial"
+        write_data.context_a, display_name="  Persona Uno  ", reason_code="PLANNED_ENTRY"
     )
 
     assert competitor.display_name == "Persona Uno", (
@@ -257,7 +258,7 @@ async def test_creation_records_initial_name_history_and_audit_event(
 ) -> None:
     sensitive_name = "NOMBRE-SENSIBLE-CREACION"
     competitor = await create_competitor(
-        write_data.context_a, display_name=sensitive_name, reason="alta inicial"
+        write_data.context_a, display_name=sensitive_name, reason_code="PLANNED_ENTRY"
     )
 
     history = await get_competitor_name_history(
@@ -274,7 +275,8 @@ async def test_creation_records_initial_name_history_and_audit_event(
     assert event["entity_id"] == competitor.id
     assert event["action"] == "CREATE"
     assert event["actor_user_id"] == write_data.actor.id
-    assert event["reason"] == "alta inicial"
+    assert event["reason_code"] == "PLANNED_ENTRY"
+    assert event["reason"] == "alta de competidor"
     assert cast("list[str]", event["changed_fields"]) == ["display_name"], "solo NOMBRES de campo"
     assert sensitive_name not in " ".join(str(value) for value in event.values())
 
@@ -310,7 +312,7 @@ async def test_failure_in_name_history_also_rolls_back_everything(
 
     with pytest.raises(RuntimeError):
         await create_competitor(
-            write_data.context_a, display_name="ROLLBACK-HISTORIAL", reason="alta que falla"
+            write_data.context_a, display_name="ROLLBACK-HISTORIAL", reason_code="PLANNED_ENTRY"
         )
 
     assert (
@@ -323,8 +325,8 @@ async def test_failure_in_name_history_also_rolls_back_everything(
     ), "si falla el historial de nombre, el competidor se revierte"
 
     rows = await database.fetch_all(
-        query="SELECT id FROM domain_change_log WHERE reason = :reason",
-        values={"reason": "alta que falla"},
+        query="SELECT id FROM domain_change_log WHERE reason_code = :reason_code",
+        values={"reason_code": "PLANNED_ENTRY"},
     )
     assert rows == [], "y el evento de auditoria tampoco se confirma"
 
@@ -340,7 +342,7 @@ async def test_update_display_name_keeps_history_and_audit(write_data: WriteData
         write_data.context_a,
         competitor.id,
         CompetitorBasicDataUpdate(display_name="Nombre Corregido"),
-        reason="correccion de nombre",
+        reason_code="DATA_CORRECTION",
     )
 
     assert updated.id == competitor.id
@@ -358,7 +360,8 @@ async def test_update_display_name_keeps_history_and_audit(write_data: WriteData
     events = await _audit_events(competitor.id)
     assert [event["action"] for event in events] == ["CREATE", "UPDATE"]
     assert cast("list[str]", events[1]["changed_fields"]) == ["display_name"]
-    assert events[1]["reason"] == "correccion de nombre"
+    assert events[1]["reason_code"] == "DATA_CORRECTION"
+    assert events[1]["reason"] == "actualizacion de datos basicos"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -430,7 +433,7 @@ async def test_deactivation_is_logical_and_idempotent(write_data: WriteData) -> 
     competitor = await create_competitor(write_data.context_a, display_name="Persona Baja")
 
     deactivated = await deactivate_competitor(
-        write_data.context_a, competitor.id, reason="baja solicitada"
+        write_data.context_a, competitor.id, reason_code="ADMINISTRATIVE"
     )
     assert deactivated.active is False
     assert deactivated.updated_at is not None
@@ -477,7 +480,7 @@ async def test_collaborator_can_create_and_rename_but_not_deactivate(
     assert renamed.display_name == "Persona Renombrada"
 
     with pytest.raises(InsufficientPrivilegesError):
-        await deactivate_competitor(collaborator, competitor.id, reason="baja por colaborador")
+        await deactivate_competitor(collaborator, competitor.id, reason_code="ADMINISTRATIVE")
 
     fresh = await get_competitor(competitor.id, tenant_club_id=write_data.tenant_a.id)
     assert fresh is not None and fresh.active is True, "el colaborador no desactiva"
@@ -510,9 +513,13 @@ async def test_invalid_names_are_rejected(write_data: WriteData, invalid_name: s
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_empty_reason_is_rejected(write_data: WriteData) -> None:
-    with pytest.raises(InvalidCompetitorDataError):
-        await create_competitor(write_data.context_a, display_name="Nombre Valido", reason="   ")
+async def test_unknown_or_blank_reason_code_is_rejected(write_data: WriteData) -> None:
+    """Un codigo desconocido o en blanco se rechaza antes de escribir nada (catalogo cerrado)."""
+    for invalid_code in ("", "   ", "PLANNED", "NO_EXISTE", "withdraw"):
+        with pytest.raises(InvalidCompetitorDataError):
+            await create_competitor(
+                write_data.context_a, display_name="Nombre Valido", reason_code=invalid_code
+            )
 
 
 # --- ausencia de PII ---------------------------------------------------------------------------
@@ -533,11 +540,11 @@ async def test_no_pii_in_logs_errors_or_audit(
             )
 
         competitor = await create_competitor(
-            write_data.context_a, display_name=sensitive_name, reason="motivo sin datos"
+            write_data.context_a, display_name=sensitive_name, reason_code="PLANNED_ENTRY"
         )
         with pytest.raises(InsufficientPrivilegesError) as privileges_exc:
             await deactivate_competitor(
-                write_data.context_collaborator, competitor.id, reason="motivo sin datos"
+                write_data.context_collaborator, competitor.id, reason_code="ADMINISTRATIVE"
             )
         await deactivate_competitor(write_data.context_a, competitor.id)
 
@@ -552,7 +559,8 @@ async def test_no_pii_in_logs_errors_or_audit(
     assert module_leaks == [], "ni el modulo ni la logica registran nombres"
 
     raw_rows = await database.fetch_all(
-        query="SELECT entity, action, changed_fields, reason, actor_label FROM domain_change_log"
+        query="SELECT entity, action, changed_fields, reason, reason_code, reason_note, actor_label"
+        " FROM domain_change_log"
     )
     audit_dump = " ".join(str(value) for row in raw_rows for value in row._mapping.values())
     assert sensitive_name not in audit_dump, "la auditoria guarda nombres de campo, no valores"

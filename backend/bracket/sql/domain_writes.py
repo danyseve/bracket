@@ -216,9 +216,18 @@ async def sql_insert_domain_change_log(
     actor_user_id: UserId,
     actor_label: str | None,
     reason: str,
+    reason_code: str | None,
+    reason_note: str | None,
     tenant_club_id: ClubId,
 ) -> None:
     """Evento de auditoria **atribuido al tenant de su entidad**.
+
+    ``reason`` es el texto canonico legible del evento y ``reason_code``/``reason_note`` su motivo
+    estructurado (S3.3c-2): el codigo pertenece a un catalogo cerrado y la nota es opcional y solo
+    en los codigos que la admiten; ambos los valida el catalogo **antes** de llegar aqui y los
+    vuelve a cerrar la base con sus CHECK. El escritor acepta ``reason_code=None`` para el unico
+    caso legitimo: entidades de plataforma sin catalogo propio (``sports_club``) y filas anteriores
+    a la migracion; ninguna de las diez operaciones de auditoria de F3 usa esa forma.
 
     ``changed_fields`` guarda NOMBRES de campo, nunca valores (sin PII). El evento se escribe
     solo si la entidad pertenece de verdad a ``tenant_club_id``; si no, no se escribe nada y se
@@ -234,9 +243,9 @@ async def sql_insert_domain_change_log(
         WITH inserted AS (
             INSERT INTO domain_change_log
                 (entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
-                 tenant_club_id, created)
+                 reason_code, reason_note, tenant_club_id, created)
             SELECT :entity, :entity_id, :action, :changed_fields, :actor_user_id, :actor_label,
-                   :reason, :tenant_club_id, NOW()
+                   :reason, :reason_code, :reason_note, :tenant_club_id, NOW()
             WHERE EXISTS ({predicate})
             RETURNING 1
         )
@@ -253,6 +262,8 @@ async def sql_insert_domain_change_log(
                 "actor_user_id": actor_user_id,
                 "actor_label": actor_label,
                 "reason": reason,
+                "reason_code": reason_code,
+                "reason_note": reason_note,
                 "tenant_club_id": tenant_club_id,
             },
         )

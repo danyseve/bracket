@@ -25,7 +25,10 @@ Reglas del contrato (docs/21 v3, S2):
 * Competidor, historial de nombre y evento de auditoria se confirman o se revierten
   juntos: una unica transaccion por operacion.
 * Sin logs: ni los errores ni el modulo registran nombres ni identificadores.
-  ``reason`` es texto libre del llamador y no debe llevar datos personales.
+  El motivo del evento es un **codigo cerrado** de un catalogo interno (S3.3c-2), con
+  una nota opcional solo en los codigos que la admiten: ya no hay texto libre del
+  llamador. El texto legible que se conserva lo deriva el catalogo y nunca lleva
+  datos personales.
 * Idempotencia: si una operacion no cambia nada (mismo nombre, baja ya aplicada,
   reactivacion ya aplicada) no se escribe historial ni auditoria.
 * Baja y reactivacion escriben la **misma** columna (``active``) sobre la **misma**
@@ -50,6 +53,12 @@ LIMITACIONES DE AUTORIZACION PENDIENTES (documentadas, no resueltas aqui):
 from __future__ import annotations
 
 from bracket.database import database
+from bracket.logic.audit_reasons import (
+    SCOPE_COMPETITOR,
+    AuditReason,
+    AuditReasonError,
+    build_audit_reason,
+)
 from bracket.models.db.domain import ActorContext, Competitor, CompetitorBasicDataUpdate
 from bracket.models.db.user_x_club import UserXClubRelation
 from bracket.sql.domain_reads import get_competitor
@@ -66,16 +75,8 @@ from bracket.sql.users import get_user_relation_to_club
 from bracket.utils.id_types import CompetitorId
 
 MAX_DISPLAY_NAME_LENGTH = 200
-MAX_REASON_LENGTH = 500
 
 _COMPETITOR_ENTITY = "competitor"
-
-_DEFAULT_REASONS: dict[str, str] = {
-    "CREATE": "alta de competidor",
-    "UPDATE": "actualizacion de datos basicos",
-    "DEACTIVATE": "baja logica de competidor",
-    "ACTIVATE": "reactivacion de competidor",
-}
 
 
 class CompetitorDomainError(Exception):
@@ -116,15 +117,17 @@ def _normalize_display_name(display_name: object) -> str:
     return normalized
 
 
-def _normalize_reason(reason: object, action: str) -> str:
-    if reason is None:
-        return _DEFAULT_REASONS[action]
-    if not isinstance(reason, str) or not reason.strip():
-        raise InvalidCompetitorDataError("reason no puede estar vacio")
-    normalized = reason.strip()
-    if len(normalized) > MAX_REASON_LENGTH or not normalized.isprintable():
-        raise InvalidCompetitorDataError("reason no es valido")
-    return normalized
+def _resolve_audit_reason(*, action: str, code: object, note: object) -> AuditReason:
+    """Resuelve el motivo cerrado del evento (S3.3c-2) o lo rechaza como dato invalido.
+
+    Un motivo invalido es un dato invalido de la operacion: se traduce a la **misma**
+    excepcion que el resto de entradas para no cambiar el contrato externo. El mensaje
+    describe la categoria del rechazo y nunca repite el valor recibido.
+    """
+    try:
+        return build_audit_reason(scope=SCOPE_COMPETITOR, action=action, code=code, note=note)
+    except AuditReasonError as error:
+        raise InvalidCompetitorDataError(str(error)) from error
 
 
 async def _authorize(context: ActorContext, *, require_owner: bool = False) -> None:
@@ -142,11 +145,15 @@ async def _authorize(context: ActorContext, *, require_owner: bool = False) -> N
 
 
 async def create_competitor(
-    context: ActorContext, *, display_name: str, reason: str | None = None
+    context: ActorContext,
+    *,
+    display_name: str,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> Competitor:
     """Alta de identidad. El competidor puede no tener academia y se audita como ``CREATE``."""
     normalized_name = _normalize_display_name(display_name)
-    normalized_reason = _normalize_reason(reason, "CREATE")
+    audit_reason = _resolve_audit_reason(action="CREATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context)
@@ -166,7 +173,9 @@ async def create_competitor(
             changed_fields=["display_name"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
 
@@ -178,7 +187,8 @@ async def update_competitor_display_name(
     competitor_id: CompetitorId,
     data: CompetitorBasicDataUpdate,
     *,
-    reason: str | None = None,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> Competitor:
     """Renombrado controlado. Cierra la entrada de nombre vigente y abre la nueva.
 
@@ -186,7 +196,7 @@ async def update_competitor_display_name(
     auditoria) y devuelve la identidad tal cual.
     """
     normalized_name = _normalize_display_name(data.display_name)
-    normalized_reason = _normalize_reason(reason, "UPDATE")
+    audit_reason = _resolve_audit_reason(action="UPDATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context)
@@ -220,7 +230,9 @@ async def update_competitor_display_name(
             changed_fields=["display_name"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
 
@@ -228,13 +240,17 @@ async def update_competitor_display_name(
 
 
 async def deactivate_competitor(
-    context: ActorContext, competitor_id: CompetitorId, *, reason: str | None = None
+    context: ActorContext,
+    competitor_id: CompetitorId,
+    *,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> Competitor:
     """Baja logica (``active = false``). Idempotente: una segunda baja no audita de nuevo.
 
     Operacion historicamente sensible: exige relacion OWNER con el tenant.
     """
-    normalized_reason = _normalize_reason(reason, "DEACTIVATE")
+    audit_reason = _resolve_audit_reason(action="DEACTIVATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context, require_owner=True)
@@ -257,7 +273,9 @@ async def deactivate_competitor(
             changed_fields=["active"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
 
@@ -265,7 +283,11 @@ async def deactivate_competitor(
 
 
 async def activate_competitor(
-    context: ActorContext, competitor_id: CompetitorId, *, reason: str | None = None
+    context: ActorContext,
+    competitor_id: CompetitorId,
+    *,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
 ) -> Competitor:
     """Reactivacion (``active = true``). Idempotente: si ya estaba activo no audita de nuevo.
 
@@ -278,7 +300,7 @@ async def activate_competitor(
     por ``active IS FALSE``. Si otra reactivacion gano la carrera, la sentencia no escribe
     nada y la operacion se limita a devolver el estado ya reactivado, sin duplicar auditoria.
     """
-    normalized_reason = _normalize_reason(reason, "ACTIVATE")
+    audit_reason = _resolve_audit_reason(action="ACTIVATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context, require_owner=True)
@@ -307,7 +329,9 @@ async def activate_competitor(
             changed_fields=["active"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
-            reason=normalized_reason,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
             tenant_club_id=context.tenant_club_id,
         )
 

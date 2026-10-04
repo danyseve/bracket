@@ -62,7 +62,8 @@ _INSERT_COMPETITOR_DIRECT = """
 """
 
 _AUDIT_EVENTS = """
-    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason, created
+    SELECT entity, entity_id, action, changed_fields, actor_user_id, actor_label, reason,
+        reason_code, reason_note, created
     FROM domain_change_log
     WHERE entity = 'competitor' AND entity_id = :entity_id
     ORDER BY id
@@ -170,7 +171,7 @@ async def _deactivated_competitor(
 ) -> Competitor:
     """Identidad creada y dada de baja con las operaciones de dominio (no con SQL crudo)."""
     competitor = await create_competitor(data.context_a, display_name=name)
-    return await deactivate_competitor(data.context_a, competitor.id, reason="baja previa")
+    return await deactivate_competitor(data.context_a, competitor.id, reason_code="ADMINISTRATIVE")
 
 
 # --- reactivacion valida -----------------------------------------------------------------------
@@ -184,7 +185,7 @@ async def test_activation_reactivates_the_identity_and_records_audit(
     assert deactivated.active is False
 
     activated = await activate_competitor(
-        activation_data.context_a, deactivated.id, reason="reactivacion solicitada"
+        activation_data.context_a, deactivated.id, reason_code="ADMINISTRATIVE"
     )
 
     assert activated.id == deactivated.id
@@ -204,7 +205,8 @@ async def test_activation_reactivates_the_identity_and_records_audit(
     assert cast("list[str]", activation_event["changed_fields"]) == ["active"], "solo NOMBRES"
     assert activation_event["actor_user_id"] == activation_data.actor.id
     assert activation_event["actor_label"] is None
-    assert activation_event["reason"] == "reactivacion solicitada"
+    assert activation_event["reason_code"] == "ADMINISTRATIVE"
+    assert activation_event["reason"] == "reactivacion de competidor"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -291,7 +293,7 @@ async def test_collaborator_cannot_reactivate(activation_data: ActivationData) -
         await activate_competitor(
             activation_data.context_collaborator,
             deactivated.id,
-            reason="reactivacion por colaborador",
+            reason_code="ADMINISTRATIVE",
         )
 
     fresh = await get_competitor(deactivated.id, tenant_club_id=activation_data.tenant_a.id)
@@ -441,10 +443,27 @@ async def test_round_trip_restores_visibility_and_audits_each_step(
 async def test_activation_rejects_an_invalid_reason(activation_data: ActivationData) -> None:
     deactivated = await _deactivated_competitor(activation_data, name="Persona Motivo Invalido")
 
-    for invalid_reason in ("   ", "\t", "motivo\ncon salto", "x" * 501):
+    for invalid_code in ("   ", "\t", "motivo con espacio", "NO_EXISTE", "x" * 33):
         with pytest.raises(InvalidCompetitorDataError):
             await activate_competitor(
-                activation_data.context_a, deactivated.id, reason=invalid_reason
+                activation_data.context_a, deactivated.id, reason_code=invalid_code
+            )
+    # Los caracteres de control se rechazan en la entrada original: tambien en los bordes,
+    # donde un recorte los haria desaparecer (S3.3c-2).
+    for invalid_note in (
+        "\t",
+        "\nnota inicial",
+        "nota final\n",
+        "nota con\tsalto interno",
+        "x" * 201,
+        "aviso a persona@example.com",
+    ):
+        with pytest.raises(InvalidCompetitorDataError):
+            await activate_competitor(
+                activation_data.context_a,
+                deactivated.id,
+                reason_code="ADMINISTRATIVE",
+                reason_note=invalid_note,
             )
 
     fresh = await get_competitor(deactivated.id, tenant_club_id=activation_data.tenant_a.id)
@@ -466,7 +485,7 @@ async def test_no_pii_in_logs_errors_or_audit(
             await activate_competitor(activation_data.context_a, CompetitorId(999_999))
         with pytest.raises(InsufficientPrivilegesError) as privileges_exc:
             await activate_competitor(
-                activation_data.context_collaborator, competitor.id, reason="motivo sin datos"
+                activation_data.context_collaborator, competitor.id, reason_code="ADMINISTRATIVE"
             )
         await activate_competitor(activation_data.context_a, competitor.id)
 
@@ -481,7 +500,8 @@ async def test_no_pii_in_logs_errors_or_audit(
     assert module_leaks == [], "ni el modulo ni la logica registran nombres"
 
     raw_rows = await database.fetch_all(
-        query="SELECT entity, action, changed_fields, reason, actor_label FROM domain_change_log"
+        query="SELECT entity, action, changed_fields, reason, reason_code, reason_note, actor_label"
+        " FROM domain_change_log"
     )
     audit_dump = " ".join(str(value) for row in raw_rows for value in row._mapping.values())
     assert sensitive_name not in audit_dump, "la auditoria guarda nombres de campo, no valores"

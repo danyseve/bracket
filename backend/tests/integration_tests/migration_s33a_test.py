@@ -148,6 +148,16 @@ def migration_lab() -> Iterator[Engine]:
     # declara, el esquema ya esta en el estado previo y no hay nada que retirar.
     if _tenant_columns(engine):
         _execute(engine, f"ALTER TABLE domain_change_log DROP COLUMN {TENANT_COLUMN}")
+    # S3.3c-2: el metadata vivo tambien declara ya el motivo cerrado; en F3A no existia (con la
+    # columna caen sus CHECK), asi que se retira para reconstruir el aspecto exacto previo.
+    for reason_column in ("reason_code", "reason_note"):
+        if _scalar(
+            engine,
+            "SELECT count(*) FROM information_schema.columns"
+            " WHERE table_name = 'domain_change_log' AND column_name = :column",
+            {"column": reason_column},
+        ):
+            _execute(engine, f"ALTER TABLE domain_change_log DROP COLUMN {reason_column}")
     _alembic("stamp", F3A_REVISION)
 
     try:
@@ -230,7 +240,7 @@ def _attribution(engine: Engine) -> dict[tuple[str, int], Any]:
 def test_upgrade_adds_the_tenant_column_with_fk_index_and_backfill(migration_lab: Engine) -> None:
     seeded = _seed_history(migration_lab)
 
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33A_REVISION)
 
     assert _tenant_columns(migration_lab) == 1
     assert (
@@ -292,7 +302,7 @@ def test_upgrade_adds_the_tenant_column_with_fk_index_and_backfill(migration_lab
 
 def test_backfill_is_idempotent(migration_lab: Engine) -> None:
     seeded = _seed_history(migration_lab)
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33A_REVISION)
 
     first = _attribution(migration_lab)
     statements = _migration_module().BACKFILL_STATEMENTS
@@ -309,7 +319,7 @@ def test_backfill_is_idempotent(migration_lab: Engine) -> None:
 
 def test_downgrade_removes_only_what_it_added(migration_lab: Engine) -> None:
     seeded = _seed_history(migration_lab)
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33A_REVISION)
 
     _alembic("downgrade", "-1")
 
@@ -344,13 +354,13 @@ def test_downgrade_removes_only_what_it_added(migration_lab: Engine) -> None:
 
 
 def test_upgrade_is_safe_on_an_empty_table_and_repeatable(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33A_REVISION)
 
     assert _scalar(migration_lab, "SELECT count(*) FROM domain_change_log") == 0
     assert _tenant_columns(migration_lab) == 1
 
     _alembic("downgrade", "-1")
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33A_REVISION)
 
     assert _tenant_columns(migration_lab) == 1
     assert _scalar(migration_lab, "SELECT version_num FROM alembic_version") == S33A_REVISION

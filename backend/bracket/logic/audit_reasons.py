@@ -1,9 +1,10 @@
-"""Catalogo cerrado de motivos de auditoria (S3.3c-1, LAB ONLY).
+"""Catalogo cerrado de motivos de auditoria (S3.3c-1 + S3.3c-2, LAB ONLY).
 
-Modulo **interno y todavia no conectado**: describe que motivo puede acompanar a
-cada evento de auditoria y como se valida, pero no escribe auditoria, no conoce
-la capa de persistencia y no cambia las firmas de las operaciones O1-O6. La
-conexion real (columnas ``reason_code`` / ``reason_note``) es S3.3c-2.
+Modulo **interno**: describe que motivo puede acompanar a cada evento de auditoria y como se
+valida. Sigue sin escribir auditoria y sin conocer la capa de persistencia (el unico escritor es
+``bracket.sql.domain_writes.sql_insert_domain_change_log``), pero desde S3.3c-2 es la **autoridad
+de validacion** de las diez operaciones de F3: cada operacion le pide el motivo resuelto
+(``build_audit_reason``) y el escritor lo persiste en ``reason_code`` / ``reason_note``.
 
 Por que un catalogo cerrado
 ---------------------------
@@ -20,8 +21,9 @@ intentar limpiar despues, el contrato pasa a ser:
   :data:`NOTE_ALLOWED_CODES` admiten nota, con limites estrictos.
 
 Los codigos ``INJURY`` y ``DISCIPLINE`` se descartaron por decision expresa:
-inducen a registrar salud o disciplina, que no son necesarias para operar el
-torneo. La retirada por lesion se registra como retirada solicitada, sin causa.
+inducen a registrar informacion de salud o de disciplina que no es necesaria
+para operar el torneo. Una retirada con una causa ajena al torneo se registra
+igual que cualquier otra retirada, sin exponer el motivo.
 
 Que **no** garantiza este modulo
 --------------------------------
@@ -36,12 +38,13 @@ cerrado y la nota corta, no el filtro.
 Compatibilidad
 --------------
 
-El catalogo reproduce **exactamente** los motivos por defecto de S2 y S3.2
-(``competitors._DEFAULT_REASONS`` y ``registrations._DEFAULT_REASONS``), de modo
-que la integracion posterior no cambia el texto de ningun evento historico. Los
-motivos obligatorios de hoy (``WITHDRAW`` / ``REINSTATE`` / ``DISQUALIFY``, sin
-valor por defecto) siguen siendo obligatorios: son justo los que dejan de
-admitir texto libre.
+El catalogo reproduce **exactamente** los motivos por defecto de S2 y S3.2 (los que eran
+``competitors._DEFAULT_REASONS`` y ``registrations._DEFAULT_REASONS`` antes de la integracion), de
+modo que ningun evento cambia de texto canonico al integrarse. Aquellos textos viven ahora **aqui**
+y los modulos de operaciones ya no tienen ningun camino de texto libre: el parametro del llamador
+es el codigo (``reason_code``) y la nota opcional (``reason_note``). Los motivos obligatorios de
+hoy (``WITHDRAW`` / ``REINSTATE`` / ``DISQUALIFY``, sin valor por defecto) siguen siendo
+obligatorios: son justo los que dejan de admitir texto libre.
 """
 
 from __future__ import annotations
@@ -295,6 +298,11 @@ def validate_reason_note(*, code: str, note: object) -> str | None:
 
     Devuelve la nota normalizada a NFC y sin espacios exteriores, o ``None`` si
     no se ha dado nota. Nunca devuelve la nota cuando es invalida.
+
+    El **orden** importa: los caracteres de control se rechazan sobre la entrada
+    original, antes de normalizar y recortar. Recortar primero convertiria un
+    salto de linea o un tabulador del borde en una nota valida, es decir, usaria
+    el recorte como saneo; el contrato prohibe esos caracteres, no solo en medio.
     """
 
     if note is None:
@@ -303,6 +311,8 @@ def validate_reason_note(*, code: str, note: object) -> str | None:
         raise ReasonNoteNotAllowedError(f"el motivo {code} no admite nota")
     if not isinstance(note, str):
         raise InvalidReasonNoteError("la nota debe ser texto")
+    if any(unicodedata.category(character) == "Cc" for character in note):
+        raise InvalidReasonNoteError("la nota contiene caracteres de control no permitidos")
     normalized = unicodedata.normalize("NFC", note).strip()
     if not normalized:
         raise InvalidReasonNoteError("la nota no puede estar vacia")

@@ -553,6 +553,86 @@ tournament_registrations = Table(
 # Auditoria de rectificaciones. Sin FK hacia las entidades auditadas (el registro debe
 # sobrevivir al objeto) y con el actor como SET NULL mas una etiqueta congelada.
 # ``changed_fields`` guarda NOMBRES DE CAMPO, nunca valores (evita PII en la auditoria).
+# S3.3c-2: motivo cerrado de la auditoria de dominio. ``reason`` conserva el texto canonico
+# legible que deriva el catalogo (``bracket.logic.audit_reasons``); estas dos columnas guardan el
+# motivo estructurado: ``reason_code`` (codigo cerrado, obligatorio en las escrituras nuevas que
+# proceden del catalogo) y ``reason_note`` (nota libre **opcional** y solo en los codigos que la
+# admiten). NULLABLE a proposito en ambas: NULL significa "fila anterior a esta migracion", y el
+# escritor interno tambien audita entidades de plataforma que no tienen catalogo propio. La
+# nulabilidad no debilita la garantia: los CHECK son los que cierran el conjunto de valores, y la
+# coherencia "codigo permitido para la accion" se comprueba en la base, no solo en la aplicacion.
+# La lista de codigos y de parejas se repite literalmente en la migracion (una migracion es una
+# foto congelada y no debe importar codigo vivo); hay una prueba que compara ambas copias con el
+# catalogo para que no puedan divergir en silencio.
+_REASON_CODES: tuple[str, ...] = (
+    "ADMINISTRATIVE",
+    "CATEGORY_CHANGE",
+    "DATA_CORRECTION",
+    "DATA_ERROR",
+    "DATA_VERIFIED",
+    "DUPLICATE",
+    "ELIGIBILITY",
+    "ELIGIBILITY_LOST",
+    "ELIGIBILITY_REGAINED",
+    "MISTAKEN_WITHDRAWAL",
+    "PLANNED_ENTRY",
+    "READY",
+    "REPRESENTATION_CHANGE",
+    "REQUESTED_BY_ATHLETE",
+    "RULE_VIOLATION",
+    "SCHEDULING_NO_SHOW",
+    "WITHDRAWAL_REQUEST",
+)
+_REASON_NOTE_ALLOWED_CODES: tuple[str, ...] = ("ADMINISTRATIVE", "DATA_ERROR", "RULE_VIOLATION")
+_REASON_NOTE_MAX_LENGTH = 200
+_REASON_CODE_ACTION_PAIRS: tuple[tuple[str, str, str], ...] = (
+    ("competitor", "CREATE", "PLANNED_ENTRY"),
+    ("competitor", "UPDATE", "DATA_CORRECTION"),
+    ("competitor", "DEACTIVATE", "REQUESTED_BY_ATHLETE"),
+    ("competitor", "DEACTIVATE", "DUPLICATE"),
+    ("competitor", "DEACTIVATE", "DATA_ERROR"),
+    ("competitor", "DEACTIVATE", "ADMINISTRATIVE"),
+    ("competitor", "ACTIVATE", "REQUESTED_BY_ATHLETE"),
+    ("competitor", "ACTIVATE", "DUPLICATE"),
+    ("competitor", "ACTIVATE", "DATA_ERROR"),
+    ("competitor", "ACTIVATE", "ADMINISTRATIVE"),
+    ("tournament_registration", "CREATE", "PLANNED_ENTRY"),
+    ("tournament_registration", "UPDATE", "DATA_CORRECTION"),
+    ("tournament_registration", "UPDATE", "CATEGORY_CHANGE"),
+    ("tournament_registration", "UPDATE", "REPRESENTATION_CHANGE"),
+    ("tournament_registration", "CONFIRM", "READY"),
+    ("tournament_registration", "CONFIRM", "DATA_VERIFIED"),
+    ("tournament_registration", "WITHDRAW", "WITHDRAWAL_REQUEST"),
+    ("tournament_registration", "WITHDRAW", "DUPLICATE"),
+    ("tournament_registration", "WITHDRAW", "ELIGIBILITY_LOST"),
+    ("tournament_registration", "WITHDRAW", "ADMINISTRATIVE"),
+    ("tournament_registration", "REINSTATE", "MISTAKEN_WITHDRAWAL"),
+    ("tournament_registration", "REINSTATE", "ELIGIBILITY_REGAINED"),
+    ("tournament_registration", "REINSTATE", "ADMINISTRATIVE"),
+    ("tournament_registration", "DISQUALIFY", "SCHEDULING_NO_SHOW"),
+    ("tournament_registration", "DISQUALIFY", "RULE_VIOLATION"),
+    ("tournament_registration", "DISQUALIFY", "ELIGIBILITY"),
+    ("tournament_registration", "DISQUALIFY", "ADMINISTRATIVE"),
+)
+_REASON_CODE_CATALOG_CHECK = (
+    "reason_code IS NULL OR reason_code IN ("
+    + ", ".join(f"'{code}'" for code in _REASON_CODES)
+    + ")"
+)
+_REASON_CODE_ACTION_CHECK = (
+    "reason_code IS NULL OR (entity, action, reason_code) IN ("
+    + ", ".join(
+        f"('{entity}', '{action}', '{code}')" for entity, action, code in _REASON_CODE_ACTION_PAIRS
+    )
+    + ")"
+)
+_REASON_NOTE_CHECK = (
+    "reason_note IS NULL OR (reason_code IN ("
+    + ", ".join(f"'{code}'" for code in _REASON_NOTE_ALLOWED_CODES)
+    + f") AND char_length(reason_note) BETWEEN 1 AND {_REASON_NOTE_MAX_LENGTH}"
+    " AND reason_note = btrim(reason_note) AND reason_note !~ '[[:cntrl:]]')"
+)
+
 domain_change_log = Table(
     "domain_change_log",
     metadata,
@@ -581,6 +661,13 @@ domain_change_log = Table(
         ForeignKey("clubs.id", ondelete="RESTRICT", name="fk_domain_change_log_tenant_club_id"),
         nullable=True,
     ),
+    # S3.3c-2: motivo cerrado del evento. ``reason`` (texto canonico legible) se mantiene como
+    # columna de lectura; el motivo estructurado vive aqui y lo valida la base.
+    Column("reason_code", String(32), nullable=True),
+    Column("reason_note", Text, nullable=True),
+    CheckConstraint(_REASON_CODE_CATALOG_CHECK, name="ck_domain_change_log_reason_code_catalog"),
+    CheckConstraint(_REASON_CODE_ACTION_CHECK, name="ck_domain_change_log_reason_code_action"),
+    CheckConstraint(_REASON_NOTE_CHECK, name="ck_domain_change_log_reason_note"),
     Index("ix_domain_change_log_entity", "entity", "entity_id"),
     Index("ix_domain_change_log_tenant_created", "tenant_club_id", "created"),
 )

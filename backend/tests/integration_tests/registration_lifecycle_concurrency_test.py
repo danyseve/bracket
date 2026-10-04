@@ -114,7 +114,7 @@ async def _withdrawn(registration_data: RegistrationData, key: str) -> Tournamen
         _independent_draft(registration_data, key),
     )
     return await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="retirada de partida"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
 
@@ -154,7 +154,7 @@ async def test_two_concurrent_withdrawals_write_a_single_event(
         registration_data.tournament_a,
         _independent_draft(registration_data, "gi-doble-retirada"),
     )
-    await confirm_registration(context, registration.id, reason="confirmada")
+    await confirm_registration(context, registration.id, reason_code="READY")
     audit_table_is_locked = asyncio.Event()
     release_audit_table = asyncio.Event()
 
@@ -170,7 +170,7 @@ async def test_two_concurrent_withdrawals_write_a_single_event(
         await asyncio.wait_for(audit_table_is_locked.wait(), WAITING_TIMEOUT_SECONDS)
         withdrawals = [
             asyncio.create_task(
-                withdraw_registration(context, registration.id, reason="retirada concurrente")
+                withdraw_registration(context, registration.id, reason_code="ADMINISTRATIVE")
             )
             for _ in range(2)
         ]
@@ -215,7 +215,7 @@ async def test_two_concurrent_reinstatements_write_a_single_event(
         await asyncio.wait_for(audit_table_is_locked.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatements = [
             asyncio.create_task(
-                reinstate_registration(context, registration.id, reason="readmision concurrente")
+                reinstate_registration(context, registration.id, reason_code="ADMINISTRATIVE")
             )
             for _ in range(2)
         ]
@@ -264,12 +264,12 @@ async def test_a_withdrawal_racing_a_reinstatement_does_not_take_the_row_lock(
     try:
         await asyncio.wait_for(registration_row_is_held.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatement = asyncio.create_task(
-            reinstate_registration(context, withdrawn.id, reason="readmision")
+            reinstate_registration(context, withdrawn.id, reason_code="ADMINISTRATIVE")
         )
         await wait_for_waiting_backends("%UPDATE tournament_registrations%")
         # La retirada de algo ya retirado es un no-op: lee (sin bloqueo) y completa.
         withdrawal = asyncio.create_task(
-            withdraw_registration(context, withdrawn.id, reason="retirada concurrente")
+            withdraw_registration(context, withdrawn.id, reason_code="ADMINISTRATIVE")
         )
         no_op = await asyncio.wait_for(withdrawal, WAITING_TIMEOUT_SECONDS)
         assert no_op.status == "WITHDRAWN"
@@ -311,7 +311,7 @@ async def test_a_competitor_deactivation_in_flight_makes_the_reinstatement_wait_
     try:
         await asyncio.wait_for(deactivation_ready.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatement = asyncio.create_task(
-            reinstate_registration(context, withdrawn.id, reason="readmision")
+            reinstate_registration(context, withdrawn.id, reason_code="ADMINISTRATIVE")
         )
         # Evidencia positiva: la readmision espera al ``FOR SHARE`` del competidor.
         await wait_for_waiting_backends("%FOR SHARE%")
@@ -356,7 +356,7 @@ async def test_a_reinstatement_in_flight_makes_the_competitor_deactivation_wait(
     try:
         await asyncio.wait_for(registration_row_is_held.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatement = asyncio.create_task(
-            reinstate_registration(context, withdrawn.id, reason="readmision")
+            reinstate_registration(context, withdrawn.id, reason_code="ADMINISTRATIVE")
         )
         # Detenida despues de su ``FOR SHARE`` sobre el competidor y antes de su ``UPDATE``.
         await wait_for_waiting_backends("%UPDATE tournament_registrations%")
@@ -401,7 +401,7 @@ async def test_an_academy_deactivation_in_flight_makes_the_reinstatement_wait_an
         registration_data.tournament_a,
         _club_draft(registration_data, "gi-readmision-baja-academia"),
     )
-    await withdraw_registration(context, registration.id, reason="retirada")
+    await withdraw_registration(context, registration.id, reason_code="ADMINISTRATIVE")
     deactivation_ready = asyncio.Event()
     release_deactivation = asyncio.Event()
 
@@ -414,7 +414,7 @@ async def test_an_academy_deactivation_in_flight_makes_the_reinstatement_wait_an
     try:
         await asyncio.wait_for(deactivation_ready.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatement = asyncio.create_task(
-            reinstate_registration(context, registration.id, reason="readmision")
+            reinstate_registration(context, registration.id, reason_code="ADMINISTRATIVE")
         )
         await wait_for_waiting_backends("%FOR SHARE%")
         await wait_for_tuple_contention("sports_clubs")
@@ -444,7 +444,7 @@ async def test_a_reinstatement_in_flight_makes_the_academy_deactivation_wait(
         registration_data.tournament_a,
         _club_draft(registration_data, "gi-readmision-gana-academia"),
     )
-    await withdraw_registration(context, registration.id, reason="retirada")
+    await withdraw_registration(context, registration.id, reason_code="ADMINISTRATIVE")
     registration_row_is_held = asyncio.Event()
     release_registration_row = asyncio.Event()
 
@@ -463,7 +463,7 @@ async def test_a_reinstatement_in_flight_makes_the_academy_deactivation_wait(
     try:
         await asyncio.wait_for(registration_row_is_held.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatement = asyncio.create_task(
-            reinstate_registration(context, registration.id, reason="readmision")
+            reinstate_registration(context, registration.id, reason_code="ADMINISTRATIVE")
         )
         await wait_for_waiting_backends("%UPDATE tournament_registrations%")
         deactivation = asyncio.create_task(
@@ -505,7 +505,7 @@ async def test_the_reinstatement_locks_the_competitor_before_the_academy(
     registration = await create_registration(
         context, registration_data.tournament_a, _club_draft(registration_data, "gi-orden-bloqueo")
     )
-    await withdraw_registration(context, registration.id, reason="retirada")
+    await withdraw_registration(context, registration.id, reason_code="ADMINISTRATIVE")
     competitor_is_held = asyncio.Event()
     release_competitor = asyncio.Event()
 
@@ -523,7 +523,7 @@ async def test_the_reinstatement_locks_the_competitor_before_the_academy(
     try:
         await asyncio.wait_for(competitor_is_held.wait(), WAITING_TIMEOUT_SECONDS)
         reinstatement = asyncio.create_task(
-            reinstate_registration(context, registration.id, reason="readmision")
+            reinstate_registration(context, registration.id, reason_code="ADMINISTRATIVE")
         )
         await wait_for_waiting_backends("%FOR SHARE%")
         # Primer eslabon retenido: la academia todavia no esta bloqueada por la readmision.

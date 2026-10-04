@@ -275,6 +275,8 @@ async def test_audit_rejects_a_tenant_that_does_not_exist(audit_data: AuditData)
             actor_user_id=audit_data.actor.id,
             actor_label=None,
             reason="prueba",
+            reason_code="DATA_CORRECTION",
+            reason_note=None,
             tenant_club_id=ClubId(999_999),
         )
 
@@ -298,6 +300,8 @@ async def test_audit_rejects_a_valid_tenant_that_is_not_the_entity_tenant(
             actor_user_id=audit_data.actor.id,
             actor_label=None,
             reason="prueba",
+            reason_code="DATA_CORRECTION",
+            reason_note=None,
             tenant_club_id=audit_data.tenant_a.id,
         )
 
@@ -318,6 +322,8 @@ async def test_audit_rejects_an_entity_that_does_not_exist(audit_data: AuditData
             actor_user_id=audit_data.actor.id,
             actor_label=None,
             reason="prueba",
+            reason_code="DATA_CORRECTION",
+            reason_note=None,
             tenant_club_id=audit_data.tenant_a.id,
         )
 
@@ -335,6 +341,8 @@ async def test_audit_rejects_an_unsupported_entity(audit_data: AuditData) -> Non
             actor_user_id=audit_data.actor.id,
             actor_label=None,
             reason="prueba",
+            reason_code=None,
+            reason_note=None,
             tenant_club_id=audit_data.tenant_a.id,
         )
 
@@ -362,6 +370,8 @@ async def test_platform_entities_have_no_authorized_audit_writer(audit_data: Aud
                 actor_user_id=audit_data.actor.id,
                 actor_label=None,
                 reason="prueba",
+                reason_code="PLANNED_ENTRY",
+                reason_note=None,
                 tenant_club_id=tenant_club_id,  # type: ignore[arg-type]
             )
 
@@ -401,6 +411,8 @@ async def test_a_failed_audit_reverts_the_whole_operation(audit_data: AuditData)
                 actor_user_id=audit_data.actor.id,
                 actor_label=None,
                 reason="prueba",
+                reason_code="PLANNED_ENTRY",
+                reason_note=None,
                 tenant_club_id=audit_data.tenant_b.id,
             )
 
@@ -459,7 +471,7 @@ async def test_legitimate_rename_still_closes_and_opens_the_history(audit_data: 
         audit_data.context_b,
         audit_data.competitor_b.id,
         CompetitorBasicDataUpdate(display_name="Identidad De B Renombrada"),
-        reason="cambio de nombre",
+        reason_code="DATA_CORRECTION",
     )
 
     assert updated.display_name == "Identidad De B Renombrada"
@@ -486,7 +498,7 @@ async def test_effective_operations_write_one_event_and_no_ops_write_none(
         audit_data.context_a,
         competitor.id,
         CompetitorBasicDataUpdate(display_name="Ciclo De Vida Renombrado"),
-        reason="renombrado",
+        reason_code="DATA_CORRECTION",
     )
     assert len(await _events("competitor", competitor.id)) == 2
 
@@ -497,10 +509,10 @@ async def test_effective_operations_write_one_event_and_no_ops_write_none(
     )
     assert len(await _events("competitor", competitor.id)) == 2, "no-op sin evento"
 
-    await deactivate_competitor(audit_data.context_a, competitor.id, reason="baja")
+    await deactivate_competitor(audit_data.context_a, competitor.id, reason_code="ADMINISTRATIVE")
     assert len(await _events("competitor", competitor.id)) == 3
 
-    await deactivate_competitor(audit_data.context_a, competitor.id, reason="baja repetida")
+    await deactivate_competitor(audit_data.context_a, competitor.id, reason_code="ADMINISTRATIVE")
     assert len(await _events("competitor", competitor.id)) == 3, "no-op sin evento"
 
     events = await _events("competitor", competitor.id)
@@ -520,7 +532,7 @@ async def test_registration_events_carry_the_tenant_without_touching_snapshots(
         audit_data.context_collaborator,
         audit_data.tournament_a.id,
         build_draft(competitor_id=audit_data.competitor_a.id),
-        reason="alta de prueba",
+        reason_code="PLANNED_ENTRY",
     )
     before = await database.fetch_one(
         query=SELECT_SNAPSHOTS, values={"registration_id": registration.id}
@@ -528,7 +540,7 @@ async def test_registration_events_carry_the_tenant_without_touching_snapshots(
     assert before is not None
 
     await withdraw_registration(
-        audit_data.context_collaborator, registration.id, reason="baja de prueba"
+        audit_data.context_collaborator, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     after = await database.fetch_one(
@@ -552,7 +564,7 @@ async def test_registration_into_another_tenants_tournament_is_rejected(
             audit_data.context_b,
             audit_data.tournament_a.id,
             build_draft(competitor_id=audit_data.competitor_b.id),
-            reason="alta cruzada",
+            reason_code="PLANNED_ENTRY",
         )
 
 
@@ -564,7 +576,7 @@ async def test_competitor_and_registration_of_another_tenant_are_not_readable(
         audit_data.context_a,
         audit_data.tournament_a.id,
         build_draft(competitor_id=audit_data.competitor_a.id),
-        reason="alta de prueba",
+        reason_code="PLANNED_ENTRY",
     )
 
     assert (

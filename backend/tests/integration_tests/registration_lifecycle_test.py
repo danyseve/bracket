@@ -120,14 +120,12 @@ async def _registration_in_status(
     if status == "DRAFT":
         return registration
     if status == "CONFIRMED":
-        return await confirm_registration(context, registration.id, reason="confirmacion de matriz")
+        return await confirm_registration(context, registration.id, reason_code="READY")
     if status == "WITHDRAWN":
-        return await withdraw_registration(context, registration.id, reason="retirada de matriz")
+        return await withdraw_registration(context, registration.id, reason_code="ADMINISTRATIVE")
     assert status == "DISQUALIFIED"
-    await confirm_registration(context, registration.id, reason="confirmacion de matriz")
-    return await disqualify_registration(
-        context, registration.id, reason="descalificacion de matriz"
-    )
+    await confirm_registration(context, registration.id, reason_code="READY")
+    return await disqualify_registration(context, registration.id, reason_code="ADMINISTRATIVE")
 
 
 async def _confirmed(registration_data: RegistrationData, key: str) -> TournamentRegistration:
@@ -184,11 +182,11 @@ async def test_the_full_transition_matrix(registration_data: RegistrationData) -
         if expected is None:
             with pytest.raises(InvalidRegistrationStateError):
                 await operation(
-                    registration_data.context_owner_a, registration.id, reason="prueba de matriz"
+                    registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
                 )
         else:
             result = await operation(
-                registration_data.context_owner_a, registration.id, reason="prueba de matriz"
+                registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
             )
             assert result.status == expected, label
         after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
@@ -217,7 +215,10 @@ async def test_withdraw_a_draft_audits_one_event_and_keeps_the_snapshots(
     )
 
     withdrawn = await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="  lesion en el calentamiento  "
+        registration_data.context_owner_a,
+        registration.id,
+        reason_code="ADMINISTRATIVE",
+        reason_note="retirada acordada con la organizacion",
     )
 
     assert withdrawn.id == registration.id
@@ -229,7 +230,9 @@ async def test_withdraw_a_draft_audits_one_event_and_keeps_the_snapshots(
     rows = await audit_rows(registration.id)
     assert [row["action"] for row in rows] == ["CREATE", "WITHDRAW"]
     assert rows[-1]["changed_fields"] == ["status"]
-    assert rows[-1]["reason"] == "lesion en el calentamiento"
+    assert rows[-1]["reason_code"] == "ADMINISTRATIVE"
+    assert rows[-1]["reason"] == "retirada administrativa"
+    assert rows[-1]["reason_note"] == "retirada acordada con la organizacion"
     assert rows[-1]["actor_label"] == "owner-a"
     assert rows[-1]["entity"] == "tournament_registration"
     assert rows[-1]["entity_id"] == registration.id
@@ -247,7 +250,7 @@ async def test_withdraw_a_draft_is_allowed_for_a_collaborator(
     )
 
     withdrawn = await withdraw_registration(
-        registration_data.context_collaborator_a, registration.id, reason="baja por el club"
+        registration_data.context_collaborator_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     assert withdrawn.status == "WITHDRAWN"
@@ -282,7 +285,7 @@ async def test_withdrawing_a_draft_does_not_require_eligible_competitor_or_acade
             await confirm_registration(registration_data.context_owner_a, registration.id)
         # ...pero la retirada si: es la salida del borrador bloqueado.
         withdrawn = await withdraw_registration(
-            registration_data.context_owner_a, registration.id, reason="salida del borrador"
+            registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
         )
     finally:
         await set_competitor_active(registration_data.competitor_a, active=True)
@@ -303,11 +306,11 @@ async def test_withdraw_is_idempotent_and_writes_a_single_event(
         _categorized(registration_data, "gi-master"),
     )
     first = await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="primera"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     second = await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="reintento"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     assert second.status == "WITHDRAWN"
@@ -325,7 +328,9 @@ async def test_withdrawing_a_confirmed_registration_requires_the_owner(
 
     with pytest.raises(InsufficientPrivilegesError):
         await withdraw_registration(
-            registration_data.context_collaborator_a, by_collaborator.id, reason="intento"
+            registration_data.context_collaborator_a,
+            by_collaborator.id,
+            reason_code="ADMINISTRATIVE",
         )
     untouched = await get_registration(
         by_collaborator.id, tenant_club_id=registration_data.tenant_a
@@ -335,7 +340,7 @@ async def test_withdrawing_a_confirmed_registration_requires_the_owner(
     assert await _actions(by_collaborator.id) == ["CREATE", "CONFIRM"]
 
     withdrawn = await withdraw_registration(
-        registration_data.context_owner_a, owned.id, reason="baja de la competicion"
+        registration_data.context_owner_a, owned.id, reason_code="ADMINISTRATIVE"
     )
     assert withdrawn.status == "WITHDRAWN"
     assert await _actions(owned.id) == ["CREATE", "CONFIRM", "WITHDRAW"]
@@ -352,11 +357,11 @@ async def test_withdrawn_from_confirmed_keeps_the_historic_and_the_unique_slot(
         _categorized(registration_data, "gi-absoluto-historico"),
     )
     confirmed = await confirm_registration(
-        registration_data.context_owner_a, registration.id, reason="confirmada"
+        registration_data.context_owner_a, registration.id, reason_code="READY"
     )
 
     withdrawn = await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="baja posterior"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     assert withdrawn.competitor_name_snapshot == confirmed.competitor_name_snapshot
@@ -390,7 +395,7 @@ async def test_withdraw_rejects_a_registration_without_an_operation_to_leave(
     for registration in (disqualified, corrected):
         with pytest.raises(InvalidRegistrationStateError):
             await withdraw_registration(
-                registration_data.context_owner_a, registration.id, reason="intento"
+                registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
             )
         after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
         assert after is not None
@@ -409,7 +414,7 @@ async def test_disqualify_a_confirmed_registration_requires_the_owner(
 
     with pytest.raises(InsufficientPrivilegesError):
         await disqualify_registration(
-            registration_data.context_collaborator_a, registration.id, reason="intento"
+            registration_data.context_collaborator_a, registration.id, reason_code="ADMINISTRATIVE"
         )
     untouched = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
     assert untouched is not None
@@ -417,7 +422,10 @@ async def test_disqualify_a_confirmed_registration_requires_the_owner(
     assert await _actions(registration.id) == ["CREATE", "CONFIRM"]
 
     disqualified = await disqualify_registration(
-        registration_data.context_owner_a, registration.id, reason="conducta antideportiva"
+        registration_data.context_owner_a,
+        registration.id,
+        reason_code="RULE_VIOLATION",
+        reason_note="acuerdo del comite de competicion",
     )
 
     assert disqualified.status == "DISQUALIFIED"
@@ -426,7 +434,9 @@ async def test_disqualify_a_confirmed_registration_requires_the_owner(
     rows = await audit_rows(registration.id)
     assert [row["action"] for row in rows] == ["CREATE", "CONFIRM", "DISQUALIFY"]
     assert rows[-1]["changed_fields"] == ["status"]
-    assert rows[-1]["reason"] == "conducta antideportiva"
+    assert rows[-1]["reason_code"] == "RULE_VIOLATION"
+    assert rows[-1]["reason"] == "descalificacion por incumplimiento de reglas"
+    assert rows[-1]["reason_note"] == "acuerdo del comite de competicion"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -439,7 +449,7 @@ async def test_disqualify_is_idempotent_and_a_disqualified_row_still_occupies_th
     )
 
     second = await disqualify_registration(
-        registration_data.context_owner_a, registration.id, reason="reintento"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     assert second.status == "DISQUALIFIED"
@@ -464,7 +474,7 @@ async def test_disqualify_rejects_a_registration_that_is_not_confirmed(
     for registration in (draft, withdrawn):
         with pytest.raises(InvalidRegistrationStateError):
             await disqualify_registration(
-                registration_data.context_owner_a, registration.id, reason="intento"
+                registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
             )
 
 
@@ -489,12 +499,12 @@ async def test_reinstate_a_withdrawal_that_never_was_confirmed_equals_a_first_co
         _categorized(registration_data, "comparacion-ciclo"),
     )
     withdrawn = await withdraw_registration(
-        registration_data.context_owner_a, draft.id, reason="retirada previa a la confirmacion"
+        registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
     )
     assert withdrawn.status == "WITHDRAWN"
 
     reinstated = await reinstate_registration(
-        registration_data.context_owner_a, draft.id, reason="subsanado el problema"
+        registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
     )
 
     assert reinstated.id == draft.id
@@ -528,12 +538,14 @@ async def test_reinstate_revalidates_the_competitor_and_keeps_the_row_withdrawn(
         registration_data.tournament_a,
         _categorized(registration_data, "gi-readmision-competidor"),
     )
-    await withdraw_registration(registration_data.context_owner_a, draft.id, reason="retirada")
+    await withdraw_registration(
+        registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
+    )
     await set_competitor_active(registration_data.competitor_a, active=False)
     try:
         with pytest.raises(CompetitorNotSelectableError):
             await reinstate_registration(
-                registration_data.context_owner_a, draft.id, reason="intento de readmision"
+                registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
             )
         after = await get_registration(draft.id, tenant_club_id=registration_data.tenant_a)
         assert after is not None
@@ -543,7 +555,7 @@ async def test_reinstate_revalidates_the_competitor_and_keeps_the_row_withdrawn(
         # Reactivar la identidad (S2-bis) abre la readmision sin tocar la fila retirada.
         await set_competitor_active(registration_data.competitor_a, active=True)
         reinstated = await reinstate_registration(
-            registration_data.context_owner_a, draft.id, reason="identidad reactivada"
+            registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
         )
     finally:
         await set_competitor_active(registration_data.competitor_a, active=True)
@@ -568,12 +580,14 @@ async def test_reinstate_revalidates_the_represented_academy(
             category_label="Gi Readmision Academia",
         ),
     )
-    await withdraw_registration(registration_data.context_owner_a, draft.id, reason="retirada")
+    await withdraw_registration(
+        registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
+    )
     await set_sports_club_active(registration_data.sports_club_a, active=False)
     try:
         with pytest.raises(SportsClubNotSelectableError):
             await reinstate_registration(
-                registration_data.context_owner_a, draft.id, reason="intento de readmision"
+                registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
             )
     finally:
         await set_sports_club_active(registration_data.sports_club_a, active=True)
@@ -584,7 +598,7 @@ async def test_reinstate_revalidates_the_represented_academy(
     assert await _actions(draft.id) == ["CREATE", "WITHDRAW"]
 
     reinstated = await reinstate_registration(
-        registration_data.context_owner_a, draft.id, reason="academia reactivada"
+        registration_data.context_owner_a, draft.id, reason_code="ADMINISTRATIVE"
     )
     assert reinstated.status == "CONFIRMED"
 
@@ -600,11 +614,11 @@ async def test_reinstate_is_allowed_for_a_collaborator(
         _categorized(registration_data, "gi-readmision-colaborador"),
     )
     await withdraw_registration(
-        registration_data.context_collaborator_a, draft.id, reason="retirada del colaborador"
+        registration_data.context_collaborator_a, draft.id, reason_code="ADMINISTRATIVE"
     )
 
     reinstated = await reinstate_registration(
-        registration_data.context_collaborator_a, draft.id, reason="readmision del colaborador"
+        registration_data.context_collaborator_a, draft.id, reason_code="ADMINISTRATIVE"
     )
 
     assert reinstated.status == "CONFIRMED"
@@ -622,14 +636,14 @@ async def test_reinstate_of_a_withdrawn_confirmed_registration_keeps_the_frozen_
         _categorized(registration_data, "gi-readmision-historico"),
     )
     confirmed = await confirm_registration(
-        registration_data.context_owner_a, registration.id, reason="confirmada"
+        registration_data.context_owner_a, registration.id, reason_code="READY"
     )
     await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="retirada posterior"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     reinstated = await reinstate_registration(
-        registration_data.context_owner_a, registration.id, reason="vuelve al torneo"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     assert reinstated.competitor_name_snapshot == confirmed.competitor_name_snapshot
@@ -653,7 +667,7 @@ async def test_reinstate_rejects_a_registration_that_is_not_withdrawn(
     for registration in (draft, confirmed, disqualified):
         with pytest.raises(InvalidRegistrationStateError):
             await reinstate_registration(
-                registration_data.context_owner_a, registration.id, reason="intento"
+                registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
             )
         after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
         assert after is not None
@@ -675,10 +689,10 @@ async def test_a_registration_with_unknown_identity_travels_the_whole_lifecycle(
         ),
     )
     withdrawn = await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="retirada"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
     reinstated = await reinstate_registration(
-        registration_data.context_owner_a, registration.id, reason="readmision"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
 
     assert withdrawn.competitor_id is None
@@ -701,7 +715,7 @@ async def test_lifecycle_operations_are_invisible_from_another_tenant(
     for operation in (withdraw_registration, reinstate_registration, disqualify_registration):
         with pytest.raises(RegistrationNotFoundError):
             await operation(
-                registration_data.context_owner_b, registration.id, reason="intento ajeno"
+                registration_data.context_owner_b, registration.id, reason_code="ADMINISTRATIVE"
             )
     after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
     assert after is not None
@@ -722,7 +736,9 @@ async def test_lifecycle_operations_reject_an_actor_without_relation_to_the_tena
 
     for operation in (withdraw_registration, reinstate_registration, disqualify_registration):
         with pytest.raises(TenantNotAuthorizedError):
-            await operation(registration_data.context_outsider_a, registration.id, reason="intento")
+            await operation(
+                registration_data.context_outsider_a, registration.id, reason_code="ADMINISTRATIVE"
+            )
     after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
     assert after is not None
     assert after.status == "DRAFT"
@@ -736,28 +752,33 @@ async def test_lifecycle_operations_reject_an_unknown_registration(
     """Una inscripcion inexistente da el mismo error que una de otro tenant."""
     for operation in (withdraw_registration, reinstate_registration, disqualify_registration):
         with pytest.raises(RegistrationNotFoundError):
-            await operation(registration_data.context_owner_a, UNKNOWN_REGISTRATION_ID, reason="x")
+            await operation(
+                registration_data.context_owner_a,
+                UNKNOWN_REGISTRATION_ID,
+                reason_code="ADMINISTRATIVE",
+            )
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_the_reason_is_mandatory_and_cannot_be_blank(
     registration_data: RegistrationData,
 ) -> None:
-    """El motivo es obligatorio en las tres operaciones (docs/26 §3) y nunca admite vacios."""
+    """El codigo de motivo es obligatorio en las tres operaciones (docs/26 §3) y se valida."""
     for operation in (withdraw_registration, reinstate_registration, disqualify_registration):
         parameters = inspect.signature(operation).parameters
-        assert list(parameters) == ["context", "registration_id", "reason"]
-        assert parameters["reason"].default is inspect.Parameter.empty
+        assert list(parameters) == ["context", "registration_id", "reason_code", "reason_note"]
+        assert parameters["reason_code"].default is inspect.Parameter.empty, "codigo obligatorio"
+        assert parameters["reason_note"].default is None, "nota opcional"
 
     registration = await create_registration(
         registration_data.context_owner_a,
         registration_data.tournament_a,
         _categorized(registration_data, "gi-motivo"),
     )
-    for blank in ("", "   ", "\t"):
+    for invalid_code in ("", "   ", "\t", "NO_EXISTE", "withdraw"):
         with pytest.raises(InvalidRegistrationDataError):
             await withdraw_registration(
-                registration_data.context_owner_a, registration.id, reason=blank
+                registration_data.context_owner_a, registration.id, reason_code=invalid_code
             )
     after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
     assert after is not None
@@ -778,14 +799,16 @@ async def test_the_category_key_cannot_change_once_the_draft_is_left(
         registration_data.tournament_a,
         _categorized(registration_data, "gi-congelada"),
     )
-    await withdraw_registration(registration_data.context_owner_a, a.id, reason="retirada")
+    await withdraw_registration(
+        registration_data.context_owner_a, a.id, reason_code="ADMINISTRATIVE"
+    )
     reinstated = await create_registration(
         registration_data.context_owner_a,
         registration_data.tournament_a,
         _categorized(registration_data, "gi-congelada-confirmada"),
     )
     await confirm_registration(
-        registration_data.context_owner_a, reinstated.id, reason="confirmada"
+        registration_data.context_owner_a, reinstated.id, reason_code="READY"
     )
 
     for registration in (a, reinstated):
@@ -794,7 +817,7 @@ async def test_the_category_key_cannot_change_once_the_draft_is_left(
                 registration_data.context_owner_a,
                 registration.id,
                 _categorized(registration_data, "gi-congelada-nueva"),
-                reason="intento de reescritura",
+                reason_code="DATA_CORRECTION",
             )
         after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
         assert after is not None
@@ -816,13 +839,13 @@ async def test_an_audit_failure_rolls_back_the_transition(
         _categorized(registration_data, "gi-rollback"),
     )
     await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="retirada"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
     monkeypatch.setattr(registrations_module, "sql_insert_domain_change_log", _boom)
 
     with pytest.raises(RuntimeError):
         await reinstate_registration(
-            registration_data.context_owner_a, registration.id, reason="readmision"
+            registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
         )
 
     after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
@@ -849,22 +872,22 @@ async def test_no_pii_in_the_lifecycle_audit_or_errors(
         ),
     )
     await confirm_registration(
-        registration_data.context_owner_a, registration.id, reason="confirmada"
+        registration_data.context_owner_a, registration.id, reason_code="READY"
     )
     with pytest.raises(InsufficientPrivilegesError) as exc_info:
         await disqualify_registration(
-            registration_data.context_collaborator_a, registration.id, reason="intento"
+            registration_data.context_collaborator_a, registration.id, reason_code="ADMINISTRATIVE"
         )
     assert all(token not in str(exc_info.value) for token in sensitive_tokens)
 
     await withdraw_registration(
-        registration_data.context_owner_a, registration.id, reason="baja por lesion"
+        registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
     )
     await set_competitor_active(registration_data.competitor_a, active=False)
     try:
         with pytest.raises(CompetitorNotSelectableError) as exc_info_reinstate:
             await reinstate_registration(
-                registration_data.context_owner_a, registration.id, reason="intento invalido"
+                registration_data.context_owner_a, registration.id, reason_code="ADMINISTRATIVE"
             )
     finally:
         await set_competitor_active(registration_data.competitor_a, active=True)

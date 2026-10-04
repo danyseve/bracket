@@ -1,8 +1,8 @@
-"""Contrato del catalogo cerrado de motivos de auditoria (S3.3c-1, LAB ONLY).
+"""Contrato del catalogo cerrado de motivos de auditoria (S3.3c-1, integrado en S3.3c-2).
 
-Modulo **interno y no conectado** todavia: no escribe auditoria, no toca
-``domain_change_log``, no cambia las firmas de O1-O6 y no publica ningun endpoint.
-Estas pruebas fijan el contrato que consumira S3.3c-2.
+El modulo sigue siendo **puro** (no escribe auditoria, no importa el cliente de datos ni el
+transporte y no publica endpoints), pero desde S3.3c-2 es la autoridad que resuelven las diez
+operaciones de F3 y el origen de los valores que se persisten en ``domain_change_log``.
 
 Cubre:
 
@@ -27,6 +27,7 @@ documentados.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import re
 import unicodedata
@@ -499,7 +500,15 @@ def test_competitor_defaults_are_reproducible_by_the_catalog() -> None:
         "DEACTIVATE": ("ADMINISTRATIVE", "baja logica de competidor"),
         "ACTIVATE": ("ADMINISTRATIVE", "reactivacion de competidor"),
     }
-    assert competitors._DEFAULT_REASONS == {action: text for action, (_, text) in expected.items()}
+    assert audit_reasons.DEFAULT_CODES == {
+        ("competitor", "CREATE"): "PLANNED_ENTRY",
+        ("competitor", "UPDATE"): "DATA_CORRECTION",
+        ("competitor", "DEACTIVATE"): "ADMINISTRATIVE",
+        ("competitor", "ACTIVATE"): "ADMINISTRATIVE",
+        ("tournament_registration", "CREATE"): "PLANNED_ENTRY",
+        ("tournament_registration", "UPDATE"): "DATA_CORRECTION",
+        ("tournament_registration", "CONFIRM"): "READY",
+    }, "las defaults del catalogo son la unica fuente"
     for action, (code, text) in expected.items():
         reason = audit_reasons.build_audit_reason(scope="competitor", action=action)
         assert (reason.code, reason.text) == (code, text)
@@ -510,9 +519,6 @@ def test_registration_defaults_are_reproducible_by_the_catalog() -> None:
         "CREATE": ("PLANNED_ENTRY", "alta de inscripcion"),
         "UPDATE": ("DATA_CORRECTION", "edicion de borrador de inscripcion"),
         "CONFIRM": ("READY", "confirmacion de inscripcion"),
-    }
-    assert registrations._DEFAULT_REASONS == {
-        action: text for action, (_, text) in expected.items()
     }
     for action, (code, text) in expected.items():
         reason = audit_reasons.build_audit_reason(scope="tournament_registration", action=action)
@@ -525,11 +531,12 @@ def test_scope_names_match_the_audit_entities() -> None:
 
 
 def test_optional_and_required_actions_match_the_current_contracts() -> None:
-    """Hoy `reason` es obligatorio exactamente en las tres acciones de ciclo de vida."""
+    """El codigo es obligatorio en las tres acciones de ciclo de vida; la nota, siempre opcional."""
 
     for name in ("withdraw_registration", "reinstate_registration", "disqualify_registration"):
-        parameter = inspect.signature(getattr(registrations, name)).parameters["reason"]
-        assert parameter.default is inspect.Parameter.empty
+        parameters = inspect.signature(getattr(registrations, name)).parameters
+        assert parameters["reason_code"].default is inspect.Parameter.empty, name
+        assert parameters["reason_note"].default is None, name
 
     for name in (
         "create_registration",
@@ -541,8 +548,10 @@ def test_optional_and_required_actions_match_the_current_contracts() -> None:
         "activate_competitor",
     ):
         target = registrations if hasattr(registrations, name) else competitors
-        parameter = inspect.signature(getattr(target, name)).parameters["reason"]
-        assert parameter.default is None
+        parameters = inspect.signature(getattr(target, name)).parameters
+        assert parameters["reason_code"].default is None, name
+        assert parameters["reason_note"].default is None, name
+        assert "reason" not in parameters, f"{name}: el texto libre ya no es un parametro"
 
 
 # ---------------------------------------------------------------------------
@@ -551,9 +560,18 @@ def test_optional_and_required_actions_match_the_current_contracts() -> None:
 
 
 def test_module_does_not_write_audit_or_touch_persistence() -> None:
-    """El modulo es puro: ni escritor de auditoria, ni cliente de datos, ni transporte."""
+    """El modulo es puro: ni escritor de auditoria, ni cliente de datos, ni transporte.
+
+    Se analiza el **codigo**, no la prosa: los docstrings pueden nombrar el escritor o las
+    firmas para explicar la integracion de S3.3c-2 sin que eso sea una dependencia real.
+    """
 
     source = Path(audit_reasons.__file__).read_text(encoding="utf-8")
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            docstring = ast.get_docstring(node, clean=False)
+            if docstring:
+                source = source.replace(docstring, "")
     for forbidden in (
         "sql_insert_domain_change_log",
         "domain_writes",
@@ -573,7 +591,9 @@ def test_module_does_not_write_audit_or_touch_persistence() -> None:
     assert imported <= {"re", "unicodedata"}
 
 
-def test_existing_audit_writer_keeps_its_signature() -> None:
+def test_existing_audit_writer_exposes_the_closed_reason() -> None:
+    """S3.3c-2: el escritor recibe el motivo cerrado junto al texto canonico ya derivado."""
+
     from bracket.sql.domain_writes import sql_insert_domain_change_log
 
     assert list(inspect.signature(sql_insert_domain_change_log).parameters) == [
@@ -584,11 +604,13 @@ def test_existing_audit_writer_keeps_its_signature() -> None:
         "actor_user_id",
         "actor_label",
         "reason",
+        "reason_code",
+        "reason_note",
         "tenant_club_id",
     ]
 
 
-def test_domain_change_log_table_is_untouched() -> None:
+def test_domain_change_log_table_carries_the_closed_reason() -> None:
     from bracket import schema
 
     assert schema.domain_change_log.name == "domain_change_log"
@@ -603,8 +625,24 @@ def test_domain_change_log_table_is_untouched() -> None:
         "reason",
         "created",
         "tenant_club_id",
+        "reason_code",
+        "reason_note",
     ]
     assert schema.domain_change_log.columns["reason"].type.__class__.__name__ == "Text"
+    reason_code = schema.domain_change_log.columns["reason_code"]
+    assert reason_code.type.__class__.__name__ == "String"
+    assert getattr(reason_code.type, "length", None) == 32
+    assert reason_code.nullable and schema.domain_change_log.columns["reason_note"].nullable
+    checks = {
+        constraint.name
+        for constraint in schema.domain_change_log.constraints
+        if constraint.__class__.__name__ == "CheckConstraint"
+    }
+    assert {
+        "ck_domain_change_log_reason_code_catalog",
+        "ck_domain_change_log_reason_code_action",
+        "ck_domain_change_log_reason_note",
+    } <= checks
 
 
 @pytest.mark.parametrize(
@@ -621,8 +659,8 @@ def test_domain_change_log_table_is_untouched() -> None:
 def test_registration_operations_keep_their_public_signature(name: str) -> None:
     parameters = list(inspect.signature(getattr(registrations, name)).parameters)
     assert parameters[0] == "context"
-    assert "reason" in parameters
-    assert parameters[-1] == "reason"
+    assert "reason" not in parameters, "el texto libre ya no es un parametro del contrato"
+    assert parameters[-2:] == ["reason_code", "reason_note"]
 
 
 @pytest.mark.parametrize(
@@ -637,8 +675,8 @@ def test_registration_operations_keep_their_public_signature(name: str) -> None:
 def test_competitor_operations_keep_their_public_signature(name: str) -> None:
     parameters = list(inspect.signature(getattr(competitors, name)).parameters)
     assert parameters[0] == "context"
-    assert "reason" in parameters
-    assert parameters[-1] == "reason"
+    assert "reason" not in parameters, "el texto libre ya no es un parametro del contrato"
+    assert parameters[-2:] == ["reason_code", "reason_note"]
 
 
 # ---------------------------------------------------------------------------
@@ -744,3 +782,79 @@ def test_error_messages_do_not_expose_the_catalog_internals() -> None:
     message = str(error.value)
     assert "WITHDRAWAL_REQUEST" in message
     assert "CONFIRM" in message
+
+
+# ---------------------------------------------------------------------------
+# E-bis. Caracteres de control (S3.3c-2): se rechazan en la entrada original
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "note",
+    [
+        "\nnota administrativa",  # salto de linea inicial
+        "nota administrativa\n",  # salto de linea final
+        "nota\nadministrativa",  # salto de linea interno
+        "\tnota administrativa",  # tabulador inicial
+        "nota administrativa\t",  # tabulador final
+        "nota\tadministrativa",  # tabulador interno
+        "nota administrativa\r",  # retorno de carro final
+        "\rnota administrativa",  # retorno de carro inicial
+        "nota\x0badministrativa",  # tabulador vertical
+        "nota administrativa\x7f",  # DEL
+        "nota\x00administrativa",  # NUL
+    ],
+    ids=[
+        "salto-inicial",
+        "salto-final",
+        "salto-interno",
+        "tabulador-inicial",
+        "tabulador-final",
+        "tabulador-interno",
+        "retorno-final",
+        "retorno-inicial",
+        "tabulador-vertical",
+        "del",
+        "nul",
+    ],
+)
+def test_note_rejects_control_characters_in_the_original_input(note: str) -> None:
+    """El recorte **no** es un saneo: el control se rechaza antes de normalizar.
+
+    Cubre el mismo camino en los dos niveles: el validador de la nota y el resolutor que
+    usan las operaciones, para que un salto o un tabulador no pueda colarse por el borde
+    (era el unico hueco que quedaba: ``strip`` los hacia desaparecer).
+    """
+
+    with pytest.raises(audit_reasons.InvalidReasonNoteError, match="control"):
+        audit_reasons.validate_reason_note(code="ADMINISTRATIVE", note=note)
+
+    with pytest.raises(audit_reasons.InvalidReasonNoteError, match="control"):
+        audit_reasons.build_audit_reason(
+            scope=audit_reasons.SCOPE_REGISTRATION,
+            action="DISQUALIFY",
+            code="ADMINISTRATIVE",
+            note=note,
+        )
+
+
+def test_note_accepts_and_normalizes_valid_nfc_text() -> None:
+    """El texto legitimo se conserva: NFC y sin espacios exteriores, nada mas."""
+
+    decomposed = "revisio\u0301n del comite de competicio\u0301n"
+    assert (
+        audit_reasons.validate_reason_note(code="ADMINISTRATIVE", note=decomposed)
+        == "revisi\u00f3n del comite de competici\u00f3n"
+    )
+    assert (
+        audit_reasons.validate_reason_note(
+            code="ADMINISTRATIVE", note="  acta de la comision de competicion  "
+        )
+        == "acta de la comision de competicion"
+    )
+    assert (
+        audit_reasons.validate_reason_note(
+            code="RULE_VIOLATION", note="acuerdo del comite de competicion"
+        )
+        == "acuerdo del comite de competicion"
+    )
