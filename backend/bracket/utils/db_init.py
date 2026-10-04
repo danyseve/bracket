@@ -89,6 +89,7 @@ from bracket.utils.id_types import (
     UserId,
 )
 from bracket.utils.logging import logger
+from bracket.utils.migration_policy import automatic_schema_changes_allowed
 from bracket.utils.security import hash_password
 from bracket.utils.types import assert_some
 
@@ -113,6 +114,16 @@ async def create_admin_user() -> UserId:
 
 
 async def init_db_when_empty() -> UserId | None:
+    # S0 (F3B): en un entorno sin cambios de esquema automaticos (PRODUCTION) no
+    # se crea ni se estampa el esquema por el hecho de encontrar la base vacia.
+    # La inicializacion de una base vacia pasa a ser una operacion explicita.
+    if not automatic_schema_changes_allowed():
+        logger.info(
+            "Schema changes are not allowed automatically in this environment; "
+            "skipping empty-database initialization"
+        )
+        return None
+
     table_count = await database.fetch_val(
         "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"
     )

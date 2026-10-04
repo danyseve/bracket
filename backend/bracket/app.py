@@ -36,12 +36,17 @@ from bracket.utils.alembic import alembic_run_migrations
 from bracket.utils.asyncio import AsyncioTasksManager
 from bracket.utils.db_init import init_db_when_empty
 from bracket.utils.logging import logger
+from bracket.utils.migration_policy import assert_migration_configuration_is_safe
 
 init_sentry()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # S0 (F3B): validacion de configuracion antes de tocar la base de datos.
+    # En PRODUCTION con `AUTO_RUN_MIGRATIONS=true` el arranque aborta aqui.
+    assert_migration_configuration_is_safe()
+
     await database.connect()
     await init_db_when_empty()
 

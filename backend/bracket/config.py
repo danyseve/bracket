@@ -37,7 +37,11 @@ class Config(BaseSettings):
     cors_origin_regex: str = ""
     cors_origins: str = "*"
     jwt_secret: str
-    auto_run_migrations: bool = True
+    # S0 (F3B): por defecto NO se migra automaticamente. En PRODUCTION la
+    # migracion automatica esta prohibida y el arranque aborta si se habilita
+    # (ver `bracket/utils/migration_policy.py`); el esquema se actualiza con una
+    # migracion explicita y controlada (`alembic upgrade head`).
+    auto_run_migrations: bool = False
     pg_dsn: PostgresDsn = PostgresDsn("postgresql://user:pass@localhost:5432/db")
     sentry_dsn: str | None = None
     serve_frontend: bool = False
