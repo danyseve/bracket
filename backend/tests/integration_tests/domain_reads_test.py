@@ -115,7 +115,14 @@ _DELETE_REGISTRATION_LEAVES = """
 
 
 @dataclass
-class DomainData:
+class DomainData:  # pylint: disable=too-many-instance-attributes
+    """Datos del fixture de integracion de S1.
+
+    Contenedor plano a proposito: los 16 tests de S1 leen estos 20 campos por
+    nombre, asi que agruparlos obligaria a reescribir todas sus aserciones. La
+    excepcion es local a esta clase; no se tocan las reglas globales de pylint.
+    """
+
     tenant_a: ClubId
     tenant_b: ClubId
     tournament_a: TournamentId
