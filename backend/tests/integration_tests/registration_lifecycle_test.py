@@ -872,4 +872,5 @@ async def test_no_pii_in_the_lifecycle_audit_or_errors(
 
     dump = str(await audit_rows(registration.id))
     assert all(token not in dump for token in sensitive_tokens)
-    assert all(token not in str(await fetch_all_audit_rows_as_text()) for token in sensitive_tokens)
+    dumped_rows = await fetch_all_audit_rows_as_text()
+    assert all(token not in " ".join(dumped_rows) for token in sensitive_tokens)
