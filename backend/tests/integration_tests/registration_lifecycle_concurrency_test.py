@@ -500,7 +500,13 @@ async def test_a_reinstatement_in_flight_makes_the_academy_deactivation_wait(
 async def test_the_reinstatement_locks_the_competitor_before_the_academy(
     registration_data: RegistrationData,
 ) -> None:
-    """Orden competidor -> academia: con el competidor retenido, la baja de academia completa."""
+    """Orden competidor -> academia: con el competidor retenido, la baja de academia completa.
+
+    Reproductor determinista de la intermitencia de CI (run 37331149298): la academia se reactiva
+    **mientras** la readmision sigue retenida en el competidor, antes de liberarlo, de modo que la
+    readmision encuentra despues la academia activa. Forzando ese interleaving, el desenlace deja
+    de depender del azar y el fallo se reproduce siempre.
+    """
     context = registration_data.context_owner_a
     registration = await create_registration(
         context, registration_data.tournament_a, _club_draft(registration_data, "gi-orden-bloqueo")
@@ -535,10 +541,13 @@ async def test_the_reinstatement_locks_the_competitor_before_the_academy(
             WAITING_TIMEOUT_SECONDS,
         )
         assert not reinstatement.done(), "la readmision sigue esperando al competidor"
+        # Interleaving problematico, aqui determinista: la academia vuelve a estar activa antes de
+        # que la readmision llegue a comprobar la autorizacion vigente.
+        await set_sports_club_active(registration_data.sports_club_a, active=True)
+        assert not reinstatement.done(), "la academia se reactivo antes de la comprobacion"
     finally:
         release_competitor.set()
         await asyncio.gather(holder, return_exceptions=True)
-        await set_sports_club_active(registration_data.sports_club_a, active=True)
 
     assert reinstatement is not None
     with pytest.raises(SportsClubNotSelectableError):
