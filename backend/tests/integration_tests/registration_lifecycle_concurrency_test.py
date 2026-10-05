@@ -19,6 +19,9 @@ Que se demuestra, y con que evidencia (sin *sleeps* como mecanismo):
 * **Readmision y baja de academia**, en los dos ordenes, con la misma evidencia.
 * **Orden de bloqueo competidor -> academia**: con el competidor retenido, la academia todavia no
   esta bloqueada por la readmision (la baja de academia completa sin esperar).
+* **Desenlace de la readmision y ventana de reactivacion**: con la academia inactiva hasta su
+  comprobacion, la readmision rechaza siempre; si la academia se reactiva antes de esa
+  comprobacion, la readmision completa (lee la autorizacion vigente en su comprobacion).
 
 Validacion exclusivamente contra la base de laboratorio (``bracket_ci`` con ``ENVIRONMENT=CI``, o
 ``bracket_test``); ``bracket_dev`` no se usa para escrituras.
@@ -502,10 +505,12 @@ async def test_the_reinstatement_locks_the_competitor_before_the_academy(
 ) -> None:
     """Orden competidor -> academia: con el competidor retenido, la baja de academia completa.
 
-    Reproductor determinista de la intermitencia de CI (run 37331149298): la academia se reactiva
-    **mientras** la readmision sigue retenida en el competidor, antes de liberarlo, de modo que la
-    readmision encuentra despues la academia activa. Forzando ese interleaving, el desenlace deja
-    de depender del azar y el fallo se reproduce siempre.
+    La academia permanece inactiva hasta que la readmision completa su comprobacion: se libera el
+    competidor y se espera el resultado (el error) **dentro** del bloque, y la restauracion ocurre
+    despues, en el ``finally``. Asi el desenlace no depende de la ventana de reactivacion, que era
+    el origen de la intermitencia de CI (run 37331149298). La reproduccion determinista de ese
+    interleaving se conserva en
+    ``test_the_readmission_observes_the_academy_state_at_its_check``.
     """
     context = registration_data.context_owner_a
     registration = await create_registration(
@@ -541,18 +546,81 @@ async def test_the_reinstatement_locks_the_competitor_before_the_academy(
             WAITING_TIMEOUT_SECONDS,
         )
         assert not reinstatement.done(), "la readmision sigue esperando al competidor"
-        # Interleaving problematico, aqui determinista: la academia vuelve a estar activa antes de
-        # que la readmision llegue a comprobar la autorizacion vigente.
-        await set_sports_club_active(registration_data.sports_club_a, active=True)
-        assert not reinstatement.done(), "la academia se reactivo antes de la comprobacion"
+        # La academia sigue inactiva: se libera el competidor y se comprueba el desenlace dentro del
+        # bloque, sin dar a la reactivacion ninguna ventana para ganarle la carrera.
+        release_competitor.set()
+        await asyncio.gather(holder, return_exceptions=True)
+        assert reinstatement is not None
+        with pytest.raises(SportsClubNotSelectableError):
+            await reinstatement
     finally:
         release_competitor.set()
         await asyncio.gather(holder, return_exceptions=True)
-
-    assert reinstatement is not None
-    with pytest.raises(SportsClubNotSelectableError):
-        await reinstatement
+        await set_sports_club_active(registration_data.sports_club_a, active=True)
 
     after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
     assert after is not None and after.status == "WITHDRAWN"
     assert [row["action"] for row in await audit_rows(registration.id)] == ["CREATE", "WITHDRAW"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_the_readmission_observes_the_academy_state_at_its_check(
+    registration_data: RegistrationData,
+) -> None:
+    """El interleaving que hacia intermitente a la prueba anterior, ahora determinista.
+
+    Si la academia ya esta activa cuando la readmision supera el bloqueo del competidor, la
+    readmision completa: escribe con la autorizacion vigente en su comprobacion (RS-9/RS-10), no con
+    la que habia al solicitarse. No es un defecto de ``reinstate_registration``; lo que no era
+    determinista era la expectativa del arnes.
+    """
+    context = registration_data.context_owner_a
+    registration = await create_registration(
+        context, registration_data.tournament_a, _club_draft(registration_data, "gi-ventana")
+    )
+    await withdraw_registration(context, registration.id, reason_code="ADMINISTRATIVE")
+    competitor_is_held = asyncio.Event()
+    release_competitor = asyncio.Event()
+
+    async def _hold_the_competitor_row() -> None:
+        async with database.transaction():
+            await database.fetch_val(
+                query=SELECT_COMPETITOR_ROW_FOR_UPDATE,
+                values={"competitor_id": registration_data.competitor_a},
+            )
+            competitor_is_held.set()
+            await release_competitor.wait()
+
+    holder = asyncio.create_task(_hold_the_competitor_row())
+    reinstatement: asyncio.Task[TournamentRegistration] | None = None
+    try:
+        await asyncio.wait_for(competitor_is_held.wait(), WAITING_TIMEOUT_SECONDS)
+        reinstatement = asyncio.create_task(
+            reinstate_registration(context, registration.id, reason_code="ADMINISTRATIVE")
+        )
+        await wait_for_waiting_backends("%FOR SHARE%")
+        await asyncio.wait_for(
+            database.execute(
+                query=DEACTIVATE_SPORTS_CLUB,
+                values={"sports_club_id": registration_data.sports_club_a, "active": False},
+            ),
+            WAITING_TIMEOUT_SECONDS,
+        )
+        # Ventana explotada a proposito: la academia vuelve a estar activa antes de la comprobacion.
+        await set_sports_club_active(registration_data.sports_club_a, active=True)
+        release_competitor.set()
+        assert reinstatement is not None
+        reinstated = await reinstatement
+        assert reinstated.status == "CONFIRMED"
+    finally:
+        release_competitor.set()
+        await asyncio.gather(holder, return_exceptions=True)
+        await set_sports_club_active(registration_data.sports_club_a, active=True)
+
+    after = await get_registration(registration.id, tenant_club_id=registration_data.tenant_a)
+    assert after is not None and after.status == "CONFIRMED"
+    assert [row["action"] for row in await audit_rows(registration.id)] == [
+        "CREATE",
+        "WITHDRAW",
+        "REINSTATE",
+    ]

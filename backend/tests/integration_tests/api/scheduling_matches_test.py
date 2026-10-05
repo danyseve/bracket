@@ -145,9 +145,7 @@ async def test_the_stage_items_keep_the_contractual_order(auth_context: AuthCont
     """
     tournament_id = auth_context.tournament.id
     async with (
-        inserted_court(
-            DUMMY_COURT1.model_copy(update={"tournament_id": tournament_id})
-        ),
+        inserted_court(DUMMY_COURT1.model_copy(update={"tournament_id": tournament_id})),
         inserted_stage(
             DUMMY_STAGE2.model_copy(update={"tournament_id": tournament_id})
         ) as stage_inserted,

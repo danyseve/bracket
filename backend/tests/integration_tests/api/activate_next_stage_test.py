@@ -110,10 +110,29 @@ async def test_activate_next_stage(
         await build_matches_for_stage_item(stage_item_2, tournament_id)
 
         # Set match score to get a winner (team 2) that goes to the next round
-        [prev_stage, _] = await get_full_tournament_details(auth_context.tournament.id)
-        match1 = prev_stage.stage_items[0].rounds[0].matches[0]
-        assert isinstance(match1, MatchWithDetailsDefinitive)
-        assert match1.stage_item_input2.team_id == team_inserted_2.id
+        # Identidad, no posicion: el contrato del JSON fija el contenido, no el orden de las
+        # rondas ni de los partidos, asi que se localiza la fase y el partido por su identidad.
+        stages_before = await get_full_tournament_details(auth_context.tournament.id)
+        prev_stage = next(
+            (stage for stage in stages_before if stage.id == stage_inserted_1.id), None
+        )
+        assert prev_stage is not None, "no se encontro la fase previa del torneo"
+        matches_before = [
+            match
+            for stage_item in prev_stage.stage_items
+            for round_ in stage_item.rounds
+            for match in round_.matches
+            if isinstance(match, MatchWithDetailsDefinitive)
+        ]
+        winner_matches = [
+            match
+            for match in matches_before
+            if match.stage_item_input2.team_id == team_inserted_2.id
+        ]
+        assert winner_matches, "no hay ningun partido con el equipo 2 en el segundo slot"
+        # Una sola victoria basta para que el equipo 2 lidere la clasificacion; se elige de forma
+        # determinista el partido de menor id.
+        match1 = min(winner_matches, key=lambda match: match.id)
         await sql_update_match(
             match1.id,
             MatchBody(**match1.model_copy(update={"stage_item_input2_score": 42}).model_dump()),
@@ -123,7 +142,10 @@ async def test_activate_next_stage(
         response = await send_tournament_request(
             HTTPMethod.POST, "stages/activate?direction=next", auth_context, json={}
         )
-        [_, next_stage] = await get_full_tournament_details(auth_context.tournament.id)
+        stages_after = await get_full_tournament_details(auth_context.tournament.id)
+        next_stage = next(
+            (stage for stage in stages_after if stage.id == stage_inserted_2.id), None
+        )
 
         await sql_delete_stage_item_with_foreign_keys(stage_item_2.id)
         await sql_delete_stage_item_with_foreign_keys(stage_item_1.id)

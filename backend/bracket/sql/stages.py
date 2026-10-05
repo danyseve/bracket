@@ -68,7 +68,7 @@ async def get_full_tournament_details(
         ), stage_items_with_rounds AS (
             SELECT DISTINCT ON (stage_items.id)
                 stage_items.*,
-                to_json(array_agg(r.*)) AS rounds
+                to_json(array_agg(r.* ORDER BY r.id)) AS rounds
             FROM stage_items
             JOIN stages st on stage_items.stage_id = st.id
             LEFT JOIN rounds_with_matches r on r.stage_item_id = stage_items.id
@@ -92,7 +92,7 @@ async def get_full_tournament_details(
             LEFT JOIN stage_items_with_inputs ON stage_items_with_inputs.id = stage_items.id
             ORDER BY stage_items.name
         )
-        SELECT stages.*, to_json(array_agg(r.*)) AS stage_items
+        SELECT stages.*, to_json(array_agg(r.* ORDER BY r.id)) AS stage_items
         FROM stages
         LEFT JOIN stage_items_with_rounds_and_inputs r on stages.id = r.stage_id
         {stage_item_filter_join}
