@@ -46,6 +46,12 @@ class Config(BaseSettings):
     sentry_dsn: str | None = None
     serve_frontend: bool = False
     api_prefix: str = ""
+    # S3.3c-3 (F3B): clave HMAC del servidor para la huella de las peticiones idempotentes.
+    # Opcional a proposito: sin ella NO se calcula ninguna huella (fallo cerrado, sin valor por
+    # defecto) y el arranque no cambia. En esta fase no se define en el despliegue de produccion:
+    # se inyecta por entorno cuando S3.3c-4 active el protocolo HTTP.
+    idempotency_hmac_key: str | None = None
+    idempotency_hmac_key_version: str = "v1"
 
     def is_cors_enabled(self) -> bool:
         return self.cors_origins != "*"

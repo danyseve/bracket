@@ -9,6 +9,10 @@ from databases import Database
 
 from bracket.database import database, engine
 from bracket.schema import metadata
+
+# Fixture del almacen de idempotencia (S3.3c-3): se re-exporta aqui para que las
+# pruebas lo pidan como parametro sin importarlo (evita F401).
+from tests.integration_tests.idempotency_fixtures import idempotency_lab  # noqa: F401
 from tests.integration_tests.models import AuthContext
 from tests.integration_tests.sql import inserted_auth_context
 

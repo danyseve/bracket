@@ -23,10 +23,10 @@ No hay reintentos automaticos: la clasificacion de un choque de unicidad es deci
 from __future__ import annotations
 
 import asyncio
+import json
 
 import asyncpg  # type: ignore[import-untyped]
 import pytest
-from heliclockter import datetime_utc
 
 from bracket.database import database
 from bracket.logic.idempotency import IDEMPOTENCY_STATE_IN_PROGRESS
@@ -35,6 +35,7 @@ from bracket.sql.idempotency import (
     sql_insert_idempotency_reservation,
     violation_constraint_name,
 )
+from bracket.utils.types import assert_some
 from tests.integration_tests.idempotency_fixtures import (
     LAB_KEY,
     IdempotencyLab,
@@ -179,7 +180,8 @@ async def test_only_one_of_two_simultaneous_completions_writes(
         row = await stored_reservation(lab.club_a, lab.user_a)
         assert row is not None
         assert row["response_status"] == 201, "gana la finalizacion que confirmo primero"
-        assert row["response_body"] == {"resource_id": 7}
+        # La capa de acceso devuelve jsonb como texto; el modelo lo decodifica al leer.
+        assert json.loads(assert_some(row["response_body"])) == {"resource_id": 7}
         assert await reservations_total() == 1
     finally:
         release_first.set()

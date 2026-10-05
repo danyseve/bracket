@@ -10,8 +10,18 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base  # type: ignore[attr-defined]
-from sqlalchemy.sql.sqltypes import ARRAY, BigInteger, Boolean, DateTime, Enum, Float, Text
+from sqlalchemy.sql.sqltypes import (
+    ARRAY,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    Float,
+    SmallInteger,
+    Text,
+)
 
 Base = declarative_base()
 metadata = Base.metadata
@@ -695,4 +705,130 @@ tenant_quota_overrides = Table(
     ),
     Column("updated_at", DateTimeTZ, nullable=False, server_default=func.now()),
     UniqueConstraint("club_id", "quota_key", name="uq_tenant_quota_overrides_club_key"),
+)
+
+# --- S3.3c-3: claves de idempotencia ---------------------------------------------
+# Almacen de claves de idempotencia por tenant y actor. Guarda **como se reconocio** una peticion
+# (huella HMAC), **en que estado** quedo y **que metadatos de respuesta** puede repetir: nunca el
+# cuerpo de la peticion ni la respuesta completa.
+#
+# Estados cerrados: no existe un estado "confirmado" aparte. Una operacion confirmada **es** una
+# fila COMPLETED con su respuesta: admitir un tercer estado dejaria una operacion COMMITTED sin su
+# registro de idempotencia, que es justo lo que hay que impedir.
+#
+# Retencion: ``expires_at`` es obligatorio (provisional: 24 h). No hay purga automatica y una fila
+# caducada **no** se reutiliza ni se borra: se declara caducada. La purga y la ventana real son
+# decisiones de S3.3c-4.
+_K_IDEMPOTENCY_STATES: tuple[str, ...] = ("IN_PROGRESS", "COMPLETED")
+_K_IDEMPOTENCY_METHODS: tuple[str, ...] = ("POST", "PUT", "PATCH", "DELETE")
+_K_IDEMPOTENCY_RESPONSE_KEYS: tuple[str, ...] = (
+    "audit_event_id",
+    "competitor_id",
+    "registration_status",
+    "resource_id",
+    "resource_type",
+)
+_K_IDEMPOTENCY_KEY_MIN_LENGTH = 8
+_K_IDEMPOTENCY_KEY_MAX_LENGTH = 255
+_K_IDEMPOTENCY_RESPONSE_BODY_MAX_BYTES = 2048
+
+_IDEMPOTENCY_STATE_CHECK = (
+    "state IN (" + ", ".join(f"'{state}'" for state in _K_IDEMPOTENCY_STATES) + ")"
+)
+_IDEMPOTENCY_PENDING_SHAPE_CHECK = (
+    "state <> 'IN_PROGRESS' OR (completed_at IS NULL AND response_status IS NULL"
+    " AND response_body IS NULL AND resource_type IS NULL AND resource_id IS NULL)"
+)
+_IDEMPOTENCY_COMPLETED_SHAPE_CHECK = (
+    "state <> 'COMPLETED' OR (completed_at IS NOT NULL AND response_status IS NOT NULL)"
+)
+_IDEMPOTENCY_RESOURCE_COHERENCE_CHECK = "(resource_type IS NULL) = (resource_id IS NULL)"
+_IDEMPOTENCY_METHOD_CHECK = (
+    "request_method IN (" + ", ".join(f"'{method}'" for method in _K_IDEMPOTENCY_METHODS) + ")"
+)
+_IDEMPOTENCY_PATH_CHECK = "char_length(request_path) BETWEEN 1 AND 255 AND request_path LIKE '/%'"
+_IDEMPOTENCY_KEY_SHAPE_CHECK = (
+    f"char_length(idempotency_key) BETWEEN {_K_IDEMPOTENCY_KEY_MIN_LENGTH} "
+    f"AND {_K_IDEMPOTENCY_KEY_MAX_LENGTH} AND idempotency_key ~ '^[A-Za-z0-9._:-]+$'"
+)
+_IDEMPOTENCY_FINGERPRINT_CHECK = "request_fingerprint ~ '^[0-9a-f]{64}$'"
+_IDEMPOTENCY_KEY_VERSION_CHECK = "fingerprint_key_version ~ '^v[0-9]{1,3}$'"
+_IDEMPOTENCY_RESPONSE_STATUS_CHECK = (
+    "response_status IS NULL OR response_status BETWEEN 100 AND 599"
+)
+_IDEMPOTENCY_RESPONSE_BODY_CHECK = (
+    "response_body IS NULL OR (jsonb_typeof(response_body) = 'object'"
+    " AND response_body - ARRAY["
+    + ", ".join(f"'{key}'" for key in _K_IDEMPOTENCY_RESPONSE_KEYS)
+    + "]::text[] = '{}'::jsonb"
+    " AND octet_length(response_body::text) <= "
+    + str(_K_IDEMPOTENCY_RESPONSE_BODY_MAX_BYTES)
+    + ' AND NOT jsonb_path_exists(response_body, \'$.* ? (@.type() == "object"'
+    ' || @.type() == "array")\'))'
+)
+_IDEMPOTENCY_EXPIRY_CHECK = "expires_at > created"
+
+domain_idempotency_keys = Table(
+    "domain_idempotency_keys",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True),
+    Column(
+        "tenant_club_id",
+        BigInteger,
+        ForeignKey(
+            "clubs.id", ondelete="CASCADE", name="fk_domain_idempotency_keys_tenant_club_id"
+        ),
+        index=True,
+        nullable=False,
+    ),
+    Column(
+        "actor_user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE", name="fk_domain_idempotency_keys_actor_user_id"),
+        nullable=False,
+    ),
+    Column("idempotency_key", String(_K_IDEMPOTENCY_KEY_MAX_LENGTH), nullable=False),
+    Column("request_fingerprint", String(64), nullable=False),
+    Column("fingerprint_key_version", String(16), nullable=False),
+    Column("request_method", String(10), nullable=False),
+    Column("request_path", String(255), nullable=False),
+    Column("state", String(16), nullable=False),
+    Column("resource_type", String(32), nullable=True),
+    Column("resource_id", BigInteger, nullable=True),
+    Column("response_status", SmallInteger, nullable=True),
+    Column("response_body", JSONB, nullable=True),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    Column("expires_at", DateTimeTZ, nullable=False),
+    Column("completed_at", DateTimeTZ, nullable=True),
+    CheckConstraint(_IDEMPOTENCY_STATE_CHECK, name="ck_domain_idempotency_keys_state"),
+    CheckConstraint(
+        _IDEMPOTENCY_PENDING_SHAPE_CHECK, name="ck_domain_idempotency_keys_pending_shape"
+    ),
+    CheckConstraint(
+        _IDEMPOTENCY_COMPLETED_SHAPE_CHECK, name="ck_domain_idempotency_keys_completed_shape"
+    ),
+    CheckConstraint(
+        _IDEMPOTENCY_RESOURCE_COHERENCE_CHECK,
+        name="ck_domain_idempotency_keys_resource_coherence",
+    ),
+    CheckConstraint(_IDEMPOTENCY_METHOD_CHECK, name="ck_domain_idempotency_keys_request_method"),
+    CheckConstraint(_IDEMPOTENCY_PATH_CHECK, name="ck_domain_idempotency_keys_request_path"),
+    CheckConstraint(_IDEMPOTENCY_KEY_SHAPE_CHECK, name="ck_domain_idempotency_keys_key_shape"),
+    CheckConstraint(_IDEMPOTENCY_FINGERPRINT_CHECK, name="ck_domain_idempotency_keys_fingerprint"),
+    CheckConstraint(_IDEMPOTENCY_KEY_VERSION_CHECK, name="ck_domain_idempotency_keys_key_version"),
+    CheckConstraint(
+        _IDEMPOTENCY_RESPONSE_STATUS_CHECK, name="ck_domain_idempotency_keys_response_status"
+    ),
+    CheckConstraint(
+        _IDEMPOTENCY_RESPONSE_BODY_CHECK, name="ck_domain_idempotency_keys_response_body"
+    ),
+    CheckConstraint(_IDEMPOTENCY_EXPIRY_CHECK, name="ck_domain_idempotency_keys_expiry"),
+    UniqueConstraint(
+        "tenant_club_id",
+        "actor_user_id",
+        "idempotency_key",
+        name="uq_domain_idempotency_keys_tenant_actor_key",
+    ),
+    # Indice para el barrido de caducidad de S3.3c-4 (aqui no hay purga todavia).
+    Index("ix_domain_idempotency_keys_expires_at", "expires_at"),
 )

@@ -19,6 +19,8 @@ class UniqueIndex(EnumAutoStr):
     uq_tenant_quota_overrides_club_key = auto()
     uq_tournament_registrations_current_category = auto()
     uq_tournament_registrations_current_uncategorized = auto()
+    # S3.3c-3: clave unica del almacen de idempotencia (tenant, actor, clave).
+    uq_domain_idempotency_keys_tenant_actor_key = auto()
 
 
 class ForeignKey(EnumAutoStr):
@@ -53,6 +55,10 @@ unique_index_violation_error_lookup = {
     ),
     UniqueIndex.uq_tournament_registrations_current_uncategorized: (
         "This competitor already has a valid registration in this tournament"
+    ),
+    # S3.3c-3: el conflicto de la clave unica de idempotencia se traduce a 400, no a 500.
+    UniqueIndex.uq_domain_idempotency_keys_tenant_actor_key: (
+        "This idempotency key is already in use for this request"
     ),
 }
 

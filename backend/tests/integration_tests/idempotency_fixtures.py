@@ -27,7 +27,6 @@ from bracket.config import config
 from bracket.database import database
 from bracket.logic.idempotency import (
     compute_request_fingerprint,
-    default_expires_at,
     validate_idempotency_key,
 )
 from bracket.models.db.club import ClubInsertable
@@ -76,8 +75,12 @@ async def idempotency_lab(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Idem
     monkeypatch.setattr(config, "idempotency_hmac_key_version", "v1")
 
     async with (
-        inserted_club(ClubInsertable(name="idempotency-lab-a", created=datetime_utc.now())) as club_a,
-        inserted_club(ClubInsertable(name="idempotency-lab-b", created=datetime_utc.now())) as club_b,
+        inserted_club(
+            ClubInsertable(name="idempotency-lab-a", created=datetime_utc.now())
+        ) as club_a,
+        inserted_club(
+            ClubInsertable(name="idempotency-lab-b", created=datetime_utc.now())
+        ) as club_b,
         inserted_user(get_mock_user()) as user_a,
         inserted_user(get_mock_user()) as user_b,
     ):
@@ -157,7 +160,3 @@ async def reservations_in_tenant(tenant_club_id: ClubId, actor_user_id: UserId) 
 
 async def reservations_total() -> int:
     return int(await database.fetch_val(query=SELECT_COUNT_ALL))
-
-
-def provisional_expiry(created: datetime_utc) -> datetime_utc:
-    return default_expires_at(created)

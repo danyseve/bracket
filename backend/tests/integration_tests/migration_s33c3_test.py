@@ -44,6 +44,7 @@ from sqlalchemy.exc import IntegrityError
 
 from bracket.config import config
 from bracket.schema import metadata
+from tests.source_scan import code_without_documentation
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 MIGRATION_FILE = BACKEND_DIR / "alembic" / "versions" / "9c3e7a1d5b28_s33c3_idempotency_keys.py"
@@ -81,7 +82,7 @@ EXPECTED_CHECKS = (
     "ck_domain_idempotency_keys_request_path",
     "ck_domain_idempotency_keys_key_shape",
     "ck_domain_idempotency_keys_fingerprint",
-    "ck_domain_idempotency_keys_fingerprint_version",
+    "ck_domain_idempotency_keys_key_version",
     "ck_domain_idempotency_keys_response_status",
     "ck_domain_idempotency_keys_response_body",
     "ck_domain_idempotency_keys_expiry",
@@ -240,7 +241,7 @@ def migration_lab() -> Iterator[Engine]:
 
 
 def test_upgrade_creates_the_table_with_the_declared_columns(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
 
     with migration_lab.connect() as connection:
         rows = connection.execute(
@@ -259,7 +260,7 @@ def test_upgrade_creates_the_table_with_the_declared_columns(migration_lab: Engi
 
 
 def test_upgrade_declares_every_check_unique_and_foreign_key(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
 
     assert set(_constraints(migration_lab, "c")) >= set(EXPECTED_CHECKS)
     assert UNIQUE_CONSTRAINT in _constraints(migration_lab, "u")
@@ -267,7 +268,7 @@ def test_upgrade_declares_every_check_unique_and_foreign_key(migration_lab: Engi
 
 
 def test_the_expiry_index_exists_and_is_not_unique(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
 
     with migration_lab.connect() as connection:
         definitions = [
@@ -284,18 +285,21 @@ def test_the_expiry_index_exists_and_is_not_unique(migration_lab: Engine) -> Non
 
 
 def test_the_migration_only_creates_the_table_and_writes_no_history() -> None:
-    source = MIGRATION_FILE.read_text(encoding="utf-8")
+    """La revision no escribe datos. Se lee **sin su cabecera**: explicar ``ON DELETE CASCADE`` en
+    la documentacion de la migracion no es ejecutarlo, y prohibir esas palabras en la prosa solo
+    conseguiria que la migracion dejase de estar explicada."""
+    code = code_without_documentation(MIGRATION_FILE.read_text(encoding="utf-8"))
 
-    assert "op.create_table(" in source
-    assert "op.drop_table(" in source
+    assert "op.create_table(" in code
+    assert "op.drop_table(" in code
     for forbidden in ("op.execute", "UPDATE ", "DELETE ", "INSERT ", "bulk_insert"):
-        assert forbidden not in source, f"la migracion no debe contener {forbidden!r}"
+        assert forbidden not in code, f"la migracion no debe contener {forbidden!r}"
 
 
 def test_upgrade_leaves_history_untouched_and_the_new_table_empty(migration_lab: Engine) -> None:
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
 
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
 
     assert _scalar(migration_lab, "SELECT count(*) FROM clubs WHERE id = :id", {"id": club_id}) == 1
     assert _scalar(migration_lab, "SELECT count(*) FROM users WHERE id = :id", {"id": user_id}) == 1
@@ -303,7 +307,7 @@ def test_upgrade_leaves_history_untouched_and_the_new_table_empty(migration_lab:
 
 
 def test_the_state_check_closes_the_vocabulary(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
 
     _insert(
@@ -326,7 +330,7 @@ def test_the_state_check_closes_the_vocabulary(migration_lab: Engine) -> None:
 
 
 def test_a_completed_row_without_its_response_is_rejected(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
 
     with pytest.raises(IntegrityError) as error:
@@ -343,7 +347,7 @@ def test_a_completed_row_without_its_response_is_rejected(migration_lab: Engine)
 
 
 def test_a_pending_row_cannot_carry_response_data(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
 
     with pytest.raises(IntegrityError) as error:
@@ -364,7 +368,7 @@ def test_a_pending_row_cannot_carry_response_data(migration_lab: Engine) -> None
 def test_the_response_body_check_rejects_disallowed_content(
     migration_lab: Engine, body: str
 ) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
 
     with pytest.raises(IntegrityError) as error:
@@ -384,7 +388,7 @@ def test_the_response_body_check_rejects_disallowed_content(
 
 
 def test_the_unique_index_is_scoped_by_tenant_and_actor(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_a, user_a = _seed_tenant_and_actor(migration_lab)
     with migration_lab.begin() as connection:
         club_b = connection.execute(
@@ -401,7 +405,7 @@ def test_the_unique_index_is_scoped_by_tenant_and_actor(migration_lab: Engine) -
 
 
 def test_the_foreign_keys_reject_unknown_tenant_and_actor(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
 
     with pytest.raises(IntegrityError) as error:
@@ -416,7 +420,7 @@ def test_the_foreign_keys_reject_unknown_tenant_and_actor(migration_lab: Engine)
 
 
 def test_downgrade_removes_exactly_what_it_added(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     club_id, user_id = _seed_tenant_and_actor(migration_lab)
     _insert(migration_lab, tenant_club_id=club_id, actor_user_id=user_id)
 
@@ -436,11 +440,90 @@ def test_downgrade_removes_exactly_what_it_added(migration_lab: Engine) -> None:
 
 
 def test_upgrade_can_be_reapplied_after_a_downgrade(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
     _alembic("downgrade", S33C2_REVISION)
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C3_REVISION)
 
     assert _table_exists(migration_lab)
     assert _scalar(migration_lab, f"SELECT count(*) FROM {TABLE}") == 0
     assert _scalar(migration_lab, "SELECT version_num FROM alembic_version") == S33C3_REVISION
     assert set(_constraints(migration_lab, "c")) >= set(EXPECTED_CHECKS)
+
+
+# --- Politica de borrado de las dos claves ajenas ------------------------------------------------
+
+
+def _foreign_key_actions(engine: Engine) -> dict[str, str]:
+    """Accion ``ON DELETE`` declarada; tal como la guarda PostgreSQL (``c`` = CASCADE)."""
+    with engine.connect() as connection:
+        return {
+            str(row[0]): str(row[1])
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT conname, confdeltype FROM pg_constraint
+                    WHERE conrelid = to_regclass(:table) AND contype = 'f'
+                    ORDER BY conname
+                    """
+                ),
+                {"table": TABLE},
+            ).all()
+        }
+
+
+def test_the_foreign_keys_are_declared_as_cascade_on_delete(migration_lab: Engine) -> None:
+    """CASCADE (no RESTRICT): la baja de club o usuario no puede quedar bloqueada por esta tabla.
+
+    Convencion comparada con el resto del esquema: las tablas de **dominio** usan RESTRICT
+    (``sports_clubs.tenant_club_id``, ``competitors.managed_by_club_id``, el historico permanente
+    ``domain_change_log.tenant_club_id``) y el almacenamiento operativo del tenant usa CASCADE
+    (``tenant_quota_overrides.club_id``, ``users_x_clubs``). Esta tabla es almacenamiento operativo
+    con retencion provisional de 24 h y en esta fase **sin purga**: con RESTRICT, las bajas ya
+    existentes (``sql_delete_club``, ``delete_user``) fallarian para siempre en cuanto hubiera una
+    sola clave, y por eso la decision no es compatible con el contrato existente.
+    """
+    _alembic("upgrade", S33C3_REVISION)
+
+    assert _foreign_key_actions(migration_lab) == {
+        "fk_domain_idempotency_keys_actor_user_id": "c",
+        "fk_domain_idempotency_keys_tenant_club_id": "c",
+    }
+
+
+def test_deleting_the_tenant_takes_its_pending_and_completed_rows(
+    migration_lab: Engine,
+) -> None:
+    """Comprobacion de comportamiento, no de catalogo: se borra el club de verdad."""
+    _alembic("upgrade", S33C3_REVISION)
+    club_id, user_id = _seed_tenant_and_actor(migration_lab)
+    _insert(migration_lab, tenant_club_id=club_id, actor_user_id=user_id)
+    _insert(
+        migration_lab,
+        tenant_club_id=club_id,
+        actor_user_id=user_id,
+        key="migration-lab-key-0002",
+        state="COMPLETED",
+        response_status=201,
+        response_body='{"resource_id": 7}',
+        completed_at=datetime.now(UTC),
+    )
+    assert _scalar(migration_lab, f"SELECT count(*) FROM {TABLE}") == 2
+
+    _execute(migration_lab, "DELETE FROM clubs WHERE id = :id", {"id": club_id})
+
+    assert _scalar(migration_lab, f"SELECT count(*) FROM {TABLE}") == 0, "pendiente y confirmada"
+    assert _scalar(migration_lab, "SELECT count(*) FROM users WHERE id = :id", {"id": user_id}) == 1
+
+
+def test_deleting_the_actor_is_not_blocked_by_its_rows(migration_lab: Engine) -> None:
+    """La baja del usuario sigue funcionando con una clave suya dentro (no hay purga)."""
+    _alembic("upgrade", S33C3_REVISION)
+    club_id, user_id = _seed_tenant_and_actor(migration_lab)
+    _insert(migration_lab, tenant_club_id=club_id, actor_user_id=user_id)
+    assert _scalar(migration_lab, f"SELECT count(*) FROM {TABLE}") == 1
+
+    _execute(migration_lab, "DELETE FROM users WHERE id = :id", {"id": user_id})
+
+    assert _scalar(migration_lab, "SELECT count(*) FROM users WHERE id = :id", {"id": user_id}) == 0
+    assert _scalar(migration_lab, f"SELECT count(*) FROM {TABLE}") == 0
+    assert _scalar(migration_lab, "SELECT count(*) FROM clubs WHERE id = :id", {"id": club_id}) == 1

@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # `synthetic_secret` es un fixture del laboratorio.
 """S3.3c-3 — reglas puras del almacen de idempotencia: clave, huella y metadatos.
 
 TDD: este modulo se escribio **antes** de ``bracket/logic/idempotency.py`` y fallo en rojo
@@ -16,7 +17,9 @@ No hay aqui base de datos: lo que necesita PostgreSQL vive en
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from heliclockter import datetime_utc
@@ -39,6 +42,7 @@ from bracket.logic.idempotency import (
     validate_request_path,
     validate_response_metadata,
 )
+from tests.source_scan import code_without_documentation
 
 # Secreto **sintetico** de laboratorio: nunca se usa en despliegue ni se lee de produccion.
 SYNTHETIC_SECRET = "synthetic-laboratory-secret-not-for-deployment"
@@ -121,7 +125,7 @@ def test_malformed_keys_are_rejected_with_a_useful_reason(key: str, expected: st
 
 def test_key_that_is_not_a_string_is_rejected() -> None:
     with pytest.raises(IdempotencyError):
-        validate_idempotency_key(1234)  # type: ignore[arg-type]
+        validate_idempotency_key(1234)
 
 
 # --- Metodo y ruta -----------------------------------------------------------------------------
@@ -203,9 +207,12 @@ def test_rotating_the_key_version_changes_the_fingerprint(
     monkeypatch.setattr(config, "idempotency_hmac_key_version", "v2")
 
     assert _fingerprint() != before
-    assert compute_request_fingerprint(
-        method="POST", path="/clubs/1/competitors", payload=b'{"display_name":"Ana"}'
-    ).key_version == "v2"
+    assert (
+        compute_request_fingerprint(
+            method="POST", path="/clubs/1/competitors", payload=b'{"display_name":"Ana"}'
+        ).key_version
+        == "v2"
+    )
 
 
 def test_fingerprint_without_a_configured_secret_fails_closed(
@@ -325,14 +332,14 @@ def test_oversized_metadata_is_rejected() -> None:
 
 def test_metadata_that_is_not_an_object_is_rejected() -> None:
     with pytest.raises(IdempotencyError):
-        validate_response_metadata(["resource_id"])  # type: ignore[arg-type]
+        validate_response_metadata(["resource_id"])
 
 
 # --- Retencion y clasificacion de una reserva existente ----------------------------------------
 
 
 def test_expiry_is_provisional_and_documented_as_such() -> None:
-    created = datetime_utc(2026, 10, 4, 12, 0, 0)
+    created = datetime_utc(2026, 10, 4, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
 
     assert default_expires_at(created) == created + timedelta(hours=IDEMPOTENCY_RETENTION_HOURS)
     assert IDEMPOTENCY_RETENTION_HOURS == 24, "provisional: se revisa en S3.3c-4"
@@ -416,14 +423,16 @@ def test_an_expired_reservation_is_never_silently_reused(synthetic_secret: None)
     )
 
     boundary = _FakeReservation(
-        IDEMPOTENCY_STATE_IN_PROGRESS, _fingerprint(), expires_at=datetime_utc(2026, 10, 4, 12, 0, 0)
+        IDEMPOTENCY_STATE_IN_PROGRESS,
+        _fingerprint(),
+        expires_at=datetime_utc(2026, 10, 4, 12, 0, 0, tzinfo=ZoneInfo("UTC")),
     )
     assert (
         classify_reservation(
             boundary,
             fingerprint=_fingerprint(),
             fingerprint_key_version="v1",
-            now=datetime_utc(2026, 10, 4, 12, 0, 0),
+            now=datetime_utc(2026, 10, 4, 12, 0, 0, tzinfo=ZoneInfo("UTC")),
         )
         is IdempotencyDecision.EXPIRED
     ), "el limite exacto ya no protege"
@@ -472,3 +481,35 @@ def test_the_response_body_check_quotes_every_allowed_key_and_nothing_else() -> 
 
     assert "payload" not in body
     assert "token" not in body
+
+
+# --- Caducidad: no hay purga en esta fase --------------------------------------------------------
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+STORE_SOURCES = (
+    BACKEND_DIR / "bracket" / "sql" / "idempotency.py",
+    BACKEND_DIR / "bracket" / "logic" / "idempotency.py",
+)
+
+
+def _sentences_only(source: str) -> str:
+    """Codigo sin comentarios ni docstrings: la documentacion no es una sentencia.
+
+    Se conservan los literales de codigo a proposito: una purga escrita dentro de una sentencia
+    SQL (**lo unico que borraria filas de verdad**) tiene que aparecer aqui.
+    """
+    return code_without_documentation(source)
+
+
+def test_the_store_neither_deletes_nor_purges_its_own_rows_in_this_phase() -> None:
+    """S3.3c-3 §4: ``expires_at`` no borra nada y no existe purga automatica.
+
+    Se comprueba en el codigo del almacen (no en la documentacion): una clave caducada sigue
+    ocupando su fila, y la purga es una decision explicita de S3.3c-4. No se busca la palabra
+    suelta ``DELETE``: ``IDEMPOTENCY_METHODS`` incluye el metodo HTTP ``DELETE``, que no borra nada.
+    """
+    for path in STORE_SOURCES:
+        sentences = _sentences_only(path.read_text(encoding="utf-8"))
+
+        for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE"):
+            assert forbidden not in sentences, f"{forbidden!r} en {path}"

@@ -25,7 +25,9 @@ Nota de metodo: la cadena Alembic **no es reproducible desde una base vacia** (l
 ``274385f2a757`` asume un esquema legado previo). Por eso el laboratorio reconstruye el estado
 posterior a S3.3a con el ``metadata`` vivo, retira las columnas nuevas —que es exactamente el
 aspecto fisico de ``domain_change_log`` antes de esta revision—, marca la revision ``b3f7a1c92e04``
-con ``alembic stamp`` y aplica ``upgrade head``: lo unico que se ejecuta es la migracion de S3.3c-2.
+con ``alembic stamp`` y aplica ``upgrade`` hasta ``d5c1a7e83f21``: lo unico que se ejecuta es la
+migracion de S3.3c-2 (fijar la revision propia, y no ``head``, mantiene la prueba valida cuando
+una fase posterior anade revisiones, igual que hace el laboratorio de S3.3a).
 """
 
 from __future__ import annotations
@@ -206,7 +208,7 @@ def _historical_codes(engine: Engine) -> list[Any]:
 def test_upgrade_adds_the_two_nullable_columns_and_the_checks(migration_lab: Engine) -> None:
     _seed_history(migration_lab)
 
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C2_REVISION)
 
     data_type, length, nullable = _column_definition(migration_lab, "reason_code")
     assert data_type == "character varying"
@@ -229,7 +231,7 @@ def test_upgrade_adds_the_two_nullable_columns_and_the_checks(migration_lab: Eng
 def test_catalog_and_coherence_checks_accept_the_catalog_and_reject_the_rest(
     migration_lab: Engine,
 ) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C2_REVISION)
 
     accepted = (
         {"entity": "competitor", "action": "CREATE", "code": "PLANNED_ENTRY", "note": None},
@@ -285,7 +287,7 @@ def test_catalog_and_coherence_checks_accept_the_catalog_and_reject_the_rest(
 
 def test_downgrade_removes_only_what_it_added(migration_lab: Engine) -> None:
     _seed_history(migration_lab)
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C2_REVISION)
 
     _alembic("downgrade", "-1")
 
@@ -300,13 +302,13 @@ def test_downgrade_removes_only_what_it_added(migration_lab: Engine) -> None:
 
 
 def test_upgrade_is_safe_on_an_empty_table_and_repeatable(migration_lab: Engine) -> None:
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C2_REVISION)
 
     assert _scalar(migration_lab, "SELECT count(*) FROM domain_change_log") == 0
     assert _column_definition(migration_lab, "reason_code")[0] == "character varying"
 
     _alembic("downgrade", "-1")
-    _alembic("upgrade", "head")
+    _alembic("upgrade", S33C2_REVISION)
 
     assert _column_definition(migration_lab, "reason_note")[0] == "text"
     assert _scalar(migration_lab, "SELECT version_num FROM alembic_version") == S33C2_REVISION
