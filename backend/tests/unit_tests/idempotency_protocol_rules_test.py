@@ -25,6 +25,7 @@ from bracket.logic.idempotency_protocol import (
 )
 from bracket.models.db.domain import ActorContext
 from bracket.routes.domain_idempotency import protocol_http_exception
+from bracket.utils.id_types import ClubId, UserId
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL_MODULE = BACKEND_ROOT / "bracket" / "logic" / "idempotency_protocol.py"
@@ -40,7 +41,7 @@ def _protocol_error_classes() -> list[type[IdempotencyProtocolError]]:
 
 
 def _context() -> ActorContext:
-    return ActorContext(tenant_club_id=1, actor_user_id=1, actor_label="unit")  # type: ignore[arg-type]
+    return ActorContext(tenant_club_id=ClubId(1), actor_user_id=UserId(1), actor_label="unit")
 
 
 def _request(*, key: str | None) -> ProtocolRequest:
@@ -140,8 +141,8 @@ def test_el_protocolo_no_publica_rutas_en_la_aplicacion_productiva() -> None:
     offenders = sorted(
         str(path.relative_to(BACKEND_ROOT))
         for path in (BACKEND_ROOT / "bracket").rglob("*.py")
-        if path.name != ADAPTER_MODULE.name
-        and "domain_idempotency" in path.read_text(encoding="utf-8")
+        if path != ADAPTER_MODULE
+        and "routes.domain_idempotency" in path.read_text(encoding="utf-8")
     )
     assert offenders == [], offenders
 
