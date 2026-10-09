@@ -20,6 +20,7 @@ from bracket.routes import (
     auth,
     clubs,
     courts,
+    domain_registrations,
     internals,
     matches,
     players,
@@ -80,6 +81,7 @@ routers = {
     "Stage Item Inputs": stage_item_inputs.router,
     "Stages": stages.router,
     "Teams": teams.router,
+    "Tournament Registrations": domain_registrations.router,
     "Tournaments": tournaments.router,
     "Users": users.router,
 }
@@ -149,7 +151,12 @@ async def add_process_time_header(request: Request, call_next: RequestResponseEn
 
 @app.exception_handler(HTTPException)
 async def validation_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    # S3.4a: se preserva `Retry-After` cuando la excepcion lo trae (409 de operacion en curso y
+    # 503 de espera agotada). Es el unico header que se conserva: el cuerpo y el resto del
+    # contrato de error no cambian.
+    retry_after = None if exc.headers is None else exc.headers.get("Retry-After")
+    headers = None if retry_after is None else {"Retry-After": retry_after}
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=headers)
 
 
 @app.exception_handler(Exception)

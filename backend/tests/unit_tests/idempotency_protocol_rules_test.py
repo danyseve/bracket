@@ -30,6 +30,12 @@ from bracket.utils.id_types import ClubId, UserId
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL_MODULE = BACKEND_ROOT / "bracket" / "logic" / "idempotency_protocol.py"
 ADAPTER_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_idempotency.py"
+REGISTRATIONS_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_registrations.py"
+
+#: Consumidores autorizados del adaptador: el propio adaptador y el router F3 de inscripciones
+#: (S3.4a), que es su primer consumidor de negocio. La lista es cerrada y explicita: cualquier
+#: otro modulo que mencione el adaptador rompe el guard.
+AUTHORIZED_CONSUMERS = (ADAPTER_MODULE, REGISTRATIONS_MODULE)
 
 
 def _protocol_error_classes() -> list[type[IdempotencyProtocolError]]:
@@ -141,10 +147,21 @@ def test_el_protocolo_no_publica_rutas_en_la_aplicacion_productiva() -> None:
     offenders = sorted(
         str(path.relative_to(BACKEND_ROOT))
         for path in (BACKEND_ROOT / "bracket").rglob("*.py")
-        if path != ADAPTER_MODULE
+        if path not in AUTHORIZED_CONSUMERS
         and "routes.domain_idempotency" in path.read_text(encoding="utf-8")
     )
     assert offenders == [], offenders
+
+
+def test_el_router_f3_consume_el_adaptador_y_no_reimplementa_el_protocolo() -> None:
+    """El router F3 (S3.4a) pasa por el adaptador certificado.
+
+    No lo reimplementa ni toca el almacen de idempotencia: solo consume el adaptador.
+    """
+    source = REGISTRATIONS_MODULE.read_text(encoding="utf-8")
+    assert "from bracket.routes.domain_idempotency import" in source
+    assert "run_idempotent_operation" not in source
+    assert "bracket.sql.idempotency" not in source
 
 
 def test_la_firma_del_coordinador_exige_contexto_y_peticion() -> None:

@@ -1516,6 +1516,313 @@
         "title": "RankingsResponse",
         "type": "object"
       },
+      "RegistrationCreateBody": {
+        "additionalProperties": false,
+        "description": "Estado deseado de una inscripcion en borrador, mas el motivo opcional del alta.\n\nLos campos de borrador son los de :class:`RegistrationDraftData` en su forma de transporte:\n``identity_status`` no admite ``VERIFIED`` (se deriva de ``competitor_id``) y ni ``status`` ni\n``revision`` ni los enlaces de correccion son datos de entrada.",
+        "properties": {
+          "affiliation_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Affiliation Id"
+          },
+          "category_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Key"
+          },
+          "category_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Label"
+          },
+          "competitor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competitor Id"
+          },
+          "competitor_name_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competitor Name Snapshot"
+          },
+          "identity_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistrationUnknownIdentityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          },
+          "representation": {
+            "$ref": "#/components/schemas/RegistrationRepresentation"
+          },
+          "sports_club_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sports Club Id"
+          }
+        },
+        "required": [
+          "competitor_id",
+          "identity_status",
+          "representation",
+          "sports_club_id",
+          "affiliation_id",
+          "category_key",
+          "category_label",
+          "competitor_name_snapshot",
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "RegistrationCreateBody",
+        "type": "object"
+      },
+      "RegistrationIdentityStatus": {
+        "enum": [
+          "UNVERIFIED",
+          "AMBIGUOUS",
+          "VERIFIED"
+        ],
+        "type": "string"
+      },
+      "RegistrationLifecycleBody": {
+        "additionalProperties": false,
+        "description": "Motivo de una transicion del ciclo de vida.\n\nCual de las dos formas es obligatoria lo decide el catalogo de motivos (S3.3c-2) dentro de la\noperacion de dominio, no este modelo: aqui solo se declara el vocabulario cerrado.",
+        "properties": {
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "RegistrationLifecycleBody",
+        "type": "object"
+      },
+      "RegistrationRepresentation": {
+        "enum": [
+          "INDEPENDENT",
+          "CLUB"
+        ],
+        "type": "string"
+      },
+      "RegistrationResponse": {
+        "description": "Proyeccion publica y estable de una inscripcion (lista blanca explicita).\n\nSe excluyen a proposito ``corrects_registration_id``/``superseded_by_registration_id``\n(enlaces internos de correccion), ``verified_by_user_id``/``verified_at`` y todo metadato de\nidempotencia. Los nulos se serializan explicitos: el contrato no cambia de forma entre\nrespuestas.",
+        "properties": {
+          "category_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Key"
+          },
+          "category_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Label"
+          },
+          "competitor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competitor Id"
+          },
+          "competitor_name_snapshot": {
+            "title": "Competitor Name Snapshot",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "identity_status": {
+            "$ref": "#/components/schemas/RegistrationIdentityStatus"
+          },
+          "representation": {
+            "$ref": "#/components/schemas/RegistrationRepresentation"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sports_club_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sports Club Id"
+          },
+          "sports_club_name_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sports Club Name Snapshot"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RegistrationStatus"
+          },
+          "tournament_id": {
+            "title": "Tournament Id",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "tournament_id",
+          "competitor_id",
+          "identity_status",
+          "representation",
+          "sports_club_id",
+          "category_key",
+          "category_label",
+          "competitor_name_snapshot",
+          "sports_club_name_snapshot",
+          "status",
+          "revision",
+          "created",
+          "updated_at"
+        ],
+        "title": "RegistrationResponse",
+        "type": "object"
+      },
+      "RegistrationStatus": {
+        "enum": [
+          "DRAFT",
+          "CONFIRMED",
+          "WITHDRAWN",
+          "DISQUALIFIED",
+          "CORRECTED"
+        ],
+        "type": "string"
+      },
+      "RegistrationUnknownIdentityStatus": {
+        "enum": [
+          "UNVERIFIED",
+          "AMBIGUOUS"
+        ],
+        "type": "string"
+      },
       "RoundCreateBody": {
         "properties": {
           "name": {
@@ -3096,7 +3403,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -4851,6 +5158,360 @@
         "summary": "Update Ranking By Id",
         "tags": [
           "Rankings"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations": {
+      "post": {
+        "description": "Alta de una inscripcion en borrador. Exige ``Idempotency-Key`` y motivo ``PLANNED_ENTRY``.",
+        "operationId": "create_registration_endpoint_tournaments__tournament_id__registrations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}/confirm": {
+      "post": {
+        "description": "``DRAFT -> CONFIRMED``. Motivo opcional (``READY`` o ``DATA_VERIFIED``).",
+        "operationId": "confirm_registration_endpoint_tournaments__tournament_id__registrations__registration_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegistrationLifecycleBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Confirm Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}/disqualify": {
+      "post": {
+        "description": "``CONFIRMED -> DISQUALIFIED``. Motivo obligatorio y relacion OWNER con el tenant.",
+        "operationId": "disqualify_registration_endpoint_tournaments__tournament_id__registrations__registration_id__disqualify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegistrationLifecycleBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Disqualify Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}/reinstate": {
+      "post": {
+        "description": "``WITHDRAWN -> CONFIRMED`` con la misma elegibilidad que confirmar. Motivo obligatorio.",
+        "operationId": "reinstate_registration_endpoint_tournaments__tournament_id__registrations__registration_id__reinstate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegistrationLifecycleBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reinstate Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}/withdraw": {
+      "post": {
+        "description": "``DRAFT|CONFIRMED -> WITHDRAWN``. Motivo obligatorio; retirar una confirmada exige OWNER.",
+        "operationId": "withdraw_registration_endpoint_tournaments__tournament_id__registrations__registration_id__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegistrationLifecycleBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Withdraw Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
         ]
       }
     },
