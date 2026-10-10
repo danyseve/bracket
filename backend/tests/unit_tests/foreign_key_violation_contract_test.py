@@ -22,7 +22,9 @@ def make_violation(constraint_name: str) -> asyncpg.exceptions.ForeignKeyViolati
         def as_dict(self) -> dict[str, str]:
             return {"constraint_name": constraint_name, "sqlstate": "23503"}
 
-    return _Violation(f'update or delete on table "x" violates foreign key constraint "{constraint_name}"')
+    return _Violation(
+        f'update or delete on table "x" violates foreign key constraint "{constraint_name}"'
+    )
 
 
 def test_an_unknown_constraint_is_not_converted_into_an_assertion_error() -> None:
@@ -68,7 +70,7 @@ def test_the_delete_conflict_is_a_stable_safe_409() -> None:
     detalles internos (se importa aqui a proposito: forma parte del contrato que se anade en el
     fix, y el test debe fallar como asercion, no como error de importacion, antes del fix).
     """
-    from bracket.utils.errors import TournamentDeleteConflictError  # noqa: PLC0415
+    from bracket.utils.errors import TournamentDeleteConflictError
 
     error = TournamentDeleteConflictError()
 

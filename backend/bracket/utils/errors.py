@@ -18,14 +18,26 @@ class UniqueIndex(EnumAutoStr):
 
 class ForeignKey(EnumAutoStr):
     courts_tournament_id_fkey = auto()
+    matches_court_id_fkey = auto()
+    matches_round_id_fkey = auto()
     matches_stage_item_input1_id_fkey = auto()
+    matches_stage_item_input1_winner_from_match_id_fkey = auto()
     matches_stage_item_input2_id_fkey = auto()
+    matches_stage_item_input2_winner_from_match_id_fkey = auto()
     players_tournament_id_fkey = auto()
+    players_x_teams_player_id_fkey = auto()
+    players_x_teams_team_id_fkey = auto()
+    rankings_tournament_id_fkey = auto()
+    rounds_stage_item_id_fkey = auto()
+    stage_item_inputs_stage_item_id_fkey = auto()
     stage_item_inputs_team_id_fkey = auto()
+    stage_item_inputs_tournament_id_fkey = auto()
+    stage_item_inputs_winner_from_stage_item_id_fkey = auto()
+    stage_items_ranking_id_fkey = auto()
+    stage_items_stage_id_fkey = auto()
     stages_tournament_id_fkey = auto()
     teams_tournament_id_fkey = auto()
     tournaments_club_id_fkey = auto()
-    rankings_tournament_id_fkey = auto()
 
 
 unique_index_violation_error_lookup = {
@@ -82,11 +94,12 @@ def check_foreign_key_violation(expected_violations: set[ForeignKey]) -> Iterato
     try:
         yield
     except asyncpg.exceptions.ForeignKeyViolationError as exc:
-        constraint_name = exc.as_dict()["constraint_name"]
-        assert constraint_name, "ForeignKeyViolationError occurred but no constraint_name defined"
-        assert constraint_name in ForeignKey.values(), (
-            f"Unknown ForeignKeyViolationError occurred: {constraint_name}"
-        )
+        # Un nombre de constraint ausente o desconocido NO puede convertirse en AssertionError
+        # (seria un HTTP 500): se propaga el error original para que el llamante lo traduzca.
+        constraint_name = exc.as_dict().get("constraint_name")
+        if not constraint_name or constraint_name not in ForeignKey.values():
+            raise exc
+
         constraint = ForeignKey(constraint_name)
 
         if (
@@ -99,3 +112,29 @@ def check_foreign_key_violation(expected_violations: set[ForeignKey]) -> Iterato
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=foreign_key_violation_error_lookup[constraint],
         ) from exc
+
+
+class BracketConflictError(HTTPException):
+    """
+    HTTP 409 con codigo de aplicacion estable. El `detail` es apto para el cliente: nunca incluye
+    nombre de constraint, SQL, stack trace ni detalles de PostgreSQL.
+    """
+
+    code: str
+
+    def __init__(self, code: str, detail: str) -> None:
+        super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
+        self.code = code
+
+
+class TournamentDeleteConflictError(BracketConflictError):
+    """
+    El torneo tiene datos dependientes que el borrado controlado no puede eliminar (FK protegida o
+    desconocida). Los detalles tecnicos quedan en el log del servidor.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            code="TOURNAMENT_DELETE_CONFLICT",
+            detail="This tournament still has dependent data that prevents deleting it",
+        )

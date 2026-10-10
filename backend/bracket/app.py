@@ -144,7 +144,11 @@ async def add_process_time_header(request: Request, call_next: RequestResponseEn
 
 @app.exception_handler(HTTPException)
 async def validation_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    payload: dict[str, str] = {"detail": exc.detail}
+    code = getattr(exc, "code", None)
+    if code is not None:
+        payload["code"] = code
+    return JSONResponse(payload, status_code=exc.status_code)
 
 
 @app.exception_handler(Exception)

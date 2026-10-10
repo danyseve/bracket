@@ -3478,6 +3478,7 @@
     },
     "/tournaments/{tournament_id}": {
       "delete": {
+        "description": "Borra el torneo y todas sus dependencias (ranking, stage_items, stages, rounds, matches,\nstage_item_inputs, players, courts y teams) en una unica transaccion.\n\nUna dependencia protegida o no contemplada por el contrato produce 409 con codigo estable y no\ndeja eliminaciones parciales; nunca provoca un 500.",
         "operationId": "delete_tournament_tournaments__tournament_id__delete",
         "parameters": [
           {
