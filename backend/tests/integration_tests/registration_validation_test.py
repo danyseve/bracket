@@ -21,11 +21,11 @@ from databases import Database
 from bracket.logic.competitors import (
     TenantNotAuthorizedError,
 )
+from bracket.logic.registration_core import TournamentNotFoundError
 from bracket.logic.registrations import (
     CompetitorNotSelectableError,
     InvalidRegistrationDataError,
     SportsClubNotSelectableError,
-    TournamentNotFoundError,
     confirm_registration,
     create_registration,
     update_registration_draft,

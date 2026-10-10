@@ -1,4 +1,4 @@
-"""Contratos HTTP de entrada y salida de las rutas F3 de inscripciones (S3.4a/S3.4b, LAB ONLY).
+"""Contratos HTTP de entrada/salida de las rutas F3 de inscripciones (S3.4a/S3.4b/S3.4c, LAB ONLY).
 
 Modelos **explicitos** de la capa HTTP. No se reutiliza ningun modelo interno como cuerpo ni
 como respuesta: el contrato externo no depende de la forma de la fila, de modo que una columna
@@ -31,6 +31,7 @@ from bracket.models.db.domain import (
     RegistrationRepresentation,
     RegistrationStatus,
     RegistrationUnknownIdentityStatus,
+    RegistrationWindowState,
     TournamentRegistration,
 )
 from bracket.utils.id_types import (
@@ -162,3 +163,43 @@ class RegistrationListResponse(BaseModel):
 
     count: int
     registrations: list[RegistrationResponse]
+
+
+class RegistrationWindowResponse(BaseModel):
+    """Ventana de inscripcion del torneo (S3.4c): estado derivado, sin auditoria ni internos.
+
+    ``state`` y ``registrations_open`` dicen lo mismo de dos formas (vocabulario y booleano)
+    porque el cliente que solo necesita saber si puede inscribir no deberia tener que
+    interpretar el vocabulario. ``registrations_closed_at`` es el instante del cierre manual,
+    **no** quien lo hizo: el actor vive en la auditoria y no viaja al cliente.
+    """
+
+    tournament_id: TournamentId
+    registration_deadline: datetime_utc | None
+    registrations_closed_at: datetime_utc | None
+    state: RegistrationWindowState
+    registrations_open: bool
+
+
+class RegistrationWindowBody(BaseModel):
+    """Estado deseado del plazo de inscripcion del torneo. El cierre manual no se configura aqui.
+
+    ``registration_deadline`` ausente o nula significa "sin plazo": el cuerpo describe el estado
+    deseado, no un parche, asi que enviar dos veces el mismo instante es un no-op que no vuelve a
+    auditarse. Cualquier otro campo (``registrations_closed_at``, ``actor_user_id``,
+    ``tenant_club_id``, ...) se rechaza con 422, no se ignora.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    registration_deadline: datetime_utc | None = None
+
+
+class RegistrationWindowCloseBody(BaseModel):
+    """El cierre no lleva datos: el cuerpo existe para que un campo de mas sea un 422.
+
+    No hay campo libre de motivo: el cierre no es una transicion de una inscripcion y no entra en
+    el catalogo cerrado de motivos de S3.3c-2.
+    """
+
+    model_config = ConfigDict(extra="forbid")

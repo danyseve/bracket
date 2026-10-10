@@ -119,6 +119,11 @@ DELETE_COMPETITOR_AUDIT = """
         AND entity_id IN (SELECT id FROM competitors WHERE managed_by_club_id = :t)
 """
 
+DELETE_TOURNAMENT_AUDIT = """
+    DELETE FROM domain_change_log
+    WHERE entity = 'tournament' AND entity_id = :t
+"""
+
 DELETE_REGISTRATION_LEAVES = """
     DELETE FROM tournament_registrations tr
     WHERE tr.tournament_id = :tournament_id
@@ -263,6 +268,7 @@ async def delete_registration_audit(
     """Retira la auditoria propia: las inscripciones y los competidores del fixture."""
     for tournament_id in tournament_ids:
         await database.execute(query=DELETE_REGISTRATION_AUDIT, values={"t": tournament_id})
+        await database.execute(query=DELETE_TOURNAMENT_AUDIT, values={"t": tournament_id})
     await database.execute(query=DELETE_COMPETITOR_AUDIT, values={"t": tenant_id})
     for tournament_id in tournament_ids:
         await delete_registrations(tournament_id)

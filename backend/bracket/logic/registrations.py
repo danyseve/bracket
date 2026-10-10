@@ -1,13 +1,16 @@
 """Logica de dominio del nucleo de inscripciones (S3.1 de F3B).
 
-Seis operaciones internas, **sin HTTP ni UI todavia** (S3.1 y S3.2):
+Seis operaciones internas del ciclo de vida (S3.1 y S3.2), **sin HTTP ni UI todavia**:
 
-* :func:`create_registration` — alta en borrador (``DRAFT``);
+* :func:`create_registration` — alta en borrador (``DRAFT``); solo si la ventana admite altas;
 * :func:`update_registration_draft` — edicion del borrador (reemplazo explicito);
 * :func:`confirm_registration` — ``DRAFT -> CONFIRMED`` (congela los snapshots);
 * :func:`withdraw_registration` — O5: ``DRAFT|CONFIRMED -> WITHDRAWN``;
 * :func:`reinstate_registration` — O5b: ``WITHDRAWN -> CONFIRMED`` (confirmacion en sitio);
 * :func:`disqualify_registration` — O6: ``CONFIRMED -> DISQUALIFIED``.
+
+La **ventana de inscripcion** del torneo (plazo, cierre manual y estado derivado) vive en
+``bracket.logic.registration_window`` (S3.4c): este modulo solo la **consulta** al dar de alta.
 
 Las consultas no se duplican aqui: se usan las de S1
 (``bracket/sql/domain_reads.py``), que ya aplican el aislamiento por tenant.
@@ -50,6 +53,30 @@ Ciclo de vida (S3.2, ``docs/26`` §12-§16):
   materializados. La plaza sigue ocupada por la misma fila en el indice unico.
 * El motivo es obligatorio y no vacio en las tres operaciones nuevas.
 
+Ventana de inscripcion (S3.4c, ``docs/26`` §39-§40):
+
+* El estado de la ventana **se deriva**, no se almacena: ``CLOSED`` si hay cierre manual,
+  ``DEADLINE_PASSED`` si el plazo ya vencio (``now >= deadline``: en el instante exacto del
+  plazo ya no se admite una inscripcion nueva) y ``OPEN`` en cualquier otro caso. Sin plazo
+  y sin cierre manual, la ventana esta abierta.
+* No se duplica estado ni se reutiliza ``tournaments.status`` (que es el ciclo de vida del
+  torneo: ``OPEN``/``ARCHIVED``). Las columnas nuevas son ``tournaments.registration_deadline``
+  y ``tournaments.registrations_closed_at``; el actor y el instante del cierre quedan en
+  ``domain_change_log``, que ya es la fuente de auditoria.
+* La ventana gobierna **solo el alta de inscripciones nuevas**. Confirmar, retirar, readmitir
+  y descalificar siguen permitidas despues del cierre: son operaciones sobre inscripciones que
+  ya existen y su unico juez sigue siendo la elegibilidad (competidor y academia activos) mas
+  la matriz de transiciones. Cerrar inscripciones no congela el cuadro.
+* El cierre manual manda sobre el plazo: un torneo cerrado a mano sigue cerrado aunque su plazo
+  no haya vencido, y limpiar el plazo despues no reabre nada. Reabrir no existe en esta fase.
+* La ventana se lee **siempre** con la fila del torneo bloqueada: ``FOR SHARE`` en el alta,
+  ``FOR NO KEY UPDATE`` en el cierre y en la configuracion del plazo. Esa incompatibilidad es
+  la serializacion real de la carrera alta/cierre: no hay ninguna ventana en la que el alta
+  lea ``OPEN`` y escriba despues del cierre.
+* La auditoria de la ventana es del **torneo** (``entity='tournament'``), con nombres de campo
+  y sin valores. No se amplia el catalogo de motivos de S3.3c-2: estas operaciones no son
+  transiciones de una inscripcion y no llevan ``reason_code``.
+
 LIMITACIONES PENDIENTES (heredadas de S2, no resueltas aqui):
 
 1. El :class:`ActorContext` lo construye el llamador: mientras no exista la capa HTTP
@@ -75,6 +102,9 @@ from bracket.logic.audit_reasons import (
     build_audit_reason,
 )
 from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
+from bracket.logic.registration_core import RegistrationDomainError
+from bracket.logic.registration_core import authorize_tenant_actor as _authorize
+from bracket.logic.registration_window import assert_window_open, load_window_row
 from bracket.models.db.domain import (
     ActorContext,
     RegistrationDraftData,
@@ -144,14 +174,6 @@ _DUPLICATE_INDEXES: frozenset[str] = frozenset(
 _DUPLICATE_MESSAGE = (
     "ya existe una inscripcion vigente de ese competidor en esa categoria del torneo"
 )
-
-
-class RegistrationDomainError(Exception):
-    """Base de los errores de la capa interna. Los mensajes no llevan datos personales."""
-
-
-class TournamentNotFoundError(RegistrationDomainError):
-    """El torneo no existe o no es del tenant del contexto (el mismo error a proposito)."""
 
 
 class RegistrationNotFoundError(RegistrationDomainError):
@@ -225,25 +247,6 @@ def _resolve_audit_reason(*, action: str, code: object, note: object) -> AuditRe
 def _is_duplicate_registration(exc: asyncpg.exceptions.UniqueViolationError) -> bool:
     """Solo se traducen los indices de unicidad de inscripciones; el resto se propaga."""
     return exc.as_dict().get("constraint_name") in _DUPLICATE_INDEXES
-
-
-async def _authorize(context: ActorContext) -> None:
-    """El actor tiene que tener relacion con el tenant del contexto.
-
-    No distingue "tenant inexistente" de "tenant no autorizado": no se filtra la
-    existencia del tenant. OWNER y COLLABORATOR valen igual para este nucleo.
-    """
-    relation = await get_user_relation_to_club(context.tenant_club_id, context.actor_user_id)
-    if relation is None:
-        raise TenantNotAuthorizedError("el actor no tiene acceso a este tenant")
-
-
-async def _assert_tournament_in_tenant(context: ActorContext, tournament_id: TournamentId) -> None:
-    """El torneo forma parte del tenant del contexto, o el error es el mismo que si no existiera."""
-    if not await registration_writes.sql_tournament_is_in_tenant(
-        tournament_id=tournament_id, tenant_club_id=context.tenant_club_id
-    ):
-        raise TournamentNotFoundError("torneo no encontrado en este tenant")
 
 
 def _resolve_category(data: RegistrationDraftData) -> tuple[str | None, str | None]:
@@ -422,15 +425,24 @@ async def create_registration(
     tournament_id: TournamentId,
     data: RegistrationDraftData,
     *,
+    now: datetime_utc | None = None,
     reason_code: str | None = None,
     reason_note: str | None = None,
 ) -> TournamentRegistration:
-    """Alta de una inscripcion en borrador. El tenant sale del contexto, no del payload."""
+    """Alta de una inscripcion en borrador. El tenant sale del contexto, no del payload.
+
+    La ventana del torneo se comprueba con la fila **ya bloqueada** (``FOR SHARE``): o el alta
+    ve la ventana abierta y un cierre en vuelo espera a que esta transaccion confirme, o el
+    alta espera al cierre y entonces ve la ventana cerrada. ``now`` solo se inyecta en los
+    tests (reloj controlado); en produccion es el instante de la operacion.
+    """
+    moment = datetime_utc.now() if now is None else now
     audit_reason = _resolve_audit_reason(action="CREATE", code=reason_code, note=reason_note)
 
     async with database.transaction():
         await _authorize(context)
-        await _assert_tournament_in_tenant(context, tournament_id)
+        window = await load_window_row(context, tournament_id, for_update=False)
+        assert_window_open(window, now=moment)
         draft = await _resolve_draft(context, tournament_id=tournament_id, data=data)
         try:
             registration = await registration_writes.sql_insert_registration(

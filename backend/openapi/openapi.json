@@ -1845,6 +1845,93 @@
         ],
         "type": "string"
       },
+      "RegistrationWindowBody": {
+        "additionalProperties": false,
+        "description": "Estado deseado del plazo de inscripcion del torneo. El cierre manual no se configura aqui.\n\n``registration_deadline`` ausente o nula significa \"sin plazo\": el cuerpo describe el estado\ndeseado, no un parche, asi que enviar dos veces el mismo instante es un no-op que no vuelve a\nauditarse. Cualquier otro campo (``registrations_closed_at``, ``actor_user_id``,\n``tenant_club_id``, ...) se rechaza con 422, no se ignora.",
+        "properties": {
+          "registration_deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Deadline"
+          }
+        },
+        "required": [
+          "registration_deadline"
+        ],
+        "title": "RegistrationWindowBody",
+        "type": "object"
+      },
+      "RegistrationWindowCloseBody": {
+        "additionalProperties": false,
+        "description": "El cierre no lleva datos: el cuerpo existe para que un campo de mas sea un 422.\n\nNo hay campo libre de motivo: el cierre no es una transicion de una inscripcion y no entra en\nel catalogo cerrado de motivos de S3.3c-2.",
+        "properties": {},
+        "title": "RegistrationWindowCloseBody",
+        "type": "object"
+      },
+      "RegistrationWindowResponse": {
+        "description": "Ventana de inscripcion del torneo (S3.4c): estado derivado, sin auditoria ni internos.\n\n``state`` y ``registrations_open`` dicen lo mismo de dos formas (vocabulario y booleano)\nporque el cliente que solo necesita saber si puede inscribir no deberia tener que\ninterpretar el vocabulario. ``registrations_closed_at`` es el instante del cierre manual,\n**no** quien lo hizo: el actor vive en la auditoria y no viaja al cliente.",
+        "properties": {
+          "registration_deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Deadline"
+          },
+          "registrations_closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registrations Closed At"
+          },
+          "registrations_open": {
+            "title": "Registrations Open",
+            "type": "boolean"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RegistrationWindowState"
+          },
+          "tournament_id": {
+            "title": "Tournament Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tournament_id",
+          "registration_deadline",
+          "registrations_closed_at",
+          "state",
+          "registrations_open"
+        ],
+        "title": "RegistrationWindowResponse",
+        "type": "object"
+      },
+      "RegistrationWindowState": {
+        "enum": [
+          "OPEN",
+          "CLOSED",
+          "DEADLINE_PASSED"
+        ],
+        "type": "string"
+      },
       "RoundCreateBody": {
         "properties": {
           "name": {
@@ -5183,6 +5270,110 @@
         ]
       }
     },
+    "/tournaments/{tournament_id}/registration-window": {
+      "get": {
+        "description": "Ventana de inscripcion del torneo, con su estado derivado del plazo y del cierre manual.\n\nLee cualquier miembro del tenant (OWNER o COLLABORATOR): es la misma informacion que necesita\nquien va a inscribirse, y el detalle de quien cerro y cuando no se publica. No exige\n``Idempotency-Key`` y no escribe auditoria. Un torneo de otro tenant responde el mismo 404 que\nuno inexistente.",
+        "operationId": "get_registration_window_endpoint_tournaments__tournament_id__registration_window_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationWindowResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Registration Window Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      },
+      "post": {
+        "description": "Configura el plazo de inscripcion del torneo. ``registration_deadline`` nula lo limpia.\n\nOWNER-only y con ``Idempotency-Key``, por el mismo protocolo que el resto de escrituras F3. El\ncuerpo describe el estado deseado: no puede traer identidad, tenant ni el estado de cierre. Un\nplazo ya vencido cierra la ventana por reloj (``DEADLINE_PASSED``) sin escribir nada mas, y\nlimpiar el plazo no reabre un cierre manual.",
+        "operationId": "set_registration_window_endpoint_tournaments__tournament_id__registration_window_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationWindowBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationWindowResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Set Registration Window Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
     "/tournaments/{tournament_id}/registrations": {
       "get": {
         "description": "Inscripciones vigentes del torneo, con filtros, paginacion y el total del filtro.\n\nEl ambito es del servidor: el torneo tiene que ser del tenant del contexto (si no, ya lo ha\nrechazado la dependencia) y la consulta se acota a el dentro del SQL, nunca despues de leer. La\nrespuesta es la proyeccion publica, no la fila.\n\nLeer no exige ``Idempotency-Key``: no hay reserva ni operacion de dominio que repetir.",
@@ -5351,6 +5542,71 @@
           }
         ],
         "summary": "Create Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/close": {
+      "post": {
+        "description": "Cierre manual de la ventana de inscripcion del torneo: deja de admitir altas nuevas.\n\nOWNER-only y con ``Idempotency-Key``. El cuerpo esta vacio a proposito (un campo de mas es un\n422) porque cerrar no lleva datos: el actor y el instante quedan en la auditoria. Repetir el\ncierre con la misma clave repite la misma respuesta; con otra clave es un conflicto de estado\n(``409 REGISTRATION_ALREADY_CLOSED``), no un no-op silencioso. No altera el ciclo de vida de las\ninscripciones ya existentes.",
+        "operationId": "close_registrations_endpoint_tournaments__tournament_id__registrations_close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RegistrationWindowCloseBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationWindowResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Close Registrations Endpoint",
         "tags": [
           "Tournament Registrations"
         ]

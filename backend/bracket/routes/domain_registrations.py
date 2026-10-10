@@ -1,8 +1,9 @@
-"""Rutas HTTP F3 de inscripciones de torneo (S3.4a/S3.4b, LAB ONLY).
+"""Rutas HTTP F3 de inscripciones de torneo (S3.4a/S3.4b/S3.4c, LAB ONLY).
 
 Primera exposicion HTTP de F3: el ciclo de vida de una inscripcion (alta, confirmacion, retirada,
 readmision y descalificacion) montado sobre los controles ya certificados en S3.3d, sin anadir
-ningun concepto de dominio. S3.4b anade la **lectura**: listado paginado y detalle.
+ningun concepto de dominio. S3.4b anade la **lectura**: listado paginado y detalle. S3.4c anade la
+**ventana de inscripcion del torneo**: plazo, cierre manual y bloqueo de altas nuevas.
 
 Contrato de esta capa:
 
@@ -11,15 +12,19 @@ Contrato de esta capa:
 * toda escritura exige ``Idempotency-Key`` y pasa por el protocolo de S3.3c-4, que no se
   reimplementa aqui: el router solo traduce peticion, operacion y errores;
 * el motivo de auditoria es el vocabulario cerrado ``reason_code``/``reason_note``;
-* la respuesta es una proyeccion publica (``RegistrationResponse``), nunca la fila ni un modelo
-  interno;
+* la respuesta es una proyeccion publica (``RegistrationResponse``/``RegistrationWindowResponse``),
+  nunca la fila ni un modelo interno;
 * la lectura no exige ``Idempotency-Key`` (no escribe nada) y su ambito se aplica **dentro** del
   SQL: ni el listado mezcla otro tenant o torneo, ni el detalle busca por identificador sin
   acotarlo, de modo que una inscripcion ajena responde igual que una inexistente.
 
-Lo que estas rutas **no** hacen: editar competidores o academias, generar el cuadro, cerrar
-inscripciones, ni relajar la autorizacion del dominio. Los errores del dominio se traducen al
-catalogo de S3.3d (§11) **por codigo**, con detalles fijos que nunca repiten el valor recibido.
+Las dos escrituras de la ventana (plazo y cierre) son administrativas: **OWNER-only**, con el mismo
+protocolo de idempotencia que el resto. No se anade ``reopen`` en esta fase: reabrir seria una
+operacion con su propio evento de auditoria, no un no-op.
+
+Lo que estas rutas **no** hacen: editar competidores o academias, generar el cuadro, ni relajar la
+autorizacion del dominio. Los errores del dominio se traducen al catalogo de S3.3d (§11) **por
+codigo**, con detalles fijos que nunca repiten el valor recibido.
 """
 
 from __future__ import annotations
@@ -32,14 +37,21 @@ from starlette import status
 
 from bracket.config import config
 from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
-from bracket.logic.idempotency_protocol import OperationOutcome
+from bracket.logic.idempotency_protocol import OperationOutcome, ProtocolResult
+from bracket.logic.registration_core import RegistrationDomainError, TournamentNotFoundError
+from bracket.logic.registration_window import (
+    RegistrationWindow,
+    RegistrationWindowAlreadyClosedError,
+    RegistrationWindowClosedError,
+    close_registrations,
+    registration_window,
+    set_registration_deadline,
+)
 from bracket.logic.registrations import (
     DuplicateRegistrationError,
     InvalidRegistrationDataError,
     InvalidRegistrationStateError,
-    RegistrationDomainError,
     RegistrationNotFoundError,
-    TournamentNotFoundError,
     confirm_registration,
     create_registration,
     disqualify_registration,
@@ -53,6 +65,9 @@ from bracket.models.db.registration_api import (
     RegistrationLifecycleBody,
     RegistrationListResponse,
     RegistrationResponse,
+    RegistrationWindowBody,
+    RegistrationWindowCloseBody,
+    RegistrationWindowResponse,
 )
 from bracket.routes.domain_auth import actor_context_for_tournament
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
@@ -69,11 +84,21 @@ router = APIRouter(prefix=config.api_prefix)
 #: ``resource_type`` de la reserva de idempotencia (el mismo valor que la entidad de auditoria).
 _RESOURCE_TYPE = "tournament_registration"
 
+#: Las escrituras de la ventana son del **torneo**, no de una inscripcion: mismo criterio que su
+#: auditoria (``entity='tournament'``) y sin tocar la lista cerrada de recursos del protocolo.
+_WINDOW_RESOURCE_TYPE = "tournament"
+
 # Un rechazo de autorizacion del dominio usa el codigo del catalogo certificado (S3.3d §11), no su
 # mensaje interno: el contrato es el codigo.
 _TENANT_NOT_AUTHORIZED = "TENANT_NOT_AUTHORIZED"
 _ROLE_NOT_ALLOWED = "ROLE_NOT_ALLOWED"
 _STATE_ERROR = "STATE_ERROR"
+
+# La ventana cerrada tambien es un codigo estable, distinto del conflicto de estado de una
+# inscripcion: el cliente tiene que poder distinguir "no se admiten altas nuevas" de "esa
+# inscripcion no admite ese cambio".
+_REGISTRATION_CLOSED = "REGISTRATION_CLOSED"
+_REGISTRATION_ALREADY_CLOSED = "REGISTRATION_ALREADY_CLOSED"
 
 # Detalles fijos: estables y sin datos personales. El mensaje del dominio no se reenvia nunca
 # porque nombra campos y podria crecer sin revision.
@@ -103,6 +128,12 @@ _ERROR_MAP: tuple[_ErrorMapping, ...] = (
     _ErrorMapping((DuplicateRegistrationError,), status.HTTP_409_CONFLICT, _DUPLICATE_DETAIL),
     _ErrorMapping(
         (InvalidRegistrationStateError,), status.HTTP_409_CONFLICT, _STATE_CONFLICT_DETAIL
+    ),
+    _ErrorMapping((RegistrationWindowClosedError,), status.HTTP_409_CONFLICT, _REGISTRATION_CLOSED),
+    _ErrorMapping(
+        (RegistrationWindowAlreadyClosedError,),
+        status.HTTP_409_CONFLICT,
+        _REGISTRATION_ALREADY_CLOSED,
     ),
     _ErrorMapping(
         (InvalidRegistrationDataError,), status.HTTP_400_BAD_REQUEST, _REQUEST_INVALID_DETAIL
@@ -176,18 +207,19 @@ async def _reload_registration(
     return registration
 
 
-async def _execute(
+async def _run_protocol(
     *,
     context: ActorContext,
     request: Request,
     operation: Callable[[], Awaitable[OperationOutcome]],
     expected_status: int,
     require_owner: bool = False,
-) -> TournamentRegistration:
-    """Ejecuta la operacion dentro del protocolo y devuelve la inscripcion resultante.
+) -> ProtocolResult:
+    """Ejecuta la operacion dentro del protocolo de S3.3c-4 y comprueba el codigo declarado.
 
     El codigo HTTP lo fija la ruta, y el protocolo guarda ese mismo codigo: si la reserva que se
-    esta repitiendo declara otro, no se responde un exito que no se ha comprobado.
+    esta repitiendo declara otro, no se responde un exito que no se ha comprobado. Los errores del
+    dominio se traducen al catalogo HTTP; los del protocolo ya vienen traducidos por el.
     """
     try:
         result = await execute_idempotent_operation(
@@ -206,6 +238,25 @@ async def _execute(
     if result.response_status != expected_status:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=_STATE_ERROR)
 
+    return result
+
+
+async def _execute(
+    *,
+    context: ActorContext,
+    request: Request,
+    operation: Callable[[], Awaitable[OperationOutcome]],
+    expected_status: int,
+    require_owner: bool = False,
+) -> TournamentRegistration:
+    """Ejecuta la operacion dentro del protocolo y devuelve la inscripcion resultante."""
+    result = await _run_protocol(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=expected_status,
+        require_owner=require_owner,
+    )
     return await _reload_registration(context, result.resource_id)
 
 
@@ -419,3 +470,156 @@ async def get_registration_endpoint(
     """
     registration = await _load_registration_in_tournament(context, tournament_id, registration_id)
     return RegistrationResponse.from_registration(registration)
+
+
+# --- ventana de inscripcion del torneo (S3.4c) --------------------------------------------------
+
+
+def _window_response(window: RegistrationWindow) -> RegistrationWindowResponse:
+    """Proyeccion publica de la ventana: lista blanca de campos, sin auditoria ni internos.
+
+    ``state`` y ``registrations_open`` viajan juntos para que el cliente que solo necesita saber si
+    puede inscribir no tenga que interpretar el vocabulario. El actor del cierre y el motivo no
+    salen de la auditoria, asi que no aparecen aqui.
+    """
+    return RegistrationWindowResponse(
+        tournament_id=window.tournament_id,
+        registration_deadline=window.registration_deadline,
+        registrations_closed_at=window.registrations_closed_at,
+        state=window.state,
+        registrations_open=window.registrations_open,
+    )
+
+
+def _window_outcome(window: RegistrationWindow) -> OperationOutcome:
+    """Lo unico que el protocolo guarda de una escritura de la ventana: su codigo y su recurso.
+
+    La respuesta no se guarda: se reconstruye releyendo la ventana, y esa relectura es justo lo que
+    hace que un replay devuelva el mismo cuerpo que la primera vez (el instante del cierre ya
+    normalizado por la base de datos, no el reloj del proceso que lo escribio).
+    """
+    return OperationOutcome(
+        response_status=status.HTTP_200_OK,
+        metadata={"resource_id": window.tournament_id},
+        resource_type=_WINDOW_RESOURCE_TYPE,
+        resource_id=window.tournament_id,
+    )
+
+
+async def _reload_window(context: ActorContext, tournament_id: TournamentId) -> RegistrationWindow:
+    """Relee la ventana para construir la respuesta, tanto si la operacion se ejecuto como si no."""
+    return await registration_window(context, tournament_id)
+
+
+async def _execute_window(
+    *,
+    context: ActorContext,
+    request: Request,
+    operation: Callable[[], Awaitable[OperationOutcome]],
+    tournament_id: TournamentId,
+) -> RegistrationWindow:
+    """Igual que ``_execute`` pero para la ventana: no hay inscripcion que releer, hay una ventana.
+
+    Las dos escrituras de la ventana son administrativas (OWNER-only) y devuelven 200, tambien en
+    el replay: la reserva guarda ese mismo codigo.
+    """
+    await _run_protocol(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
+        require_owner=True,
+    )
+    return await _reload_window(context, tournament_id)
+
+
+@router.get(
+    "/tournaments/{tournament_id}/registration-window",
+    response_model=RegistrationWindowResponse,
+)
+async def get_registration_window_endpoint(
+    tournament_id: TournamentId,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationWindowResponse:
+    """Ventana de inscripcion del torneo, con su estado derivado del plazo y del cierre manual.
+
+    Lee cualquier miembro del tenant (OWNER o COLLABORATOR): es la misma informacion que necesita
+    quien va a inscribirse, y el detalle de quien cerro y cuando no se publica. No exige
+    ``Idempotency-Key`` y no escribe auditoria. Un torneo de otro tenant responde el mismo 404 que
+    uno inexistente.
+    """
+    try:
+        window = await registration_window(context, tournament_id)
+    except (
+        RegistrationDomainError,
+        TenantNotAuthorizedError,
+        InsufficientPrivilegesError,
+    ) as error:
+        raise _http_exception(error) from error
+    return _window_response(window)
+
+
+@router.post(
+    "/tournaments/{tournament_id}/registration-window",
+    response_model=RegistrationWindowResponse,
+)
+async def set_registration_window_endpoint(
+    tournament_id: TournamentId,
+    body: RegistrationWindowBody,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationWindowResponse:
+    """Configura el plazo de inscripcion del torneo. ``registration_deadline`` nula lo limpia.
+
+    OWNER-only y con ``Idempotency-Key``, por el mismo protocolo que el resto de escrituras F3. El
+    cuerpo describe el estado deseado: no puede traer identidad, tenant ni el estado de cierre. Un
+    plazo ya vencido cierra la ventana por reloj (``DEADLINE_PASSED``) sin escribir nada mas, y
+    limpiar el plazo no reabre un cierre manual.
+    """
+    deadline = body.registration_deadline
+
+    async def operation() -> OperationOutcome:
+        window = await set_registration_deadline(
+            context, tournament_id, registration_deadline=deadline
+        )
+        return _window_outcome(window)
+
+    window = await _execute_window(
+        context=context,
+        request=request,
+        operation=operation,
+        tournament_id=tournament_id,
+    )
+    return _window_response(window)
+
+
+@router.post(
+    "/tournaments/{tournament_id}/registrations/close",
+    response_model=RegistrationWindowResponse,
+)
+async def close_registrations_endpoint(
+    tournament_id: TournamentId,
+    request: Request,
+    body: RegistrationWindowCloseBody | None = None,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationWindowResponse:
+    """Cierre manual de la ventana de inscripcion del torneo: deja de admitir altas nuevas.
+
+    OWNER-only y con ``Idempotency-Key``. El cuerpo esta vacio a proposito (un campo de mas es un
+    422) porque cerrar no lleva datos: el actor y el instante quedan en la auditoria. Repetir el
+    cierre con la misma clave repite la misma respuesta; con otra clave es un conflicto de estado
+    (``409 REGISTRATION_ALREADY_CLOSED``), no un no-op silencioso. No altera el ciclo de vida de las
+    inscripciones ya existentes.
+    """
+
+    async def operation() -> OperationOutcome:
+        window = await close_registrations(context, tournament_id)
+        return _window_outcome(window)
+
+    window = await _execute_window(
+        context=context,
+        request=request,
+        operation=operation,
+        tournament_id=tournament_id,
+    )
+    return _window_response(window)

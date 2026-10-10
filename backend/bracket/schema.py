@@ -61,6 +61,11 @@ tournaments = Table(
         server_default="OPEN",
         index=True,
     ),
+    # Ventana de inscripcion (S3.4c): plazo opcional y cierre manual opcional. El estado
+    # (abierto / plazo vencido / cerrado) se deriva de las dos, no se almacena. El actor y
+    # el instante del cierre quedan en ``domain_change_log``.
+    Column("registration_deadline", DateTimeTZ, nullable=True),
+    Column("registrations_closed_at", DateTimeTZ, nullable=True),
 )
 
 stages = Table(

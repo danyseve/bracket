@@ -32,6 +32,8 @@ explicita para no acoplar la escritura a un simbolo privado de ``domain_reads``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from heliclockter import datetime_utc
 
 from bracket.database import database
@@ -316,21 +318,115 @@ async def sql_update_registration_status(
     return None if result is None else TournamentRegistration.model_validate(dict(result._mapping))
 
 
-async def sql_tournament_is_in_tenant(
-    *, tournament_id: TournamentId, tenant_club_id: ClubId
-) -> bool:
-    """``True`` solo si el torneo existe **y** es del tenant del contexto."""
-    query = """
-        SELECT EXISTS (
-            SELECT 1 FROM tournaments
-            WHERE id = :tournament_id AND club_id = :tenant_club_id
-        )
-        """
-    return bool(
-        await database.fetch_val(
-            query=query, values={"tournament_id": tournament_id, "tenant_club_id": tenant_club_id}
-        )
+@dataclass(frozen=True)
+class TournamentRegistrationWindowRow:
+    """Ventana de inscripcion del torneo, leida con el bloqueo de fila ya tomado."""
+
+    registration_deadline: datetime_utc | None
+    registrations_closed_at: datetime_utc | None
+
+
+# La ventana se lee **siempre** con la fila del torneo bloqueada: el bloqueo no es
+# opcional, es lo que serializa el alta contra el cierre (S3.4c).
+_WINDOW_QUERY_SHARE = """
+    SELECT registration_deadline, registrations_closed_at
+    FROM tournaments
+    WHERE id = :tournament_id AND club_id = :tenant_club_id
+    FOR SHARE
+    """
+
+_WINDOW_QUERY_UPDATE = """
+    SELECT registration_deadline, registrations_closed_at
+    FROM tournaments
+    WHERE id = :tournament_id AND club_id = :tenant_club_id
+    FOR NO KEY UPDATE
+    """
+
+
+async def sql_tournament_registration_window(
+    *, tournament_id: TournamentId, tenant_club_id: ClubId, for_update: bool = False
+) -> TournamentRegistrationWindowRow | None:
+    """Ventana de inscripcion del torneo **del tenant**, con el bloqueo de fila ya tomado.
+
+    Sustituye a la guarda ``EXISTS`` de S3.1 (``sql_tournament_is_in_tenant``): sigue
+    unificando "no existe" y "es de otro tenant" en ``None``, pero ademas deja la fila
+    del torneo bloqueada dentro de la transaccion del llamador, que es lo que serializa
+    la carrera alta/cierre.
+
+    * el alta nueva toma ``FOR SHARE``: dos altas del mismo torneo no se estorban entre
+      si, pero cualquiera de ellas espera a un cierre en vuelo, que toma
+      ``FOR NO KEY UPDATE`` (incompatible con ``FOR SHARE``);
+    * el cierre manual y la configuracion del plazo toman ``FOR NO KEY UPDATE``.
+
+    ``FOR KEY SHARE`` no serviria: es compatible con ``FOR NO KEY UPDATE`` y la carrera
+    quedaria abierta. Un torneo de otro tenant da ``None``: no se filtra su existencia.
+    """
+    result = await database.fetch_one(
+        query=_WINDOW_QUERY_UPDATE if for_update else _WINDOW_QUERY_SHARE,
+        values={"tournament_id": tournament_id, "tenant_club_id": tenant_club_id},
     )
+    if result is None:
+        return None
+    return TournamentRegistrationWindowRow(
+        registration_deadline=result["registration_deadline"],
+        registrations_closed_at=result["registrations_closed_at"],
+    )
+
+
+async def sql_set_registration_deadline(
+    *,
+    tournament_id: TournamentId,
+    tenant_club_id: ClubId,
+    registration_deadline: datetime_utc | None,
+) -> bool:
+    """Fija (o limpia) el plazo de inscripcion del torneo del tenant.
+
+    El bloqueo de fila lo toma antes el llamador (``sql_tournament_registration_window``
+    con ``for_update=True``): este ``UPDATE`` es la escritura, no la serializacion.
+    Devuelve ``False`` si el torneo no es del tenant.
+    """
+    result = await database.fetch_one(
+        query="""
+        UPDATE tournaments
+        SET registration_deadline = :registration_deadline
+        WHERE id = :tournament_id AND club_id = :tenant_club_id
+        RETURNING id
+        """,
+        values={
+            "tournament_id": tournament_id,
+            "tenant_club_id": tenant_club_id,
+            "registration_deadline": registration_deadline,
+        },
+    )
+    return result is not None
+
+
+async def sql_close_registrations(
+    *, tournament_id: TournamentId, tenant_club_id: ClubId, closed_at: datetime_utc
+) -> bool:
+    """Marca el cierre manual de inscripciones del torneo del tenant.
+
+    Escribe solo si el cierre no estaba ya activo. Con la fila bloqueada por el llamador,
+    la condicion ``registrations_closed_at IS NULL`` es la garantia de un unico cierre (y
+    por tanto de un unico evento de auditoria) incluso con dos cierres concurrentes.
+    Devuelve ``False`` si el torneo no es del tenant o si ya estaba cerrado.
+    """
+    result = await database.fetch_one(
+        query="""
+        UPDATE tournaments
+        SET registrations_closed_at = :closed_at
+        WHERE id = :tournament_id
+            AND club_id = :tenant_club_id
+            AND registrations_closed_at IS NULL
+        RETURNING id
+        """,
+        values={
+            "tournament_id": tournament_id,
+            "tenant_club_id": tenant_club_id,
+            "closed_at": closed_at,
+        },
+    )
+    return result is not None
 
 
 async def sql_selectable_sports_club(

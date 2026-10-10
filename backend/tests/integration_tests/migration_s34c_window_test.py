@@ -42,9 +42,7 @@ from bracket.schema import metadata
 from tests.source_scan import code_without_documentation
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-MIGRATION_FILE = (
-    BACKEND_DIR / "alembic" / "versions" / "a4e8d1c60f37_s34c_registration_window.py"
-)
+MIGRATION_FILE = BACKEND_DIR / "alembic" / "versions" / "a4e8d1c60f37_s34c_registration_window.py"
 
 S33C3_REVISION = "9c3e7a1d5b28"
 S34C_REVISION = "a4e8d1c60f37"
@@ -198,7 +196,7 @@ def test_upgrade_adds_the_two_columns_with_the_declared_shape(migration_lab: Eng
 def test_upgrade_leaves_the_rest_of_the_tournament_columns_untouched(
     migration_lab: Engine,
 ) -> None:
-    before = {name: shape for name, shape in _columns(migration_lab).items()}
+    before = dict(_columns(migration_lab).items())
 
     _alembic("upgrade", S34C_REVISION)
 
@@ -209,9 +207,7 @@ def test_upgrade_leaves_the_rest_of_the_tournament_columns_untouched(
 
 
 def test_upgrade_declares_no_new_constraint_index_or_foreign_key(migration_lab: Engine) -> None:
-    before = {
-        contype: _constraints(migration_lab, contype) for contype in ("c", "u", "f", "p")
-    }
+    before = {contype: _constraints(migration_lab, contype) for contype in ("c", "u", "f", "p")}
 
     _alembic("upgrade", S34C_REVISION)
 

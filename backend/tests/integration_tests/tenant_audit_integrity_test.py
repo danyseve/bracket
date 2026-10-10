@@ -39,11 +39,8 @@ from bracket.logic.competitors import (
     deactivate_competitor,
     update_competitor_display_name,
 )
-from bracket.logic.registrations import (
-    TournamentNotFoundError,
-    create_registration,
-    withdraw_registration,
-)
+from bracket.logic.registration_core import TournamentNotFoundError
+from bracket.logic.registrations import create_registration, withdraw_registration
 from bracket.models.db.club import Club, ClubInsertable
 from bracket.models.db.domain import (
     ActorContext,
@@ -332,9 +329,15 @@ async def test_audit_rejects_an_entity_that_does_not_exist(audit_data: AuditData
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_audit_rejects_an_unsupported_entity(audit_data: AuditData) -> None:
+    """Una entidad sin predicado de tenant no se puede auditar: el escritor la rechaza.
+
+    ``match`` pertenece a una fase posterior; el mapa solo cubre lo que hoy se puede atar a un
+    club (``competitor``, ``tournament_registration`` y, desde S3.4c, ``tournament`` para los
+    eventos de ventana).
+    """
     with pytest.raises(DomainWriteScopeError):
         await sql_insert_domain_change_log(
-            entity="tournament",
+            entity="match",
             entity_id=audit_data.tournament_a.id,
             action="UPDATE",
             changed_fields=["name"],

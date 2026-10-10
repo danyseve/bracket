@@ -28,7 +28,7 @@ import json
 from collections.abc import AsyncIterator, Iterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -293,9 +293,6 @@ def draft_payload(competitor_id: CompetitorId, category_key: str, **overrides: o
         "category_key": category_key,
         "category_label": f"Etiqueta {category_key}",
         "competitor_name_snapshot": None,
-        "sports_club_name_snapshot": None,
-        "verified_by_user_id": None,
-        "verified_at": None,
     }
     body.update(overrides)
     return json.dumps(body).encode()
@@ -420,7 +417,9 @@ async def test_get_window_requires_a_session(lab: WindowLab) -> None:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_inactive_and_unknown_sessions_are_indistinguishable(lab: WindowLab) -> None:
     inactive_status, _, inactive_body = await get_window(lab, token=lab.inactive_token)
-    unknown_status, _, unknown_body = await get_window(lab, token=get_mock_token("nadie@example.org"))
+    unknown_status, _, unknown_body = await get_window(
+        lab, token=get_mock_token("nadie@example.org")
+    )
 
     assert inactive_status == unknown_status == 401
     assert inactive_body == unknown_body == UNAUTHORIZED
@@ -467,7 +466,7 @@ async def test_the_window_response_never_exposes_internal_fields(lab: WindowLab)
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_owner_can_set_a_future_deadline_and_the_window_stays_open(lab: WindowLab) -> None:
-    deadline = datetime_utc.now() + timedelta(days=30)
+    deadline = (datetime_utc.now() + timedelta(days=30)).replace(microsecond=0)
 
     status, _, body = await post_window(lab, deadline_payload(deadline.isoformat()), key=new_key())
 
@@ -481,17 +480,38 @@ async def test_owner_can_set_a_future_deadline_and_the_window_stays_open(lab: Wi
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_the_deadline_is_stored_as_an_instant_whatever_the_offset(lab: WindowLab) -> None:
-    """El mismo instante expresado en otra zona horaria se guarda y se devuelve igual."""
-    deadline = datetime_utc.now() + timedelta(days=7)
-    shifted = deadline + timedelta(hours=2)
+async def test_the_deadline_lands_at_the_platform_timestamp_resolution(lab: WindowLab) -> None:
+    """El plazo se guarda sin fraccion: es la resolucion con la que el proyecto lee instantes.
 
-    status, _, body = await post_window(lab, deadline_payload(shifted.isoformat()), key=new_key())
+    El codec de ``bracket.database`` descarta la fraccion al leer, asi que un plazo con
+    microsegundos no podria volver a compararse consigo mismo: configurar dos veces el mismo
+    plazo volveria a auditar cada vez.
+    """
+    deadline = (datetime_utc.now() + timedelta(days=30)).replace(microsecond=123456)
+
+    status, _, body = await post_window(lab, deadline_payload(deadline.isoformat()), key=new_key())
+
+    assert status == 200, body
+    assert published_date(body, "registration_deadline") == deadline.replace(microsecond=0)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_the_deadline_is_stored_as_an_instant_whatever_the_offset(lab: WindowLab) -> None:
+    """El mismo instante escrito con otro desplazamiento horario se guarda y se devuelve igual."""
+    deadline = (datetime_utc.now() + timedelta(days=7)).replace(microsecond=0)
+    # El **mismo instante** con otra hora local (no otro instante): 19:00+02:00 es 17:00Z.
+    other_offset = datetime.fromtimestamp(deadline.timestamp(), tz=timezone(timedelta(hours=2)))
+    assert other_offset.utcoffset() == timedelta(hours=2)
+    assert other_offset.isoformat() != deadline.isoformat()
+
+    status, _, body = await post_window(
+        lab, deadline_payload(other_offset.isoformat()), key=new_key()
+    )
 
     assert status == 200, body
     published = published_date(body, "registration_deadline")
     assert published is not None
-    assert int(published.timestamp()) == int(deadline.timestamp())
+    assert published.timestamp() == deadline.timestamp()
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -624,15 +644,24 @@ async def test_setting_the_deadline_writes_one_audit_event_with_field_names_only
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_setting_the_same_deadline_again_writes_no_second_event(lab: WindowLab) -> None:
-    deadline = datetime_utc.now() + timedelta(days=9)
-    await post_window(lab, deadline_payload(deadline.isoformat()), key=new_key())
+    """El mismo plazo declarado dos veces (con fraccion) no reaudita ni cambia el estado.
 
-    status, _, body = await post_window(
+    El plazo se normaliza a la resolucion temporal del proyecto (segundo): sin normalizar, la
+    fraccion que el codec descarta al leer haria que cada POST pareciese un plazo distinto y se
+    anotase un evento falso por repeticion.
+    """
+    deadline = (datetime_utc.now() + timedelta(days=9)).replace(microsecond=654321)
+
+    first_status, _, first_body = await post_window(
         lab, deadline_payload(deadline.isoformat()), key=new_key()
     )
+    status, _, body = await post_window(lab, deadline_payload(deadline.isoformat()), key=new_key())
 
+    assert first_status == 200, first_body
     assert status == 200, body
-    assert len(await tournament_audit(lab.tournament)) == 1
+    assert published_date(body, "registration_deadline") == deadline.replace(microsecond=0)
+    assert body["state"] == first_body["state"] == "OPEN", "la repeticion no cambia la ventana"
+    assert len(await tournament_audit(lab.tournament)) == 1, "un solo evento: repetir no audita"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -866,15 +895,11 @@ async def test_closing_does_not_block_the_lifecycle_of_existing_registrations(
     await close_registrations(lab, key=new_key())
 
     confirm_status, _, _ = await lifecycle(lab, registration_id, "confirm", "READY")
-    withdraw_status, _, _ = await lifecycle(
-        lab, registration_id, "withdraw", "WITHDRAWAL_REQUEST"
-    )
+    withdraw_status, _, _ = await lifecycle(lab, registration_id, "withdraw", "WITHDRAWAL_REQUEST")
     reinstate_status, _, _ = await lifecycle(
         lab, registration_id, "reinstate", "MISTAKEN_WITHDRAWAL"
     )
-    disqualify_status, _, _ = await lifecycle(
-        lab, registration_id, "disqualify", "ADMINISTRATIVE"
-    )
+    disqualify_status, _, _ = await lifecycle(lab, registration_id, "disqualify", "ADMINISTRATIVE")
 
     assert confirm_status == 200
     assert withdraw_status == 200

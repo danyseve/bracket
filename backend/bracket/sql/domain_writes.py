@@ -204,6 +204,11 @@ _ENTITY_TENANT_PREDICATE: dict[str, str] = {
         "WHERE tournament_registrations.id = :entity_id "
         "AND tournaments.club_id = :tenant_club_id"
     ),
+    "tournament": (
+        "SELECT 1 FROM tournaments "
+        "WHERE tournaments.id = :entity_id "
+        "AND tournaments.club_id = :tenant_club_id"
+    ),
 }
 
 
@@ -225,9 +230,12 @@ async def sql_insert_domain_change_log(
     ``reason`` es el texto canonico legible del evento y ``reason_code``/``reason_note`` su motivo
     estructurado (S3.3c-2): el codigo pertenece a un catalogo cerrado y la nota es opcional y solo
     en los codigos que la admiten; ambos los valida el catalogo **antes** de llegar aqui y los
-    vuelve a cerrar la base con sus CHECK. El escritor acepta ``reason_code=None`` para el unico
-    caso legitimo: entidades de plataforma sin catalogo propio (``sports_club``) y filas anteriores
-    a la migracion; ninguna de las diez operaciones de auditoria de F3 usa esa forma.
+    vuelve a cerrar la base con sus CHECK. El escritor acepta ``reason_code=None`` para los unicos
+    casos legitimos: entidades de plataforma sin catalogo propio (``sports_club``), las filas
+    anteriores a la migracion y los eventos de **ventana del torneo** de S3.4c
+    (``SET_REGISTRATION_WINDOW`` y ``CLOSE_REGISTRATIONS``), que no son transiciones de una
+    inscripcion y por eso no llevan codigo del catalogo; las seis operaciones del ciclo de vida
+    (S3.1/S3.2) si lo llevan.
 
     ``changed_fields`` guarda NOMBRES de campo, nunca valores (sin PII). El evento se escribe
     solo si la entidad pertenece de verdad a ``tenant_club_id``; si no, no se escribe nada y se

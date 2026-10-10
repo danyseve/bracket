@@ -46,11 +46,25 @@ type RegistrationIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS", "VERIFIED"]
 type RegistrationRepresentation = Literal["INDEPENDENT", "CLUB"]
 type RegistrationStatus = Literal["DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED", "CORRECTED"]
 type DomainChangeLogAction = Literal[
-    "CREATE", "UPDATE", "DEACTIVATE", "ACTIVATE", "CONFIRM", "WITHDRAW", "REINSTATE", "DISQUALIFY"
+    "CREATE",
+    "UPDATE",
+    "DEACTIVATE",
+    "ACTIVATE",
+    "CONFIRM",
+    "WITHDRAW",
+    "REINSTATE",
+    "DISQUALIFY",
+    "SET_REGISTRATION_WINDOW",
+    "CLOSE_REGISTRATIONS",
 ]
 # Estado de identidad que el llamador puede declarar en una inscripcion **sin**
 # competidor. ``VERIFIED`` no se acepta desde fuera: se deriva de ``competitor_id``.
 type RegistrationUnknownIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS"]
+
+# Estado **derivado** de la ventana de inscripcion del torneo (S3.4c): no hay columna que lo
+# guarde, se calcula a partir del plazo y del cierre manual. ``DEADLINE_PASSED`` significa que
+# el plazo ya vencio; ``CLOSED``, que hay un cierre manual activo (manda sobre el plazo).
+type RegistrationWindowState = Literal["OPEN", "CLOSED", "DEADLINE_PASSED"]
 
 
 class DomainWriteScopeError(RuntimeError):
