@@ -25,7 +25,7 @@ import pytest
 
 from bracket.database import database
 from bracket.models.db.stage_item_inputs import StageItemInputInsertable
-from bracket.models.db.tournament import Tournament
+from bracket.models.db.tournament import Tournament, TournamentInsertable
 from bracket.utils.dummy_records import (
     DUMMY_COURT1,
     DUMMY_MATCH1,
@@ -98,7 +98,7 @@ async def row_counts_of_tournament(tournament_id: TournamentId) -> dict[str, int
     return counts
 
 
-def make_tournament_body(auth_context: AuthContext) -> Tournament:
+def make_tournament_body(auth_context: AuthContext) -> TournamentInsertable:
     """
     Un torneo propio del club autenticado: el torneo de `auth_context` es de ambito de sesion y
     otros tests lo reutilizan, asi que cada test crea y borra el suyo.
@@ -130,7 +130,9 @@ async def tournament_with_dependencies(auth_context: AuthContext) -> AsyncIterat
         )
         stage_item = await stack.enter_async_context(
             inserted_stage_item(
-                DUMMY_STAGE_ITEM1.model_copy(update={"stage_id": stage.id, "ranking_id": ranking.id})
+                DUMMY_STAGE_ITEM1.model_copy(
+                    update={"stage_id": stage.id, "ranking_id": ranking.id}
+                )
             )
         )
         inputs = [
@@ -286,7 +288,7 @@ async def test_the_conflict_response_is_safe(
     auth_context: AuthContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """La respuesta de conflicto no filtra constraint, SQL, stack trace ni detalles de PostgreSQL."""
+    """La respuesta de conflicto no filtra constraint, SQL, stack trace ni detalles internos."""
     await break_stage_item_deletion(monkeypatch)
 
     async with tournament_with_dependencies(auth_context) as tournament:

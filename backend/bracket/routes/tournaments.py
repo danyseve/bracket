@@ -10,7 +10,10 @@ from bracket.config import config
 from bracket.database import database
 from bracket.logic.planning.matches import update_start_times_of_matches
 from bracket.logic.subscriptions import check_requirement
-from bracket.logic.tournaments import get_tournament_logo_path
+from bracket.logic.tournaments import (
+    get_tournament_logo_path,
+    sql_delete_tournament_completely,
+)
 from bracket.models.db.ranking import RankingCreateBody
 from bracket.models.db.tournament import (
     Tournament,
@@ -28,14 +31,9 @@ from bracket.routes.auth import (
 from bracket.routes.models import SuccessResponse, TournamentResponse, TournamentsResponse
 from bracket.routes.util import disallow_archived_tournament
 from bracket.schema import tournaments
-from bracket.sql.rankings import (
-    get_all_rankings_in_tournament,
-    sql_create_ranking,
-    sql_delete_ranking,
-)
+from bracket.sql.rankings import sql_create_ranking
 from bracket.sql.tournaments import (
     sql_create_tournament,
-    sql_delete_tournament,
     sql_get_tournament,
     sql_get_tournament_by_endpoint_name,
     sql_get_tournaments,
@@ -44,9 +42,7 @@ from bracket.sql.tournaments import (
 )
 from bracket.sql.users import get_user_access_to_club, get_which_clubs_has_user_access_to
 from bracket.utils.errors import (
-    ForeignKey,
     UniqueIndex,
-    check_foreign_key_violation,
     check_unique_constraint_violation,
 )
 from bracket.utils.id_types import TournamentId
@@ -117,18 +113,14 @@ async def update_tournament_by_id(
 async def delete_tournament(
     tournament_id: TournamentId, _: UserPublic = Depends(user_authenticated_for_tournament)
 ) -> SuccessResponse:
-    for ranking in await get_all_rankings_in_tournament(tournament_id):
-        await sql_delete_ranking(tournament_id, ranking.id)
+    """
+    Borra el torneo y todas sus dependencias (ranking, stage_items, stages, rounds, matches,
+    stage_item_inputs, players, courts y teams) en una unica transaccion.
 
-    with check_foreign_key_violation(
-        {
-            ForeignKey.stages_tournament_id_fkey,
-            ForeignKey.teams_tournament_id_fkey,
-            ForeignKey.players_tournament_id_fkey,
-            ForeignKey.courts_tournament_id_fkey,
-        }
-    ):
-        await sql_delete_tournament(tournament_id)
+    Una dependencia protegida o no contemplada por el contrato produce 409 con codigo estable y no
+    deja eliminaciones parciales; nunca provoca un 500.
+    """
+    await sql_delete_tournament_completely(tournament_id)
 
     return SuccessResponse()
 

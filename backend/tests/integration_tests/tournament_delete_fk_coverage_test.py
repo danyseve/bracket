@@ -44,9 +44,7 @@ async def foreign_keys() -> list[tuple[str, str, str]]:
     ]
 
 
-def tournament_owned_tables(
-    foreign_keys: list[tuple[str, str, str]], project_tables: set[str]
-) -> set[str]:
+def tournament_owned_tables(keys: list[tuple[str, str, str]], project_tables: set[str]) -> set[str]:
     """
     Tablas cuyos datos pertenecen a un torneo: cierre desde `tournaments` siguiendo las FK en la
     direccion tabla que referencia -> tabla referenciada. Se ignoran las tablas ajenas al esquema
@@ -56,7 +54,7 @@ def tournament_owned_tables(
     changed = True
     while changed:
         changed = False
-        for child, _, parent in foreign_keys:
+        for child, _, parent in keys:
             if child in project_tables and parent in owned and child not in owned:
                 owned.add(child)
                 changed = True

@@ -203,7 +203,14 @@ async def validation_exception_handler(request: Request, exc: HTTPException) -> 
     retry_after = None if exc.headers is None else exc.headers.get("Retry-After")
     headers = None if retry_after is None else {"Retry-After": retry_after}
     log_and_count_route_error(request, exc.detail, exc.status_code)
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=headers)
+    # Hotfix de produccion (141eb40, integrado en S3.10): si la excepcion trae un codigo estable
+    # (`TournamentDeleteConflictError.code`), se añade como `code` al cuerpo. `detail` no cambia y
+    # los codigos de F3 siguen viajando en `detail` (contrato S3.3c-4).
+    payload: dict[str, str] = {"detail": exc.detail}
+    code = getattr(exc, "code", None)
+    if code is not None:
+        payload["code"] = code
+    return JSONResponse(payload, status_code=exc.status_code, headers=headers)
 
 
 @app.exception_handler(Exception)
