@@ -272,6 +272,76 @@ async def get_tournament_registrations(
     return [TournamentRegistration.model_validate(dict(record._mapping)) for record in records]
 
 
+def _registration_filters(
+    tournament_id: TournamentId,
+    tenant_club_id: ClubId,
+    status: str | None,
+    competitor_id: CompetitorId | None,
+) -> tuple[str, dict[str, object]]:
+    """Clausula ``WHERE`` compartida por el listado paginado y su recuento.
+
+    Compartirla es lo que impide que el total y la pagina se desincronicen al anadir un filtro:
+    los dos leen exactamente las mismas condiciones, y siempre acotadas al tenant del llamante.
+    """
+    where = "WHERE tr.tournament_id = :tournament_id AND t.club_id = :tenant_club_id"
+    values: dict[str, object] = {"tournament_id": tournament_id, "tenant_club_id": tenant_club_id}
+    if status is not None:
+        where += " AND tr.status = :status"
+        values["status"] = status
+    if competitor_id is not None:
+        where += " AND tr.competitor_id = :competitor_id"
+        values["competitor_id"] = competitor_id
+    return f"{where} AND {_CURRENT_REGISTRATION}", values
+
+
+async def list_tournament_registrations(
+    tournament_id: TournamentId,
+    *,
+    tenant_club_id: ClubId,
+    status: str | None = None,
+    competitor_id: CompetitorId | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[TournamentRegistration]:
+    """Pagina del listado de inscripciones vigentes del torneo (el torneo debe ser del tenant).
+
+    Orden total y estable: competidor, categoria e identificador, el mismo que usa
+    :func:`get_tournament_registrations`. Al ser total, paginar con ``limit``/``offset`` no repite
+    ni se salta filas. Sin ``limit`` devuelve todas las del filtro.
+    """
+    where, values = _registration_filters(tournament_id, tenant_club_id, status, competitor_id)
+    query = f"SELECT {_REGISTRATION_COLUMNS} {_REGISTRATION_TENANT_JOIN} {where}"
+    query += " ORDER BY tr.competitor_name_snapshot, tr.category_key NULLS FIRST, tr.id"
+    if limit is not None:
+        query += " LIMIT :limit"
+        values["limit"] = limit
+    if offset is not None:
+        query += " OFFSET :offset"
+        values["offset"] = offset
+
+    records = await database.fetch_all(query=query, values=values)
+    return [TournamentRegistration.model_validate(dict(record._mapping)) for record in records]
+
+
+async def count_tournament_registrations(
+    tournament_id: TournamentId,
+    *,
+    tenant_club_id: ClubId,
+    status: str | None = None,
+    competitor_id: CompetitorId | None = None,
+) -> int:
+    """Total de inscripciones vigentes que cumplen los filtros, sin paginar.
+
+    Es el total del **filtro**, no el de la pagina: el cliente puede saber si quedan mas paginas
+    sin pedir una de mas.
+    """
+    where, values = _registration_filters(tournament_id, tenant_club_id, status, competitor_id)
+    count = await database.fetch_val(
+        query=f"SELECT COUNT(*) AS count {_REGISTRATION_TENANT_JOIN} {where}", values=values
+    )
+    return int(count or 0)
+
+
 async def get_registrations_for_competitor(
     competitor_id: CompetitorId,
     *,

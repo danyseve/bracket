@@ -1,4 +1,4 @@
-"""Contratos HTTP de entrada y salida de las rutas F3 de inscripciones (S3.4a, LAB ONLY).
+"""Contratos HTTP de entrada y salida de las rutas F3 de inscripciones (S3.4a/S3.4b, LAB ONLY).
 
 Modelos **explicitos** de la capa HTTP. No se reutiliza ningun modelo interno como cuerpo ni
 como respuesta: el contrato externo no depende de la forma de la fila, de modo que una columna
@@ -19,6 +19,8 @@ hay campo de texto libre.
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 from heliclockter import datetime_utc
 from pydantic import BaseModel, ConfigDict
@@ -141,3 +143,22 @@ class RegistrationResponse(BaseModel):
             created=registration.created,
             updated_at=registration.updated_at,
         )
+
+
+#: Estados por los que se puede filtrar el listado. ``CORRECTED`` **no** esta: una inscripcion
+#: sustituida por una correccion no forma parte del listado vigente (S1 ya excluye las sustituidas),
+#: asi que seria un valor que nunca puede devolver filas. Se rechaza con 422 en lugar de responder
+#: una lista vacia que el cliente no sabria distinguir de "no hay ninguna".
+RegistrationFilterStatus = Literal["DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED"]
+
+
+class RegistrationListResponse(BaseModel):
+    """Pagina de inscripciones vigentes del torneo, con el total del filtro.
+
+    ``count`` es el total del filtro **sin** ``limit``/``offset``: es lo que permite saber si
+    quedan mas paginas sin pedir una de mas. La pagina no repite ni se salta filas porque el orden
+    es total (competidor, categoria e identificador).
+    """
+
+    count: int
+    registrations: list[RegistrationResponse]

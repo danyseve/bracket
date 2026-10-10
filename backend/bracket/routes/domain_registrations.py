@@ -1,8 +1,8 @@
-"""Rutas HTTP F3 de inscripciones de torneo (S3.4a, LAB ONLY).
+"""Rutas HTTP F3 de inscripciones de torneo (S3.4a/S3.4b, LAB ONLY).
 
-Primera exposicion HTTP de F3: las cinco operaciones del ciclo de vida de una inscripcion
-(alta, confirmacion, retirada, readmision y descalificacion) montadas sobre los controles ya
-certificados en S3.3d, sin anadir ningun concepto de dominio.
+Primera exposicion HTTP de F3: el ciclo de vida de una inscripcion (alta, confirmacion, retirada,
+readmision y descalificacion) montado sobre los controles ya certificados en S3.3d, sin anadir
+ningun concepto de dominio. S3.4b anade la **lectura**: listado paginado y detalle.
 
 Contrato de esta capa:
 
@@ -12,7 +12,10 @@ Contrato de esta capa:
   reimplementa aqui: el router solo traduce peticion, operacion y errores;
 * el motivo de auditoria es el vocabulario cerrado ``reason_code``/``reason_note``;
 * la respuesta es una proyeccion publica (``RegistrationResponse``), nunca la fila ni un modelo
-  interno.
+  interno;
+* la lectura no exige ``Idempotency-Key`` (no escribe nada) y su ambito se aplica **dentro** del
+  SQL: ni el listado mezcla otro tenant o torneo, ni el detalle busca por identificador sin
+  acotarlo, de modo que una inscripcion ajena responde igual que una inexistente.
 
 Lo que estas rutas **no** hacen: editar competidores o academias, generar el cuadro, cerrar
 inscripciones, ni relajar la autorizacion del dominio. Los errores del dominio se traducen al
@@ -24,7 +27,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import NamedTuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette import status
 
 from bracket.config import config
@@ -46,13 +49,20 @@ from bracket.logic.registrations import (
 from bracket.models.db.domain import ActorContext, TournamentRegistration
 from bracket.models.db.registration_api import (
     RegistrationCreateBody,
+    RegistrationFilterStatus,
     RegistrationLifecycleBody,
+    RegistrationListResponse,
     RegistrationResponse,
 )
 from bracket.routes.domain_auth import actor_context_for_tournament
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
-from bracket.sql.domain_reads import get_registration
-from bracket.utils.id_types import TournamentId, TournamentRegistrationId
+from bracket.sql.domain_reads import (
+    count_tournament_registrations,
+    get_registration,
+    list_tournament_registrations,
+)
+from bracket.utils.id_types import CompetitorId, TournamentId, TournamentRegistrationId
+from bracket.utils.pagination import PaginationRegistrations
 
 router = APIRouter(prefix=config.api_prefix)
 
@@ -345,4 +355,67 @@ async def disqualify_registration_endpoint(
         expected_status=status.HTTP_200_OK,
         require_owner=True,
     )
+    return RegistrationResponse.from_registration(registration)
+
+
+@router.get(
+    "/tournaments/{tournament_id}/registrations",
+    response_model=RegistrationListResponse,
+)
+async def list_registrations_endpoint(
+    tournament_id: TournamentId,
+    registration_status: RegistrationFilterStatus | None = Query(
+        None, alias="status", description="Solo las inscripciones en este estado vigente."
+    ),
+    competitor_id: CompetitorId | None = Query(
+        None, description="Solo las inscripciones de este competidor."
+    ),
+    pagination: PaginationRegistrations = Depends(),
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationListResponse:
+    """Inscripciones vigentes del torneo, con filtros, paginacion y el total del filtro.
+
+    El ambito es del servidor: el torneo tiene que ser del tenant del contexto (si no, ya lo ha
+    rechazado la dependencia) y la consulta se acota a el dentro del SQL, nunca despues de leer. La
+    respuesta es la proyeccion publica, no la fila.
+
+    Leer no exige ``Idempotency-Key``: no hay reserva ni operacion de dominio que repetir.
+    """
+    registrations = await list_tournament_registrations(
+        tournament_id,
+        tenant_club_id=context.tenant_club_id,
+        status=registration_status,
+        competitor_id=competitor_id,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+    count = await count_tournament_registrations(
+        tournament_id,
+        tenant_club_id=context.tenant_club_id,
+        status=registration_status,
+        competitor_id=competitor_id,
+    )
+    return RegistrationListResponse(
+        count=count,
+        registrations=[RegistrationResponse.from_registration(row) for row in registrations],
+    )
+
+
+@router.get(
+    "/tournaments/{tournament_id}/registrations/{registration_id}",
+    response_model=RegistrationResponse,
+)
+async def get_registration_endpoint(
+    tournament_id: TournamentId,
+    registration_id: TournamentRegistrationId,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationResponse:
+    """Inscripcion concreta del torneo, con su estado real.
+
+    El identificador se busca **siempre** acotado al tenant del contexto (no hay consulta global por
+    identificador): una inscripcion de otro tenant no existe para esta ruta y responde el mismo 404
+    que una inexistente. Tampoco se confirma su existencia en otro torneo del mismo tenant, porque
+    ademas tiene que estar en el torneo de la ruta.
+    """
+    registration = await _load_registration_in_tournament(context, tournament_id, registration_id)
     return RegistrationResponse.from_registration(registration)

@@ -215,7 +215,7 @@ async def read_lab_context() -> AsyncIterator[ReadLab]:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def lab() -> AsyncIterator[ReadLab]:
-    """Laboratorio por caso: tenant, torneos y competidores propios, asi los recuentos son absolutos."""
+    """Laboratorio por caso: datos propios, de modo que los recuentos son absolutos."""
     async with read_lab_context() as read_lab:
         yield read_lab
 
@@ -332,9 +332,7 @@ async def create_registration(
     return int(body["id"])
 
 
-async def lifecycle(
-    lab: ReadLab, registration_id: int, action: str, reason: str
-) -> dict[str, Any]:
+async def lifecycle(lab: ReadLab, registration_id: int, action: str, reason: str) -> dict[str, Any]:
     status, _, body = await call_json(
         HTTPMethod.POST,
         lifecycle_url(lab.tournament, registration_id, action),
@@ -455,7 +453,7 @@ async def test_offset_beyond_the_total_returns_an_empty_page_with_the_total(lab:
 
     assert status == 200
     assert body["count"] == 1
-    assert page(body) == []
+    assert not page(body)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -539,7 +537,7 @@ async def test_superseded_registrations_do_not_appear_in_the_list(lab: ReadLab) 
     que todavia no tiene API.
     """
     original = await create_registration(lab, lab.competitor_a, "cat-1")
-    replacement = await create_registration(lab, lab.competitor_a, "cat-1")
+    replacement = await create_registration(lab, lab.competitor_a, "cat-2")
     await database.execute(
         query=(
             "UPDATE tournament_registrations SET status = 'CORRECTED', "
@@ -637,9 +635,7 @@ async def test_list_never_exposes_another_tenants_registrations(lab: ReadLab) ->
 async def test_list_only_covers_its_own_tournament(lab: ReadLab) -> None:
     """Otro torneo del mismo tenant es otro ambito: no se mezcla ni se cuenta."""
     await create_registration(lab, lab.competitor_a, "cat-1")
-    await create_registration(
-        lab, lab.competitor_a, "cat-otro", tournament_id=lab.other_tournament
-    )
+    await create_registration(lab, lab.competitor_a, "cat-otro", tournament_id=lab.other_tournament)
 
     status, _, body = await list_registrations(lab)
 
@@ -739,9 +735,8 @@ async def test_reads_are_pure_and_do_not_need_an_idempotency_key(lab: ReadLab) -
     assert detail[0] == 200
     assert body["count"] == 1
     # la lectura no anade eventos: el ciclo de vida sigue siendo el unico que audita
-    assert [row["action"] for row in await audit_rows(TournamentRegistrationId(registration_id))] == [
-        row["action"] for row in before
-    ]
+    later = await audit_rows(TournamentRegistrationId(registration_id))
+    assert [row["action"] for row in later] == [row["action"] for row in before]
 
 
 @pytest.mark.asyncio(loop_scope="session")

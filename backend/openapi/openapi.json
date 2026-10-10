@@ -1679,6 +1679,28 @@
         "title": "RegistrationLifecycleBody",
         "type": "object"
       },
+      "RegistrationListResponse": {
+        "description": "Pagina de inscripciones vigentes del torneo, con el total del filtro.\n\n``count`` es el total del filtro **sin** ``limit``/``offset``: es lo que permite saber si\nquedan mas paginas sin pedir una de mas. La pagina no repite ni se salta filas porque el orden\nes total (competidor, categoria e identificador).",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "registrations": {
+            "items": {
+              "$ref": "#/components/schemas/RegistrationResponse"
+            },
+            "title": "Registrations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "registrations"
+        ],
+        "title": "RegistrationListResponse",
+        "type": "object"
+      },
       "RegistrationRepresentation": {
         "enum": [
           "INDEPENDENT",
@@ -5162,6 +5184,121 @@
       }
     },
     "/tournaments/{tournament_id}/registrations": {
+      "get": {
+        "description": "Inscripciones vigentes del torneo, con filtros, paginacion y el total del filtro.\n\nEl ambito es del servidor: el torneo tiene que ser del tenant del contexto (si no, ya lo ha\nrechazado la dependencia) y la consulta se acota a el dentro del SQL, nunca despues de leer. La\nrespuesta es la proyeccion publica, no la fila.\n\nLeer no exige ``Idempotency-Key``: no hay reserva ni operacion de dominio que repetir.",
+        "operationId": "list_registrations_endpoint_tournaments__tournament_id__registrations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Solo las inscripciones en este estado vigente.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "DRAFT",
+                    "CONFIRMED",
+                    "WITHDRAWN",
+                    "DISQUALIFIED"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo las inscripciones en este estado vigente.",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Solo las inscripciones de este competidor.",
+            "in": "query",
+            "name": "competitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo las inscripciones de este competidor.",
+              "title": "Competitor Id"
+            }
+          },
+          {
+            "description": "Max number of results in a single page.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Max number of results in a single page.",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter results starting from this offset.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Filter results starting from this offset.",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Registrations Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      },
       "post": {
         "description": "Alta de una inscripcion en borrador. Exige ``Idempotency-Key`` y motivo ``PLANNED_ENTRY``.",
         "operationId": "create_registration_endpoint_tournaments__tournament_id__registrations_post",
@@ -5214,6 +5351,63 @@
           }
         ],
         "summary": "Create Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}": {
+      "get": {
+        "description": "Inscripcion concreta del torneo, con su estado real.\n\nEl identificador se busca **siempre** acotado al tenant del contexto (no hay consulta global por\nidentificador): una inscripcion de otro tenant no existe para esta ruta y responde el mismo 404\nque una inexistente. Tampoco se confirma su existencia en otro torneo del mismo tenant, porque\nademas tiene que estar en el torneo de la ruta.",
+        "operationId": "get_registration_endpoint_tournaments__tournament_id__registrations__registration_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Registration Endpoint",
         "tags": [
           "Tournament Registrations"
         ]
