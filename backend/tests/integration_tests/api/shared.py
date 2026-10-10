@@ -85,6 +85,29 @@ async def send_request(
             return response
 
 
+async def send_request_with_status(
+    method: HTTPMethod,
+    endpoint: str,
+    body: JsonDict | AsyncIterator[bytes] | aiohttp.FormData | None = None,
+    json: JsonDict | None = None,
+    headers: JsonDict = {},
+) -> tuple[int, JsonDict]:
+    """
+    Como `send_request` pero devolviendo tambien el status HTTP: hay contratos (por ejemplo un 409
+    de conflicto) que solo se pueden fijar mirando el codigo de respuesta.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.request(
+            method=str(method.value),
+            url=get_root_uvicorn_url() + endpoint,
+            data=body,
+            json=json,
+            headers=headers,
+        ) as resp:
+            response: JsonDict = await resp.json()
+            return resp.status, response
+
+
 async def send_request_raw(method: HTTPMethod, endpoint: str) -> str:
     async with aiohttp.ClientSession() as session:
         async with session.request(
@@ -114,6 +137,23 @@ async def send_tournament_request(
     json: JsonDict | None = None,
 ) -> JsonDict:
     return await send_request(
+        method=method,
+        endpoint=f"tournaments/{auth_context.tournament.id}/{endpoint}",
+        body=body,
+        json=json,
+        headers=auth_context.headers,
+    )
+
+
+async def send_tournament_request_with_status(
+    method: HTTPMethod,
+    endpoint: str,
+    auth_context: AuthContext,
+    body: JsonDict | AsyncIterator[bytes] | aiohttp.FormData | None = None,
+    json: JsonDict | None = None,
+) -> tuple[int, JsonDict]:
+    """Como `send_tournament_request` pero devolviendo tambien el status HTTP."""
+    return await send_request_with_status(
         method=method,
         endpoint=f"tournaments/{auth_context.tournament.id}/{endpoint}",
         body=body,
