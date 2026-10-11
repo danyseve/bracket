@@ -105,12 +105,18 @@ def _get_activity_blocker(
     return None
 
 
+#: Menos de estos entrantes no es un cuadro: la generacion no tiene nada que repartir. Es el mismo
+#: minimo que consume la revision de readiness de S3.4d, para no tener dos definiciones del mismo
+#: limite.
+MINIMUM_ENTRANTS = 2
+
+
 def _get_entrants_blocker(
     stage_item: StageItemWithRounds,
 ) -> BracketGenerationBlocker | None:
     """Whether the stage item holds a number of entrants this bracket can be built with."""
     entrant_count = count_entrants(stage_item)
-    if entrant_count < 2:
+    if entrant_count < MINIMUM_ENTRANTS:
         return BracketGenerationBlocker.TOO_FEW_ENTRANTS
     if stage_item.team_count > 2 * entrant_count:
         return BracketGenerationBlocker.BRACKET_TOO_LARGE

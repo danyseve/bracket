@@ -36,6 +36,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette import status
 
 from bracket.config import config
+from bracket.logic.bracket_readiness import (
+    BracketReadiness,
+    CategoryReadiness,
+    ReadinessIssue,
+    evaluate_bracket_readiness,
+)
 from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
 from bracket.logic.idempotency_protocol import OperationOutcome, ProtocolResult
 from bracket.logic.registration_core import RegistrationDomainError, TournamentNotFoundError
@@ -60,6 +66,10 @@ from bracket.logic.registrations import (
 )
 from bracket.models.db.domain import ActorContext, TournamentRegistration
 from bracket.models.db.registration_api import (
+    BracketReadinessCategory,
+    BracketReadinessIssue,
+    BracketReadinessResponse,
+    BracketReadinessSummary,
     RegistrationCreateBody,
     RegistrationFilterStatus,
     RegistrationLifecycleBody,
@@ -71,6 +81,10 @@ from bracket.models.db.registration_api import (
 )
 from bracket.routes.domain_auth import actor_context_for_tournament
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
+from bracket.sql.bracket_readiness import (
+    get_existing_single_elimination_brackets,
+    get_registration_readiness_rows,
+)
 from bracket.sql.domain_reads import (
     count_tournament_registrations,
     get_registration,
@@ -557,6 +571,91 @@ async def get_registration_window_endpoint(
     ) as error:
         raise _http_exception(error) from error
     return _window_response(window)
+
+
+def _readiness_response(readiness: BracketReadiness) -> BracketReadinessResponse:
+    """Proyeccion publica de la revision: lista blanca de campos y codigos del vocabulario cerrado.
+
+    Ni el actor ni el tenant salen de aqui, y las filas de inscripcion no viajan: solo recuentos y
+    bloqueos. El orden ya viene fijado por la capa de dominio, asi que la proyeccion no reordena
+    nada: dos revisiones del mismo estado devuelven exactamente lo mismo.
+    """
+
+    def issue(entry: ReadinessIssue) -> BracketReadinessIssue:
+        return BracketReadinessIssue(
+            code=entry.code,
+            count=entry.count,
+            category_key=entry.category_key,
+            required_minimum=entry.required_minimum,
+        )
+
+    def category(entry: CategoryReadiness) -> BracketReadinessCategory:
+        return BracketReadinessCategory(
+            category_key=entry.category_key,
+            category_label=entry.category_label,
+            confirmed_count=entry.confirmed_count,
+            required_minimum=entry.required_minimum,
+            ready=entry.ready,
+            blocking_issues=[issue(item) for item in entry.issues],
+        )
+
+    return BracketReadinessResponse(
+        tournament_id=readiness.tournament_id,
+        ready=readiness.ready,
+        registration_window=readiness.window_state,
+        summary=BracketReadinessSummary(
+            total=readiness.summary.total,
+            confirmed=readiness.summary.confirmed,
+            draft=readiness.summary.draft,
+            withdrawn=readiness.summary.withdrawn,
+            disqualified=readiness.summary.disqualified,
+        ),
+        categories=[category(entry) for entry in readiness.categories],
+        blocking_issues=[issue(entry) for entry in readiness.issues],
+    )
+
+
+@router.get(
+    "/tournaments/{tournament_id}/bracket-readiness",
+    response_model=BracketReadinessResponse,
+)
+async def get_bracket_readiness_endpoint(
+    tournament_id: TournamentId,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> BracketReadinessResponse:
+    """Revision final del estado de las inscripciones antes de generar cuadro (solo lectura).
+
+    Responde a "esta listo este torneo para generar brackets?" y, si no, a "que problemas concretos
+    lo impiden". OWNER y COLLABORATOR pueden leer; el tenant lo resuelve el servidor y nunca el
+    cliente, y un torneo de otro tenant responde el mismo 404 que uno inexistente.
+
+    No exige ``Idempotency-Key`` porque no hay ninguna escritura que repetir, no escribe auditoria y
+    no altera estado. La ventana se lee **primero**: es la que autoriza el torneo y la que acota la
+    lectura de la estructura competitiva a un torneo que el actor puede ver. No genera cuadros:
+    solo revisa si se puede.
+    """
+    try:
+        window = await registration_window(context, tournament_id)
+        rows = await get_registration_readiness_rows(
+            tournament_id, tenant_club_id=context.tenant_club_id
+        )
+        brackets = await get_existing_single_elimination_brackets(tournament_id)
+    except (
+        RegistrationDomainError,
+        TenantNotAuthorizedError,
+        InsufficientPrivilegesError,
+    ) as error:
+        raise _http_exception(error) from error
+
+    return _readiness_response(
+        evaluate_bracket_readiness(
+            tournament_id=tournament_id,
+            tenant_club_id=context.tenant_club_id,
+            window_state=window.state,
+            rows=rows,
+            existing_brackets=brackets,
+        )
+    )
 
 
 @router.post(

@@ -25,6 +25,7 @@ from typing import Literal
 from heliclockter import datetime_utc
 from pydantic import BaseModel, ConfigDict
 
+from bracket.logic.bracket_readiness import BracketReadinessBlocker
 from bracket.models.db.domain import (
     RegistrationDraftData,
     RegistrationIdentityStatus,
@@ -203,3 +204,62 @@ class RegistrationWindowCloseBody(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+
+
+class BracketReadinessIssue(BaseModel):
+    """Un bloqueo concreto de la revision de readiness (S3.4d).
+
+    ``code`` pertenece a un vocabulario **cerrado** y es el contrato: no viaja ningun mensaje libre.
+    ``count`` aparece solo cuando el bloqueo cuenta algo (inscripciones pendientes, competidores,
+    cuadros) y ``required_minimum`` solo cuando compara un recuento con un minimo.
+    """
+
+    code: BracketReadinessBlocker
+    count: int | None = None
+    category_key: str | None = None
+    required_minimum: int | None = None
+
+
+class BracketReadinessCategory(BaseModel):
+    """Una categoria del torneo: sus participantes confirmados y lo que le falta para tener cuadro.
+
+    ``category_key`` y ``category_label`` nulas son la categoria sin clasificar, que el modelo
+    admite: son las personas inscritas que todavia no tienen categoria asignada.
+    """
+
+    category_key: str | None
+    category_label: str | None
+    confirmed_count: int
+    required_minimum: int
+    ready: bool
+    blocking_issues: list[BracketReadinessIssue]
+
+
+class BracketReadinessSummary(BaseModel):
+    """Recuento de inscripciones **vigentes** por estado; ``total`` es la suma de los demas.
+
+    Las corregidas y las sustituidas por una correccion no entran: contarlas seria contar dos veces
+    a la misma persona.
+    """
+
+    total: int
+    confirmed: int
+    draft: int
+    withdrawn: int
+    disqualified: int
+
+
+class BracketReadinessResponse(BaseModel):
+    """Respuesta de la revision: si el torneo esta listo y, si no, que lo impide.
+
+    Es una revision derivada: no hay estado ``READY`` guardado en ninguna columna, asi que no puede
+    desincronizarse del torneo. No viajan modelos SQL crudos, ni el actor, ni el tenant, ni las
+    filas de inscripcion: solo recuentos y bloqueos con codigo estable.
+    """
+
+    tournament_id: TournamentId
+    ready: bool
+    registration_window: RegistrationWindowState
+    summary: BracketReadinessSummary
+    categories: list[BracketReadinessCategory]
+    blocking_issues: list[BracketReadinessIssue]
