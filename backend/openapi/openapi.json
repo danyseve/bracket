@@ -387,6 +387,183 @@
         "title": "ClubsResponse",
         "type": "object"
       },
+      "CompetitorCreateBody": {
+        "additionalProperties": false,
+        "description": "Alta de identidad: el nombre y, opcionalmente, el motivo del alta.\n\nNo hay campo de academia: en el dominio certificado (S2) un competidor puede existir\nsin academia y la afiliacion no es un dato de entrada del alta.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "display_name",
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "CompetitorCreateBody",
+        "type": "object"
+      },
+      "CompetitorLifecycleBody": {
+        "additionalProperties": false,
+        "description": "Motivo de una transicion de estado (baja logica o reactivacion).\n\nCual de las dos formas es obligatoria lo decide el catalogo de motivos dentro de la\noperacion de dominio, no este modelo: aqui solo se declara el vocabulario cerrado.",
+        "properties": {
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "CompetitorLifecycleBody",
+        "type": "object"
+      },
+      "CompetitorListResponse": {
+        "description": "Pagina de competidores con el total del **filtro**, no el de la pagina.",
+        "properties": {
+          "competitors": {
+            "items": {
+              "$ref": "#/components/schemas/CompetitorResponse"
+            },
+            "title": "Competitors",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "competitors"
+        ],
+        "title": "CompetitorListResponse",
+        "type": "object"
+      },
+      "CompetitorRenameBody": {
+        "additionalProperties": false,
+        "description": "Renombrado controlado: el nombre nuevo y el motivo del cambio de datos basicos.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "display_name",
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "CompetitorRenameBody",
+        "type": "object"
+      },
+      "CompetitorResponse": {
+        "description": "Proyeccion publica y estable de un competidor (lista blanca explicita).\n\nSe excluye a proposito el tenant (``managed_by_club_id``): el ambito ya esta en la ruta\ny el cliente no necesita repetirlo. Tampoco viaja ningun dato del actor ni de la\nauditoria, ni el historial de nombres (que es la traza interna del renombrado).",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "active",
+          "created",
+          "updated_at"
+        ],
+        "title": "CompetitorResponse",
+        "type": "object"
+      },
       "Court": {
         "properties": {
           "created": {
@@ -3781,7 +3958,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -3961,6 +4138,439 @@
         "summary": "Update Club",
         "tags": [
           "Clubs"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors": {
+      "get": {
+        "description": "Competidores del club de la ruta, con filtros, paginacion y el total del filtro.\n\nEl ambito es del servidor: el club tiene que ser el tenant del contexto (si no, ya lo ha\nrechazado la dependencia) y la consulta se acota a el dentro del SQL, nunca despues de leer. La\nrespuesta es la proyeccion publica, no la fila.\n\nLeer no exige ``Idempotency-Key``: no hay reserva ni operacion de dominio que repetir.",
+        "operationId": "list_competitors_endpoint_clubs__club_id__competitors_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Solo los competidores cuyo nombre contiene este texto (coincidencia literal).",
+            "in": "query",
+            "name": "display_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo los competidores cuyo nombre contiene este texto (coincidencia literal).",
+              "title": "Display Name"
+            }
+          },
+          {
+            "description": "Incluir tambien las identidades dadas de baja.",
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Incluir tambien las identidades dadas de baja.",
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Max number of results in a single page.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Max number of results in a single page.",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter results starting from this offset.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Filter results starting from this offset.",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Competitors Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      },
+      "post": {
+        "description": "Alta de identidad en el club de la ruta. Exige ``Idempotency-Key``.\n\nMotivo por defecto del alta: ``PLANNED_ENTRY`` (lo resuelve el catalogo, no el router). No hay\ndeduplicacion: dos altas con el mismo nombre son dos identidades (contrato S2).",
+        "operationId": "create_competitor_endpoint_clubs__club_id__competitors_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompetitorCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Competitor Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}": {
+      "get": {
+        "description": "Competidor concreto del club, con su estado real.\n\nEl identificador se busca **siempre** acotado al tenant del contexto: un competidor de otro\ntenant no existe para esta ruta y responde el mismo 404 que uno inexistente.",
+        "operationId": "get_competitor_endpoint_clubs__club_id__competitors__competitor_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Competitor Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}/activate": {
+      "post": {
+        "description": "Reactivacion de una identidad dada de baja. Exige relacion ``OWNER`` con el club.\n\nIdempotente: si ya estaba activo no audita de nuevo. No toca el historial de nombres.",
+        "operationId": "activate_competitor_endpoint_clubs__club_id__competitors__competitor_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CompetitorLifecycleBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Activate Competitor Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}/deactivate": {
+      "post": {
+        "description": "Baja logica del competidor. Exige relacion ``OWNER`` con el club.\n\nIdempotente: una segunda baja no audita de nuevo. No borra la identidad ni su historial, y no\ntoca inscripciones ni snapshots (RS-9).",
+        "operationId": "deactivate_competitor_endpoint_clubs__club_id__competitors__competitor_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CompetitorLifecycleBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Deactivate Competitor Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}/rename": {
+      "post": {
+        "description": "Renombrado controlado: cierra la entrada de nombre vigente y abre la nueva.\n\nUn nombre identico al vigente no cambia nada (sin historial ni auditoria). El competidor de otro\ntenant responde 404 antes de ejecutar nada.",
+        "operationId": "rename_competitor_endpoint_clubs__club_id__competitors__competitor_id__rename_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompetitorRenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Rename Competitor Endpoint",
+        "tags": [
+          "Competitors"
         ]
       }
     },

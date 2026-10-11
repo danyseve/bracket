@@ -36,3 +36,16 @@ class PaginationRegistrations:
 
     limit: int = Query(25, ge=1, le=100, description="Max number of results in a single page.")
     offset: int = Query(0, ge=0, description="Filter results starting from this offset.")
+
+
+@dataclass
+class PaginationCompetitors:
+    """Paginacion del listado de competidores (S3.7a): mismos limites que el resto del producto.
+
+    No hereda de :class:`Pagination` a proposito. El orden del listado es parte del contrato
+    (determinista por nombre e identificador) y no se expone como parametro: un
+    ``sort_direction`` que hubiera que aceptar e ignorar seria peor que no tenerlo.
+    """
+
+    limit: int = Query(25, ge=1, le=100, description="Max number of results in a single page.")
+    offset: int = Query(0, ge=0, description="Filter results starting from this offset.")

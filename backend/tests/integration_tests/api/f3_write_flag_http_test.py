@@ -40,7 +40,7 @@ from tests.integration_tests.api.generate_bracket_http_support import (
 )
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
-#: Las ocho familias de escritura de F3 y el resto del contrato ya certificado.
+#: Las doce familias de escritura de F3 (inscripciones, generacion y competidores).
 EXPECTED_GUARDED: Final = (
     "POST /tournaments/{tournament_id}/generate-bracket",
     "POST /tournaments/{tournament_id}/registration-window",
@@ -50,6 +50,10 @@ EXPECTED_GUARDED: Final = (
     "POST /tournaments/{tournament_id}/registrations/{registration_id}/disqualify",
     "POST /tournaments/{tournament_id}/registrations/{registration_id}/reinstate",
     "POST /tournaments/{tournament_id}/registrations/{registration_id}/withdraw",
+    "POST /clubs/{club_id}/competitors",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/activate",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/deactivate",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/rename",
 )
 
 #: Campos publicados de la ventana, del listado, del readiness y del detalle (lista blanca).

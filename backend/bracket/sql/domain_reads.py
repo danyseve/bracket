@@ -170,6 +170,27 @@ async def get_sports_club_name_history(
     return [SportsClubNameHistory.model_validate(dict(record._mapping)) for record in records]
 
 
+def _competitor_filters(
+    tenant_club_id: ClubId,
+    display_name: str | None,
+    include_inactive: bool,
+) -> tuple[str, dict[str, object]]:
+    """Clausula ``WHERE`` compartida por el listado paginado y su recuento.
+
+    Compartirla es lo que impide que el total y la pagina se desincronicen al anadir un filtro: los
+    dos leen exactamente las mismas condiciones. El ambito del tenant va **dentro** de la clausula,
+    nunca se filtra despues de leer.
+    """
+    where = "WHERE c.managed_by_club_id = :tenant_club_id"
+    values: dict[str, object] = {"tenant_club_id": tenant_club_id}
+    if display_name is not None:
+        where += " AND c.display_name ILIKE :display_name ESCAPE '\\'"
+        values["display_name"] = f"%{_escape_like(display_name)}%"
+    if not include_inactive:
+        where += " AND c.active IS TRUE"
+    return where, values
+
+
 async def get_competitors_for_tenant(
     tenant_club_id: ClubId,
     *,
@@ -182,21 +203,67 @@ async def get_competitors_for_tenant(
     candidatos, nunca una identidad. Deliberadamente no existe una variante que
     devuelva una sola fila por nombre.
     """
+    where, values = _competitor_filters(tenant_club_id, display_name, include_inactive)
     query = f"""
         SELECT {_COMPETITOR_COLUMNS}
         FROM competitors c
-        WHERE c.managed_by_club_id = :tenant_club_id
+        {where}
+        ORDER BY c.display_name, c.id
     """
-    values: dict[str, str | ClubId] = {"tenant_club_id": tenant_club_id}
-    if display_name is not None:
-        query += " AND c.display_name ILIKE :display_name ESCAPE '\\'"
-        values["display_name"] = f"%{_escape_like(display_name)}%"
-    if not include_inactive:
-        query += " AND c.active IS TRUE"
-    query += " ORDER BY c.display_name, c.id"
 
     records = await database.fetch_all(query=query, values=values)
     return [Competitor.model_validate(dict(record._mapping)) for record in records]
+
+
+async def list_competitors(
+    tenant_club_id: ClubId,
+    *,
+    display_name: str | None = None,
+    include_inactive: bool = False,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[Competitor]:
+    """Pagina del listado de competidores del tenant (S3.7a), en orden total y estable.
+
+    Mismo filtro que :func:`count_competitors` (los dos leen ``_competitor_filters``) y mismo orden
+    que :func:`get_competitors_for_tenant`: al ser un orden total, paginar con ``limit``/``offset``
+    no repite ni se salta filas, y la pagina no se puede desincronizar del total. Sin ``limit``
+    devuelve todas las del filtro.
+    """
+    where, values = _competitor_filters(tenant_club_id, display_name, include_inactive)
+    query = f"""
+        SELECT {_COMPETITOR_COLUMNS}
+        FROM competitors c
+        {where}
+        ORDER BY c.display_name, c.id
+    """
+    if limit is not None:
+        query += " LIMIT :limit"
+        values["limit"] = limit
+    if offset is not None:
+        query += " OFFSET :offset"
+        values["offset"] = offset
+
+    records = await database.fetch_all(query=query, values=values)
+    return [Competitor.model_validate(dict(record._mapping)) for record in records]
+
+
+async def count_competitors(
+    tenant_club_id: ClubId,
+    *,
+    display_name: str | None = None,
+    include_inactive: bool = False,
+) -> int:
+    """Total de competidores que cumplen el filtro, sin paginar.
+
+    Es el total del **filtro**, no el de la pagina: el cliente puede saber si quedan mas paginas sin
+    pedir una de mas.
+    """
+    where, values = _competitor_filters(tenant_club_id, display_name, include_inactive)
+    count = await database.fetch_val(
+        query=f"SELECT COUNT(*) AS count FROM competitors c {where}", values=values
+    )
+    return int(count or 0)
 
 
 async def get_competitor(

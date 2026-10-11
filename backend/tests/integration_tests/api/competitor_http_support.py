@@ -46,7 +46,7 @@ ORDERED_SUFFIXES = ("alfa", "media", "zeta")
 
 
 @dataclass(frozen=True)
-class CompetitorLab:
+class CompetitorLab:  # pylint: disable=too-many-instance-attributes
     """Tenant con identidades propias, una de baja, una ajena y las cuatro sesiones del arnes."""
 
     club: ClubId
@@ -73,6 +73,24 @@ async def delete_competitor_audit(tenant_ids: tuple[int, ...]) -> None:
         query="DELETE FROM domain_change_log WHERE tenant_club_id = ANY(:ids)",
         values={"ids": list(tenant_ids)},
     )
+
+
+async def delete_all_competitors(tenant_id: int) -> None:
+    """Retira todas las identidades del tenant, historial de nombres incluido.
+
+    Se listan primero y se dan de baja una a una con el ayudante certificado: cubre tambien lo
+    que la prueba crea por HTTP, que el laboratorio no conoce de antemano.
+    """
+    rows = await database.fetch_all(
+        query="SELECT id FROM competitors WHERE managed_by_club_id = :tenant_id ORDER BY id",
+        values={"tenant_id": tenant_id},
+    )
+    for row in rows:
+        await database.execute(
+            query="DELETE FROM competitors_name_history WHERE competitor_id = :c",
+            values={"c": row["id"]},
+        )
+        await delete_competitor(CompetitorId(row["id"]))
 
 
 @asynccontextmanager
@@ -123,12 +141,14 @@ async def competitor_lab_context() -> AsyncIterator[CompetitorLab]:
         inactive = await insert_competitor(f"{root_name}-baja", club.id, created=now)
         await set_competitor_active(inactive, active=False)
         foreign = await insert_competitor(f"{root_name}-ajena", other_club.id, created=now)
-        for competitor in (*active, inactive, foreign):
-            stack.push_async_callback(delete_competitor, competitor)
 
-        # Lo ultimo apilado se deshace primero: inscripciones y auditoria antes que clubes.
-        stack.push_async_callback(delete_competitor_audit, (club.id, other_club.id))
+        # Lo ultimo apilado se deshace primero. Las identidades se apilan antes que sus
+        # dependencias para que, al deshacer, caigan despues: inscripciones -> competidores ->
+        # auditoria -> clubes.
+        stack.push_async_callback(delete_all_competitors, club.id)
+        stack.push_async_callback(delete_all_competitors, other_club.id)
         stack.push_async_callback(delete_registration_audit, (tournament.id,), club.id)
+        stack.push_async_callback(delete_competitor_audit, (club.id, other_club.id))
 
         yield CompetitorLab(
             club=club.id,

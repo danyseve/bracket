@@ -20,6 +20,7 @@ from bracket.routes import (
     auth,
     clubs,
     courts,
+    domain_competitors,
     domain_registrations,
     internals,
     matches,
@@ -71,6 +72,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 routers = {
     "Auth": auth.router,
     "Clubs": clubs.router,
+    "Competitors": domain_competitors.router,
     "Courts": courts.router,
     "Internals": internals.router,
     "Matches": matches.router,

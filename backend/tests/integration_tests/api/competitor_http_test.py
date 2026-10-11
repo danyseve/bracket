@@ -33,6 +33,7 @@ from starlette import status
 from bracket.config import config
 from bracket.database import database
 from bracket.routes.f3_write_gate import F3_WRITE_DISABLED
+from bracket.utils.id_types import CompetitorId
 from tests.integration_tests.api.competitor_http_support import (
     CompetitorLab,
     action_url,
@@ -45,7 +46,14 @@ from tests.integration_tests.api.generate_bracket_http_support import (
     SYNTHETIC_SECRET,
     insert_registration,
 )
+from tests.integration_tests.api.shared import get_root_uvicorn_url
 from tests.integration_tests.registration_fixtures import competitor_audit_rows
+
+
+def api_url(path: str) -> str:
+    """URL absoluta del servidor de pruebas para las rutas que no son de competidores."""
+    return f"{get_root_uvicorn_url()}{path.lstrip('/')}"
+
 
 #: Proyeccion publica del competidor: un campo de mas es un fallo y cierra el contrato.
 COMPETITOR_FIELDS: Final = {"id", "display_name", "active", "created", "updated_at"}
@@ -53,6 +61,8 @@ COMPETITOR_FIELDS: Final = {"id", "display_name", "active", "created", "updated_
 LIST_FIELDS: Final = {"count", "competitors"}
 #: Cuerpo con el que un club ajeno y un club inexistente deniegan: indistinguibles.
 UNAUTHORISED_DETAIL: Final = "Could not validate credentials"
+#: Sin sesion la denegacion es la de la propia capa de credenciales.
+NOT_AUTHENTICATED_DETAIL: Final = "Not authenticated"
 NOT_FOUND_DETAIL: Final = "Not Found"
 FORBIDDEN_DETAIL: Final = "Insufficient role for this organization"
 #: Codigos del catalogo cerrado que usan estas rutas.
@@ -119,12 +129,13 @@ async def name_history(competitor_id: int) -> list[dict[str, Any]]:
     return [dict(record._mapping) for record in records]
 
 
-async def stored_competitor(competitor_id: int) -> dict[str, Any] | None:
+async def stored_competitor(competitor_id: int) -> dict[str, Any]:
     record = await database.fetch_one(
         query="SELECT id, display_name, active FROM competitors WHERE id = :id",
         values={"id": competitor_id},
     )
-    return None if record is None else dict(record._mapping)
+    assert record is not None
+    return dict(record._mapping)
 
 
 def actions(rows: list[dict[str, Any]]) -> list[str]:
@@ -187,12 +198,14 @@ async def test_collaborator_can_create_as_the_domain_policy_says(
 async def test_the_tenant_is_the_club_of_the_route_and_never_the_body(
     lab: CompetitorLab, flag_on: None
 ) -> None:
-    # El club ajeno, el club inexistente y el usuario sin sesion comparten la denegacion.
-    for token, club in (
-        (lab.outsider_token, lab.club),
-        (lab.owner_token, 99999999),
-        (None, lab.club),
-        (lab.inactive_user_token, lab.club),
+    # El club ajeno, el club inexistente y el actor inactivo comparten la denegacion
+    # indistinguible de la capa de credenciales; sin cabecera de sesion la respuesta es la
+    # propia de esa ausencia.
+    for label, token, club, detail in (
+        ("club ajeno", lab.outsider_token, lab.club, UNAUTHORISED_DETAIL),
+        ("club inexistente", lab.owner_token, 99999999, UNAUTHORISED_DETAIL),
+        ("actor inactivo", lab.inactive_user_token, lab.club, UNAUTHORISED_DETAIL),
+        ("sin sesion", None, lab.club, NOT_AUTHENTICATED_DETAIL),
     ):
         response_status, body = await call(
             "POST",
@@ -201,8 +214,8 @@ async def test_the_tenant_is_the_club_of_the_route_and_never_the_body(
             key=new_key(),
             payload=create_payload(f"{lab.root_name}-ajena", CREATE_REASON),
         )
-        assert response_status == status.HTTP_401_UNAUTHORIZED
-        assert body == {"detail": UNAUTHORISED_DETAIL}
+        assert response_status == status.HTTP_401_UNAUTHORIZED, label
+        assert body == {"detail": detail}, label
 
     # Y en el club propio del actor ajeno el alta si cae en su tenant.
     response_status, body = await call(
@@ -217,9 +230,7 @@ async def test_the_tenant_is_the_club_of_the_route_and_never_the_body(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_the_body_cannot_declare_tenant_or_state(
-    lab: CompetitorLab, flag_on: None
-) -> None:
+async def test_the_body_cannot_declare_tenant_or_state(lab: CompetitorLab, flag_on: None) -> None:
     for extra in (
         {"managed_by_club_id": int(lab.other_club)},
         {"tenant_club_id": int(lab.other_club)},
@@ -233,7 +244,7 @@ async def test_the_body_cannot_declare_tenant_or_state(
             key=new_key(),
             payload={**create_payload(f"{lab.root_name}-inyectada", CREATE_REASON), **extra},
         )
-        assert response_status == status.HTTP_422_UNPROCESSABLE_ENTITY, (extra, body)
+        assert response_status == status.HTTP_422_UNPROCESSABLE_CONTENT, (extra, body)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -315,7 +326,8 @@ async def test_the_same_key_with_another_payload_is_a_conflict(
     assert second["detail"] == "IDEMPOTENCY_KEY_REUSED"
     # Sin doble efecto: la segunda identidad no existe.
     records = await database.fetch_val(
-        query="SELECT count(*) FROM competitors WHERE managed_by_club_id = :c AND display_name = :n",
+        query="SELECT count(*) FROM competitors WHERE managed_by_club_id = :c"
+        " AND display_name = :n",
         values={"c": lab.club, "n": f"{lab.root_name}-conflicto-b"},
     )
     assert records == 0
@@ -346,7 +358,8 @@ async def test_a_key_cannot_be_reused_for_another_operation(
 
     assert rename_status == status.HTTP_409_CONFLICT
     assert rename_body["detail"] == "IDEMPOTENCY_KEY_REUSED"
-    assert (await stored_competitor(created["id"]))["display_name"] == f"{lab.root_name}-clave-unica"
+    stored = await stored_competitor(int(created["id"]))
+    assert stored["display_name"] == f"{lab.root_name}-clave-unica"
 
 
 # --- Lectura --------------------------------------------------------------------------------------
@@ -356,9 +369,7 @@ async def test_a_key_cannot_be_reused_for_another_operation(
 async def test_the_list_is_tenant_scoped_deterministic_and_counted(
     lab: CompetitorLab, flag_off: None
 ) -> None:
-    response_status, body = await call(
-        "GET", competitors_url(lab), token=lab.owner_token
-    )
+    response_status, body = await call("GET", competitors_url(lab), token=lab.owner_token)
 
     assert response_status == status.HTTP_200_OK
     assert set(body) == LIST_FIELDS
@@ -401,17 +412,13 @@ async def test_the_search_is_literal_and_inactive_identities_are_opt_in(
     )
 
     assert matched_status == status.HTTP_200_OK
-    assert [row["display_name"] for row in matched["competitors"]] == [
-        f"{lab.root_name}-media"
-    ]
+    assert [row["display_name"] for row in matched["competitors"]] == [f"{lab.root_name}-media"]
     # ``%`` es un caracter literal, no un patron: no devuelve el listado entero.
     assert wildcard_status == status.HTTP_200_OK
     assert wildcard["count"] == 0
     assert inactive_status == status.HTTP_200_OK
     assert inactive["count"] == len(lab.active_names) + 1
-    assert f"{lab.root_name}-baja" in [
-        row["display_name"] for row in inactive["competitors"]
-    ]
+    assert f"{lab.root_name}-baja" in [row["display_name"] for row in inactive["competitors"]]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -419,17 +426,13 @@ async def test_the_search_is_literal_and_inactive_identities_are_opt_in(
 async def test_out_of_range_pages_are_rejected(
     lab: CompetitorLab, flag_off: None, query: str
 ) -> None:
-    response_status, _ = await call(
-        "GET", f"{competitors_url(lab)}?{query}", token=lab.owner_token
-    )
+    response_status, _ = await call("GET", f"{competitors_url(lab)}?{query}", token=lab.owner_token)
 
-    assert response_status == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response_status == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_the_detail_returns_the_closed_projection(
-    lab: CompetitorLab, flag_off: None
-) -> None:
+async def test_the_detail_returns_the_closed_projection(lab: CompetitorLab, flag_off: None) -> None:
     competitor_id = int(lab.active_competitors[0])
     response_status, body = await call(
         "GET", competitor_url(lab, competitor_id), token=lab.collaborator_token
@@ -505,7 +508,7 @@ async def test_the_rename_keeps_both_names_in_the_history(
     assert history[0]["valid_to"] is not None
     assert history[1]["valid_to"] is None
 
-    audit = await competitor_audit_rows(competitor_id)
+    audit = await competitor_audit_rows(CompetitorId(competitor_id))
     assert actions(audit) == ["CREATE", "UPDATE"]
     assert audit[1]["changed_fields"] == ["display_name"]
     assert audit[1]["reason_code"] == RENAME_REASON
@@ -534,7 +537,7 @@ async def test_renaming_to_the_same_name_writes_nothing(lab: CompetitorLab, flag
     assert response_status == status.HTTP_200_OK
     assert body["display_name"] == same_name
     assert len(await name_history(competitor_id)) == 1
-    assert actions(await competitor_audit_rows(competitor_id)) == ["CREATE"]
+    assert actions(await competitor_audit_rows(CompetitorId(competitor_id))) == ["CREATE"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -551,16 +554,24 @@ async def test_the_rename_replay_is_stable(lab: CompetitorLab, flag_on: None) ->
     key = new_key()
 
     first_status, first = await call(
-        "POST", action_url(lab, competitor_id, "rename"), token=lab.owner_token, key=key, payload=payload
+        "POST",
+        action_url(lab, competitor_id, "rename"),
+        token=lab.owner_token,
+        key=key,
+        payload=payload,
     )
     second_status, second = await call(
-        "POST", action_url(lab, competitor_id, "rename"), token=lab.owner_token, key=key, payload=payload
+        "POST",
+        action_url(lab, competitor_id, "rename"),
+        token=lab.owner_token,
+        key=key,
+        payload=payload,
     )
 
     assert (first_status, second_status) == (status.HTTP_200_OK, status.HTTP_200_OK)
     assert first == second
     assert len(await name_history(competitor_id)) == 2
-    assert actions(await competitor_audit_rows(competitor_id)) == ["CREATE", "UPDATE"]
+    assert actions(await competitor_audit_rows(CompetitorId(competitor_id))) == ["CREATE", "UPDATE"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -605,7 +616,7 @@ async def test_the_rename_validates_name_and_reason(lab: CompetitorLab, flag_on:
         payload={"display_name": "   ", "reason_code": RENAME_REASON},
     )
 
-    assert missing_status == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert missing_status == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert reason_status == status.HTTP_400_BAD_REQUEST
     assert set(reason_body) == {"detail"}
     assert name_status == status.HTTP_400_BAD_REQUEST
@@ -660,7 +671,7 @@ async def test_the_owner_deactivates_without_deleting_the_identity(
     assert (await stored_competitor(competitor_id))["active"] is False
     # La identidad y su historial siguen ahi: no se borra nada.
     assert len(await name_history(competitor_id)) == 1
-    audit = await competitor_audit_rows(competitor_id)
+    audit = await competitor_audit_rows(CompetitorId(competitor_id))
     assert actions(audit) == ["CREATE", "DEACTIVATE"]
     assert audit[1]["changed_fields"] == ["active"]
 
@@ -707,13 +718,15 @@ async def test_the_owner_reactivates_the_identity(lab: CompetitorLab, flag_on: N
     assert response_status == status.HTTP_200_OK
     assert body["active"] is True
     assert body["display_name"] == name
-    audit = await competitor_audit_rows(competitor_id)
+    audit = await competitor_audit_rows(CompetitorId(competitor_id))
     assert actions(audit) == ["ACTIVATE"]
     assert audit[0]["changed_fields"] == ["active"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_a_transition_that_changes_nothing_is_a_noop(lab: CompetitorLab, flag_on: None) -> None:
+async def test_a_transition_that_changes_nothing_is_a_noop(
+    lab: CompetitorLab, flag_on: None
+) -> None:
     competitor_id = int(lab.active_competitors[2])
 
     deactivate_status, deactivated = await call(
@@ -733,7 +746,7 @@ async def test_a_transition_that_changes_nothing_is_a_noop(lab: CompetitorLab, f
 
     assert (deactivate_status, again_status) == (status.HTTP_200_OK, status.HTTP_200_OK)
     assert deactivated == again
-    assert actions(await competitor_audit_rows(competitor_id)) == ["DEACTIVATE"]
+    assert actions(await competitor_audit_rows(CompetitorId(competitor_id))) == ["DEACTIVATE"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -759,7 +772,7 @@ async def test_the_state_change_replay_is_stable(lab: CompetitorLab, flag_on: No
 
     assert (first_status, second_status) == (status.HTTP_200_OK, status.HTTP_200_OK)
     assert first == second
-    assert actions(await competitor_audit_rows(competitor_id)) == ["DEACTIVATE"]
+    assert actions(await competitor_audit_rows(CompetitorId(competitor_id))) == ["DEACTIVATE"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -819,10 +832,10 @@ async def test_the_deactivation_shows_up_in_the_bracket_readiness(
     lab: CompetitorLab, flag_on: None
 ) -> None:
     competitor_id = int(lab.active_competitors[0])
-    await insert_registration(lab.tournament, competitor_id=competitor_id)
+    await insert_registration(lab.tournament, competitor_id=CompetitorId(competitor_id))
 
     _, before = await call(
-        "GET", f"tournaments/{lab.tournament}/bracket-readiness", token=lab.owner_token
+        "GET", api_url(f"tournaments/{lab.tournament}/bracket-readiness"), token=lab.owner_token
     )
     before_blockers = [issue["code"] for issue in before["blocking_issues"]]
 
@@ -834,7 +847,7 @@ async def test_the_deactivation_shows_up_in_the_bracket_readiness(
         payload={"reason_code": DEACTIVATE_REASON},
     )
     _, after = await call(
-        "GET", f"tournaments/{lab.tournament}/bracket-readiness", token=lab.owner_token
+        "GET", api_url(f"tournaments/{lab.tournament}/bracket-readiness"), token=lab.owner_token
     )
     after_blockers = [issue["code"] for issue in after["blocking_issues"]]
 
@@ -882,16 +895,14 @@ async def test_writes_are_closed_and_reads_stay_open_with_the_flag_off(
 
     # Lectura intacta con la bandera apagada.
     read_status, read_body = await call("GET", competitors_url(lab), token=lab.owner_token)
-    detail_status, _ = await call(
-        "GET", competitor_url(lab, competitor_id), token=lab.owner_token
-    )
+    detail_status, _ = await call("GET", competitor_url(lab, competitor_id), token=lab.owner_token)
     assert (read_status, detail_status) == (status.HTTP_200_OK, status.HTTP_200_OK)
     assert read_body["count"] == len(lab.active_names)
 
     # Cero efectos: ni identidad nueva, ni cambio de estado, ni auditoria.
     assert (await stored_competitor(competitor_id))["active"] is True
     assert (await stored_competitor(competitor_id))["display_name"] == lab.active_names[0]
-    assert await competitor_audit_rows(competitor_id) == []
+    assert await competitor_audit_rows(CompetitorId(competitor_id)) == []
     assert await name_history(competitor_id) == []
 
 
@@ -939,10 +950,10 @@ async def test_the_flag_does_not_replace_the_authorisation(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_the_legacy_club_routes_are_untouched(lab: CompetitorLab, flag_off: None) -> None:
-    response_status, body = await call("GET", "clubs", token=lab.owner_token)
+    response_status, body = await call("GET", api_url("clubs"), token=lab.owner_token)
 
     assert response_status == status.HTTP_200_OK
-    assert int(lab.club) in [club["id"] for club in body]
+    assert int(lab.club) in [club["id"] for club in body["data"]]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -961,7 +972,7 @@ async def test_the_registration_read_api_still_sees_the_tenant(
 
     list_status, listing = await call(
         "GET",
-        f"tournaments/{lab.tournament}/registrations",
+        api_url(f"tournaments/{lab.tournament}/registrations"),
         token=lab.owner_token,
     )
 
