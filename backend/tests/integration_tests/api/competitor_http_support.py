@@ -192,30 +192,52 @@ async def history_rows(competitor_id: int) -> list[dict[str, Any]]:
     return [dict(record._mapping) for record in records]
 
 
-async def assert_history_is_coherent(
-    lab: CompetitorLab, competitor_id: int
-) -> list[dict[str, Any]]:
+async def assert_history_is_coherent(competitor_id: int) -> list[dict[str, Any]]:
     """Comprueba las invariantes del historial de nombres y devuelve las filas (S3.7b).
 
-    Cuatro condiciones, todas del contrato vigente del dominio: exactamente una entrada abierta,
+    Las cuatro condiciones del contrato vigente del dominio: exactamente una entrada abierta,
     ningun rango invertido, ningun solapamiento entre entradas consecutivas y el nombre vigente
-    igual al de la entrada abierta. No se comprueba unicidad parcial: el dominio no la declara.
+    igual al de la entrada abierta. Se miden **en la base**: ``valid_from``/``valid_to`` son
+    ``timestamp with time zone`` con microsegundos y el valor que devuelve el driver pasa por un
+    tipo que solo conserva segundos, asi que comparar en Python daria falsos negativos.
+    No se comprueba unicidad parcial: el dominio no la declara.
     """
-    rows = await history_rows(competitor_id)
-    open_rows = [row for row in rows if row["valid_to"] is None]
-    assert len(open_rows) == 1, "el historial debe dejar una sola entrada de nombre abierta"
-    for row in rows:
-        assert row["valid_to"] is None or row["valid_to"] > row["valid_from"], "rango invertido"
-    ordered = sorted(rows, key=lambda item: item["valid_from"])
-    for previous, following in zip(ordered, ordered[1:], strict=False):
-        assert previous["valid_to"] is not None, "una entrada cerrada sin cierre no puede preceder"
-        assert following["valid_from"] >= previous["valid_to"], "dos entradas se solapan"
-    current = await database.fetch_val(
-        query="SELECT display_name FROM competitors WHERE id = :competitor_id",
+    violations = await database.fetch_one(
+        query="""
+            WITH ordered AS (
+                SELECT
+                    display_name,
+                    valid_from,
+                    valid_to,
+                    lead(valid_from) OVER (ORDER BY valid_from, id) AS next_valid_from
+                FROM competitors_name_history
+                WHERE competitor_id = :competitor_id
+            )
+            SELECT
+                count(*) FILTER (WHERE valid_to IS NULL) AS open_rows,
+                count(*) FILTER (WHERE valid_to IS NOT NULL AND valid_to <= valid_from)
+                    AS inverted_rows,
+                count(*) FILTER (
+                    WHERE valid_to IS NOT NULL
+                      AND next_valid_from IS NOT NULL
+                      AND next_valid_from < valid_to
+                ) AS overlapping_rows,
+                count(*) FILTER (WHERE valid_to IS NULL AND display_name <> (
+                    SELECT display_name FROM competitors WHERE id = :competitor_id
+                )) AS stale_open_rows
+            FROM ordered
+        """,
         values={"competitor_id": competitor_id},
     )
-    assert open_rows[0]["display_name"] == current
-    return rows
+    assert violations is not None
+    counts = {key: int(value or 0) for key, value in violations._mapping.items()}
+    assert counts["open_rows"] == 1, f"el historial debe dejar una sola entrada abierta: {counts}"
+    assert counts["inverted_rows"] == 0, f"rango invertido: {counts}"
+    assert counts["overlapping_rows"] == 0, f"dos entradas se solapan: {counts}"
+    assert counts["stale_open_rows"] == 0, (
+        f"el nombre vigente no es el de la entrada abierta: {counts}"
+    )
+    return await history_rows(competitor_id)
 
 
 async def call(

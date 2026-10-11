@@ -154,7 +154,7 @@ async def test_two_renames_in_parallel_keep_the_history_coherent(lab: Competitor
     assert open_names[0] == (await current_row(competitor_id))["display_name"]
     assert set(open_names) <= target_names
     # Ninguno de los dos estados comprometidos se pierde y los rangos siguen siendo validos.
-    history = await assert_history_is_coherent(lab, competitor_id)
+    history = await assert_history_is_coherent(competitor_id)
     assert target_names <= {str(row["display_name"]) for row in history}
     audit = await competitor_audit_rows(CompetitorId(competitor_id))
     assert [row["action"] for row in audit] == ["UPDATE", "UPDATE"]
@@ -192,7 +192,7 @@ async def test_a_rename_and_a_deactivation_converge(lab: CompetitorLab) -> None:
     actions = [str(item["action"]) for item in second_audit]
     assert sorted(actions) == ["DEACTIVATE", "UPDATE"]
     # El historial de nombres tambien queda coherente cuando compite con otra escritura.
-    await assert_history_is_coherent(lab, competitor_id)
+    await assert_history_is_coherent(competitor_id)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -264,8 +264,7 @@ async def test_a_concurrent_burst_of_writes_never_breaks_the_contract(
         if response_status == status.HTTP_409_CONFLICT:
             assert body["detail"] in ("OPERATION_IN_PROGRESS", "LOCK_TIMEOUT")
     rafaga_counts = [
-        await count_by_name(int(lab.club), f"{lab.root_name}-rafaga-{index}")
-        for index in range(3)
+        await count_by_name(int(lab.club), f"{lab.root_name}-rafaga-{index}") for index in range(3)
     ]
     assert rafaga_counts == [1, 1, 1]
     competitor_id = int(lab.active_competitors[2])
@@ -294,7 +293,7 @@ async def test_a_burst_of_renames_of_one_identity_leaves_one_open_entry(
     )
 
     assert [response_status for response_status, _ in results] == [status.HTTP_200_OK] * 4
-    history = await assert_history_is_coherent(lab, competitor_id)
+    history = await assert_history_is_coherent(competitor_id)
     # Ninguna de las cuatro mutaciones comprometidas se pierde: todas estan en el historial.
     assert set(names) <= {str(row["display_name"]) for row in history}
     assert len(history) == len(names)
@@ -316,7 +315,7 @@ async def test_a_replayed_rename_is_a_single_effect(lab: CompetitorLab) -> None:
 
     assert first[0] == status.HTTP_200_OK
     assert second == first
-    history = await assert_history_is_coherent(lab, competitor_id)
+    history = await assert_history_is_coherent(competitor_id)
     assert len(history) == 1
     assert history[0]["valid_to"] is None
     assert str(history[0]["display_name"]) == renamed
@@ -355,11 +354,11 @@ async def test_a_rename_rejected_by_validation_leaves_no_partial_history(
         ),
     )
 
-    by_status = {response_status: body for response_status, body in results}
+    by_status = dict(results)
     assert sorted(by_status) == [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
     # El rechazo es un error de dominio estable, sin internals de base de datos.
     assert by_status[status.HTTP_400_BAD_REQUEST] == {"detail": "Competitor request is invalid"}
-    history = await assert_history_is_coherent(lab, competitor_id)
+    history = await assert_history_is_coherent(competitor_id)
     open_rows = [row for row in history if row["valid_to"] is None]
     assert [str(row["display_name"]) for row in open_rows] == [accepted_name]
     audit = [row["action"] for row in await competitor_audit_rows(CompetitorId(competitor_id))]

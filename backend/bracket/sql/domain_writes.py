@@ -116,11 +116,21 @@ async def sql_close_open_competitor_name_history(
 
     S3.3a: el cierre solo alcanza al competidor de ese tenant, asi que un llamador futuro que
     use el helper suelto no puede tocar el historial de otro tenant.
+
+    S3.7b: el cierre usa ``clock_timestamp()`` y no ``NOW()``. ``NOW()`` es el inicio de la
+    transaccion: un renombrado que espera el lock de la fila del competidor puede haber
+    arrancado antes de que la transaccion previa insertase su ``valid_from`` y cerraria con un
+    ``valid_to`` anterior, chocando con ``ck_competitors_name_history_range``. El suelo de un
+    microsegundo sobre el ``valid_from`` de la propia fila cierra la ultima rendija (que dos
+    renombrados cayeran en el mismo instante) y deja la restriccion satisfecha por
+    construccion.
     """
     query = """
         WITH closed AS (
             UPDATE competitors_name_history
-            SET valid_to = NOW()
+            SET valid_to = GREATEST(
+                clock_timestamp(), valid_from + interval '1 microsecond'
+            )
             WHERE competitor_id = :competitor_id
               AND valid_to IS NULL
               AND EXISTS (
@@ -153,12 +163,16 @@ async def sql_insert_competitor_name_history(
     S3.3a: solo abre historial para el competidor de ese tenant. Si el competidor no pertenece
     al tenant no se escribe nada y se levanta :class:`DomainWriteScopeError` (la operacion
     revierte entera).
+
+    S3.7b: ``valid_from`` se toma con ``clock_timestamp()`` por el mismo motivo que el cierre:
+    garantiza que la entrada nueva abre despues del cierre de la anterior aunque la transaccion
+    haya arrancado antes, sin solapar rangos.
     """
     query = """
         WITH inserted AS (
             INSERT INTO competitors_name_history
                 (competitor_id, display_name, valid_from, valid_to, changed_by_user_id)
-            SELECT :competitor_id, :display_name, NOW(), NULL, :changed_by_user_id
+            SELECT :competitor_id, :display_name, clock_timestamp(), NULL, :changed_by_user_id
             WHERE EXISTS (
                 SELECT 1 FROM competitors
                 WHERE competitors.id = :competitor_id
