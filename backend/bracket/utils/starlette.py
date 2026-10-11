@@ -30,4 +30,7 @@ def get_route_path(request: Request) -> str:
         assert isinstance(route.path, str), msg
         return route.path
 
-    return f"unhandled:{request.url.path}"
+    # S3.8b: sin ruta identificada NO se usa la ruta pedida como etiqueta. Una peticion a un path
+    # arbitrario (escaneos, fuzzing, rutas inexistentes) crearia una serie por path: cardinalidad
+    # ilimitada en /api/metrics. Todo lo no identificado se agrupa en una sola serie.
+    return "unhandled"

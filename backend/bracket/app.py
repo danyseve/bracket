@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
+from starlette import status
 from starlette.exceptions import HTTPException
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
@@ -15,7 +16,7 @@ from starlette.staticfiles import StaticFiles
 from bracket.config import Environment, config, environment, init_sentry
 from bracket.cronjobs.scheduling import start_cronjobs
 from bracket.database import database
-from bracket.models.metrics import RequestDefinition, get_request_metrics
+from bracket.models.metrics import error_code_of, get_request_metrics
 from bracket.routes import (
     auth,
     clubs,
@@ -39,6 +40,7 @@ from bracket.utils.asyncio import AsyncioTasksManager
 from bracket.utils.db_init import init_db_when_empty
 from bracket.utils.logging import logger
 from bracket.utils.migration_policy import assert_migration_configuration_is_safe
+from bracket.utils.starlette import get_route_path
 
 init_sentry()
 
@@ -142,13 +144,55 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    # S3.8b: la clase de estado solo se conoce despues de la respuesta, asi que el recuento se
+    # registra al final (antes se contaba la peticion y nunca se sabia como acababa). El
+    # instante de entrada se guarda en `request.state` para medir la duracion tambien desde los
+    # manejadores de error, que se ejecutan dentro de este middleware.
     start_time = time.time()
+    request.state.metrics_start_time = start_time
     request_metrics = get_request_metrics()
-    request_metrics.request_count[RequestDefinition.from_request(request)] += 1
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    request_metrics.response_time[RequestDefinition.from_request(request)] = process_time
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception:
+        # Excepcion no controlada por los manejadores: se registra como 5xx antes de propagarla,
+        # para que un fallo del backend sea visible en /api/metrics y no solo en los logs.
+        request_metrics.record_request(request, status_code, time.time() - start_time)
+        raise
+
+    request_metrics.record_request(request, status_code, time.time() - start_time)
     return response
+
+
+def _request_duration_ms(request: Request) -> float:
+    start_time: float | None = getattr(request.state, "metrics_start_time", None)
+    if start_time is None:
+        return 0.0
+    return (time.time() - start_time) * 1000
+
+
+def log_and_count_route_error(request: Request, detail: object, status_code: int) -> None:
+    """Registra metrica y log de un error de negocio, sin datos sensibles.
+
+    S3.8b: solo se registran los `detail` que llevan un codigo del conjunto cerrado `ERROR_CODES`
+    (codigos de F3 y del protocolo de idempotencia). Nunca se registran cuerpos, cabeceras, tokens,
+    claves de idempotencia ni datos de entrada: si el `detail` no lleva un codigo conocido, no se
+    registra nada.
+    """
+    code = error_code_of(detail)
+    if code is None:
+        return
+
+    get_request_metrics().record_error(request, code)
+    logger.warning(
+        "request_error route=%s method=%s status=%s code=%s duration_ms=%.1f",
+        get_route_path(request),
+        request.method,
+        status_code,
+        code,
+        _request_duration_ms(request),
+    )
 
 
 @app.exception_handler(HTTPException)
@@ -158,11 +202,19 @@ async def validation_exception_handler(request: Request, exc: HTTPException) -> 
     # contrato de error no cambian.
     retry_after = None if exc.headers is None else exc.headers.get("Retry-After")
     headers = None if retry_after is None else {"Retry-After": retry_after}
+    log_and_count_route_error(request, exc.detail, exc.status_code)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=headers)
 
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error(
+        "request_error route=%s method=%s status=%s code=INTERNAL_ERROR exception=%s",
+        get_route_path(request),
+        request.method,
+        status.HTTP_500_INTERNAL_SERVER_ERROR,
+        type(exc).__name__,
+    )
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
