@@ -178,6 +178,46 @@ def action_url(lab: CompetitorLab, competitor_id: int, action: str) -> str:
     return f"{competitor_url(lab, competitor_id)}/{action}"
 
 
+async def history_rows(competitor_id: int) -> list[dict[str, Any]]:
+    """Historial de nombres del competidor, en orden cronologico."""
+    records = await database.fetch_all(
+        query="""
+            SELECT display_name, valid_from, valid_to
+            FROM competitors_name_history
+            WHERE competitor_id = :competitor_id
+            ORDER BY valid_from, id
+        """,
+        values={"competitor_id": competitor_id},
+    )
+    return [dict(record._mapping) for record in records]
+
+
+async def assert_history_is_coherent(
+    lab: CompetitorLab, competitor_id: int
+) -> list[dict[str, Any]]:
+    """Comprueba las invariantes del historial de nombres y devuelve las filas (S3.7b).
+
+    Cuatro condiciones, todas del contrato vigente del dominio: exactamente una entrada abierta,
+    ningun rango invertido, ningun solapamiento entre entradas consecutivas y el nombre vigente
+    igual al de la entrada abierta. No se comprueba unicidad parcial: el dominio no la declara.
+    """
+    rows = await history_rows(competitor_id)
+    open_rows = [row for row in rows if row["valid_to"] is None]
+    assert len(open_rows) == 1, "el historial debe dejar una sola entrada de nombre abierta"
+    for row in rows:
+        assert row["valid_to"] is None or row["valid_to"] > row["valid_from"], "rango invertido"
+    ordered = sorted(rows, key=lambda item: item["valid_from"])
+    for previous, following in zip(ordered, ordered[1:], strict=False):
+        assert previous["valid_to"] is not None, "una entrada cerrada sin cierre no puede preceder"
+        assert following["valid_from"] >= previous["valid_to"], "dos entradas se solapan"
+    current = await database.fetch_val(
+        query="SELECT display_name FROM competitors WHERE id = :competitor_id",
+        values={"competitor_id": competitor_id},
+    )
+    assert open_rows[0]["display_name"] == current
+    return rows
+
+
 async def call(
     method: str,
     url: str,

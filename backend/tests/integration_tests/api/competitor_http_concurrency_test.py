@@ -30,9 +30,11 @@ from bracket.utils.id_types import CompetitorId
 from tests.integration_tests.api.competitor_http_support import (
     CompetitorLab,
     action_url,
+    assert_history_is_coherent,
     call,
     competitor_lab_context,
     competitors_url,
+    history_rows,
 )
 from tests.integration_tests.api.generate_bracket_http_support import SYNTHETIC_SECRET
 from tests.integration_tests.registration_fixtures import competitor_audit_rows
@@ -119,15 +121,10 @@ async def test_the_same_key_in_flight_writes_a_single_identity(lab: CompetitorLa
     assert [row["action"] for row in await competitor_audit_rows(created_id)] == ["CREATE"]
 
 
-# Hallazgo S3.7a (documentado en docs/26 §50): dos renombrados simultaneos del mismo
-# competidor pueden chocar con ck_competitors_name_history_range porque el cierre del historial y
-# la apertura de la fila nueva toman NOW() (inicio de transaccion), no un reloj monotono: la
-# transaccion mas lenta cierra con un instante anterior al valid_from ya insertado. No se
-# silencia aqui el hallazgo: se declara la expectativa deseada y se marca como fallo conocido.
-@pytest.mark.xfail(
-    reason="cierre de historial con NOW() frente a valid_from de otra transaccion (domain gap)",
-    strict=False,
-)
+# Hallazgo S3.7a (documentado en docs/26 §50) y corregido en S3.7b: dos renombrados simultaneos del
+# mismo competidor chocaban con ck_competitors_name_history_range porque el cierre del historial y
+# la apertura de la fila nueva tomaban NOW() (inicio de transaccion) en vez de un reloj leido en el
+# momento efectivo de la mutacion. La prueba ya no se marca: exige el contrato completo.
 @pytest.mark.asyncio(loop_scope="session")
 async def test_two_renames_in_parallel_keep_the_history_coherent(lab: CompetitorLab) -> None:
     competitor_id = int(lab.active_competitors[0])
@@ -156,6 +153,9 @@ async def test_two_renames_in_parallel_keep_the_history_coherent(lab: Competitor
     assert len(open_names) == 1
     assert open_names[0] == (await current_row(competitor_id))["display_name"]
     assert set(open_names) <= target_names
+    # Ninguno de los dos estados comprometidos se pierde y los rangos siguen siendo validos.
+    history = await assert_history_is_coherent(lab, competitor_id)
+    assert target_names <= {str(row["display_name"]) for row in history}
     audit = await competitor_audit_rows(CompetitorId(competitor_id))
     assert [row["action"] for row in audit] == ["UPDATE", "UPDATE"]
 
@@ -191,6 +191,8 @@ async def test_a_rename_and_a_deactivation_converge(lab: CompetitorLab) -> None:
     second_audit = await competitor_audit_rows(CompetitorId(competitor_id))
     actions = [str(item["action"]) for item in second_audit]
     assert sorted(actions) == ["DEACTIVATE", "UPDATE"]
+    # El historial de nombres tambien queda coherente cuando compite con otra escritura.
+    await assert_history_is_coherent(lab, competitor_id)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -262,8 +264,103 @@ async def test_a_concurrent_burst_of_writes_never_breaks_the_contract(
         if response_status == status.HTTP_409_CONFLICT:
             assert body["detail"] in ("OPERATION_IN_PROGRESS", "LOCK_TIMEOUT")
     rafaga_counts = [
-        await count_by_name(int(lab.club), f"{lab.root_name}-rafaga-{index}") for index in range(3)
+        await count_by_name(int(lab.club), f"{lab.root_name}-rafaga-{index}")
+        for index in range(3)
     ]
     assert rafaga_counts == [1, 1, 1]
     competitor_id = int(lab.active_competitors[2])
     assert len(await open_history_names(competitor_id)) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_burst_of_renames_of_one_identity_leaves_one_open_entry(
+    lab: CompetitorLab,
+) -> None:
+    """Cuatro renombrados del mismo competidor: serializan y dejan el historial coherente."""
+    competitor_id = int(lab.active_competitors[0])
+    names = [f"{lab.root_name}-renombrada-{index}" for index in range(4)]
+
+    results = await asyncio.gather(
+        *(
+            call(
+                "POST",
+                action_url(lab, competitor_id, "rename"),
+                token=lab.owner_token,
+                key=new_key(),
+                payload={"display_name": name, "reason_code": RENAME_REASON},
+            )
+            for name in names
+        )
+    )
+
+    assert [response_status for response_status, _ in results] == [status.HTTP_200_OK] * 4
+    history = await assert_history_is_coherent(lab, competitor_id)
+    # Ninguna de las cuatro mutaciones comprometidas se pierde: todas estan en el historial.
+    assert set(names) <= {str(row["display_name"]) for row in history}
+    assert len(history) == len(names)
+    audit = [row["action"] for row in await competitor_audit_rows(CompetitorId(competitor_id))]
+    assert audit == ["UPDATE"] * 4
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_replayed_rename_is_a_single_effect(lab: CompetitorLab) -> None:
+    """La misma clave reproduce la respuesta sin volver a cerrar ni abrir historial."""
+    competitor_id = int(lab.active_competitors[1])
+    key = new_key()
+    renamed = f"{lab.root_name}-replay"
+    payload = {"display_name": renamed, "reason_code": RENAME_REASON}
+    url = action_url(lab, competitor_id, "rename")
+
+    first = await call("POST", url, token=lab.owner_token, key=key, payload=payload)
+    second = await call("POST", url, token=lab.owner_token, key=key, payload=payload)
+
+    assert first[0] == status.HTTP_200_OK
+    assert second == first
+    history = await assert_history_is_coherent(lab, competitor_id)
+    assert len(history) == 1
+    assert history[0]["valid_to"] is None
+    assert str(history[0]["display_name"]) == renamed
+
+    # Renombrar al nombre que ya esta vigente no abre historial nuevo ni duplica auditoria.
+    repeated = await call("POST", url, token=lab.owner_token, key=new_key(), payload=payload)
+    assert repeated[0] == status.HTTP_200_OK
+    assert len(await history_rows(competitor_id)) == 1
+    audit = [row["action"] for row in await competitor_audit_rows(CompetitorId(competitor_id))]
+    assert audit == ["UPDATE"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_rename_rejected_by_validation_leaves_no_partial_history(
+    lab: CompetitorLab,
+) -> None:
+    """Una carrera con una peticion invalida no deja historial a medias ni audita el rechazo."""
+    competitor_id = int(lab.active_competitors[2])
+    accepted_name = f"{lab.root_name}-valida"
+    url = action_url(lab, competitor_id, "rename")
+
+    results = await asyncio.gather(
+        call(
+            "POST",
+            url,
+            token=lab.owner_token,
+            key=new_key(),
+            payload={"display_name": accepted_name, "reason_code": RENAME_REASON},
+        ),
+        call(
+            "POST",
+            url,
+            token=lab.owner_token,
+            key=new_key(),
+            payload={"display_name": "", "reason_code": RENAME_REASON},
+        ),
+    )
+
+    by_status = {response_status: body for response_status, body in results}
+    assert sorted(by_status) == [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
+    # El rechazo es un error de dominio estable, sin internals de base de datos.
+    assert by_status[status.HTTP_400_BAD_REQUEST] == {"detail": "Competitor request is invalid"}
+    history = await assert_history_is_coherent(lab, competitor_id)
+    open_rows = [row for row in history if row["valid_to"] is None]
+    assert [str(row["display_name"]) for row in open_rows] == [accepted_name]
+    audit = [row["action"] for row in await competitor_audit_rows(CompetitorId(competitor_id))]
+    assert audit == ["UPDATE"]
