@@ -24,7 +24,9 @@ SYNTHETIC_JWT_SECRET = "synthetic-laboratory-secret-not-for-deployment"
 
 def test_f3_write_flag_is_disabled_by_default() -> None:
     """El campo nace apagado: desplegar la imagen de F3 no habilita escrituras por si solo."""
-    assert Config.model_fields["f3_write_enabled"].default is False
+    field = Config.model_fields.get("f3_write_enabled")
+    assert field is not None
+    assert field.default is False
 
 
 def test_f3_write_flag_reads_its_documented_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
