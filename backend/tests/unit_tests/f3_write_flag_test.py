@@ -36,8 +36,8 @@ def test_f3_write_flag_reads_its_documented_env_var(monkeypatch: pytest.MonkeyPa
 
 def test_f3_write_flag_is_not_the_bridge_flag() -> None:
     """No reutiliza la bandera del Bridge API: son campos distintos y sin acoplamiento."""
-    assert "f3_write_enabled" in Config.model_fields
-    assert "bracket_result_write_enabled" not in Config.model_fields
+    assert Config.model_fields.get("f3_write_enabled") is not None
+    assert Config.model_fields.get("bracket_result_write_enabled") is None
 
 
 def test_gate_fails_closed_with_a_stable_code(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -56,4 +56,4 @@ def test_gate_does_not_stand_in_the_way_when_enabled(monkeypatch: pytest.MonkeyP
     """Encendida, la puerta no decide nada: la ruta sigue con su autorizacion normal."""
     monkeypatch.setattr(config, "f3_write_enabled", True)
 
-    assert require_f3_write_enabled() is None
+    require_f3_write_enabled()

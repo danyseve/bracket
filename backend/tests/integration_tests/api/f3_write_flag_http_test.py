@@ -208,8 +208,7 @@ def test_gate_is_attached_only_to_the_f3_write_routes() -> None:
         for route in app.routes
         if isinstance(route, APIRoute)
         and any(
-            dependency.dependency is require_f3_write_enabled
-            for dependency in route.dependencies
+            dependency.dependency is require_f3_write_enabled for dependency in route.dependencies
         )
     )
 
@@ -369,7 +368,9 @@ async def test_authorisation_still_applies_when_enabled(
     )
     inactive_status, _ = await call("POST", path, token=lab.inactive_token, key=uuid4().hex)
     foreign_status, _ = await call(
-        "POST", f"tournaments/{lab.foreign_tournament}/generate-bracket", token=lab.owner_token,
+        "POST",
+        f"tournaments/{lab.foreign_tournament}/generate-bracket",
+        token=lab.owner_token,
         key=uuid4().hex,
     )
 

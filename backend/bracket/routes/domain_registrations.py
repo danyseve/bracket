@@ -92,6 +92,7 @@ from bracket.models.db.registration_api import (
 from bracket.models.db.tournament import Tournament
 from bracket.routes.domain_auth import actor_context_for_tournament
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
+from bracket.routes.f3_write_gate import require_f3_write_enabled
 from bracket.routes.util import disallow_archived_tournament
 from bracket.sql.bracket_readiness import (
     get_existing_single_elimination_brackets,
@@ -331,6 +332,7 @@ async def _execute(
 
 @router.post(
     "/tournaments/{tournament_id}/registrations",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -364,6 +366,7 @@ async def create_registration_endpoint(
 
 @router.post(
     "/tournaments/{tournament_id}/registrations/{registration_id}/confirm",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationResponse,
 )
 async def confirm_registration_endpoint(
@@ -392,6 +395,7 @@ async def confirm_registration_endpoint(
 
 @router.post(
     "/tournaments/{tournament_id}/registrations/{registration_id}/withdraw",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationResponse,
 )
 async def withdraw_registration_endpoint(
@@ -420,6 +424,7 @@ async def withdraw_registration_endpoint(
 
 @router.post(
     "/tournaments/{tournament_id}/registrations/{registration_id}/reinstate",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationResponse,
 )
 async def reinstate_registration_endpoint(
@@ -448,6 +453,7 @@ async def reinstate_registration_endpoint(
 
 @router.post(
     "/tournaments/{tournament_id}/registrations/{registration_id}/disqualify",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationResponse,
 )
 async def disqualify_registration_endpoint(
@@ -707,6 +713,7 @@ async def get_bracket_readiness_endpoint(
 
 @router.post(
     "/tournaments/{tournament_id}/registration-window",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationWindowResponse,
 )
 async def set_registration_window_endpoint(
@@ -741,6 +748,7 @@ async def set_registration_window_endpoint(
 
 @router.post(
     "/tournaments/{tournament_id}/registrations/close",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=RegistrationWindowResponse,
 )
 async def close_registrations_endpoint(
@@ -823,6 +831,7 @@ def _generation_outcome(tournament_id: TournamentId) -> OperationOutcome:
 
 @router.post(
     "/tournaments/{tournament_id}/generate-bracket",
+    dependencies=[Depends(require_f3_write_enabled)],
     response_model=GenerateBracketTournamentResponse,
 )
 async def generate_bracket_endpoint(

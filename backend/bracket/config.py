@@ -32,6 +32,11 @@ class Config(BaseSettings):
     allow_insecure_http_sso: bool = False
     allow_user_registration: bool = True
     allow_demo_user_registration: bool = True
+    # S3.6b (F3B): interruptor de escritura de F3 (ventana, inscripciones y generacion del cuadro).
+    # Por defecto **apagado**: desplegar la imagen de F3 no habilita ninguna escritura por si solo;
+    # el despliegue lo enciende de forma explicita. No depende de la bandera del Bridge API
+    # (`BRACKET_RESULT_WRITE_ENABLED`) ni la sustituye: ver `bracket/routes/f3_write_gate.py`.
+    f3_write_enabled: bool = False
     captcha_secret: str | None = None
     base_url: str = "http://localhost:8400"
     cors_origin_regex: str = ""
