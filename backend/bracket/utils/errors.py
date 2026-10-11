@@ -31,6 +31,7 @@ class ForeignKey(EnumAutoStr):
     matches_stage_item_input1_winner_from_match_id_fkey = auto()
     matches_stage_item_input2_id_fkey = auto()
     matches_stage_item_input2_winner_from_match_id_fkey = auto()
+    players_registration_id_fkey = auto()
     players_tournament_id_fkey = auto()
     players_x_teams_player_id_fkey = auto()
     players_x_teams_team_id_fkey = auto()
@@ -44,6 +45,13 @@ class ForeignKey(EnumAutoStr):
     stage_items_stage_id_fkey = auto()
     stages_tournament_id_fkey = auto()
     teams_tournament_id_fkey = auto()
+    # FK de F3 (integradas en S3.10) que entran en el subgrafo de borrado de un torneo: el esquema
+    # certificado las declara RESTRICT a proposito ("eliminar un torneo no puede borrar
+    # inscripciones historicas en cascada"), de modo que borrar un torneo con inscripciones se
+    # resuelve con el 409 seguro `TOURNAMENT_DELETE_CONFLICT`, nunca con un 500 por clave ajena.
+    tournament_registrations_corrects_registration_id_fkey = auto()
+    tournament_registrations_superseded_by_registration_id_fkey = auto()
+    tournament_registrations_tournament_id_fkey = auto()
     tournaments_club_id_fkey = auto()
 
 
