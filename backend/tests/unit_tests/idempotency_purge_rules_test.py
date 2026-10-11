@@ -8,6 +8,7 @@ dry-run informe sin borrar, y que la salida no lleve material de clave.
 from __future__ import annotations
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from heliclockter import datetime_utc
@@ -26,7 +27,7 @@ from bracket.logic.idempotency_purge import (
     PurgeReport,
 )
 
-NOW = datetime_utc(2026, 10, 11, 12, 0, 0)
+NOW = datetime_utc(2026, 10, 11, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
 FIRST_KEY = "purge-unit-key-0000000001"
 LONG_KEY = "purge-unit-key-0000000002"
 FIRST_FINGERPRINT = "a" * 64
@@ -58,17 +59,21 @@ def test_only_completed_reservations_are_purgeable() -> None:
 
 
 @pytest.mark.parametrize(
-    "kwargs",
+    ("batch_size", "max_batches", "grace_hours"),
     [
-        pytest.param({"batch_size": 0}, id="lote-de-cero-filas"),
-        pytest.param({"batch_size": -1}, id="lote-negativo"),
-        pytest.param({"max_batches": 0}, id="sin-lotes-no-hay-barrido"),
-        pytest.param({"grace_hours": -1}, id="margen-negativo"),
+        pytest.param(0, 1, 0, id="lote-de-cero-filas"),
+        pytest.param(-1, 1, 0, id="lote-negativo"),
+        pytest.param(1, 0, 0, id="sin-lotes-no-hay-barrido"),
+        pytest.param(1, 1, -1, id="margen-negativo"),
     ],
 )
-def test_policy_rejects_values_outside_the_declared_range(kwargs: dict[str, int]) -> None:
+def test_policy_rejects_values_outside_the_declared_range(
+    batch_size: int,
+    max_batches: int,
+    grace_hours: int,
+) -> None:
     with pytest.raises(ValueError):
-        PurgePolicy(**kwargs)
+        PurgePolicy(batch_size=batch_size, max_batches=max_batches, grace_hours=grace_hours)
 
 
 @pytest.mark.parametrize(

@@ -12,6 +12,13 @@ from bracket.app import app
 from bracket.config import config
 from bracket.database import database
 from bracket.logger import get_logger
+from bracket.logic.idempotency_purge import (
+    IDEMPOTENCY_PURGE_BATCH_SIZE_DEFAULT,
+    IDEMPOTENCY_PURGE_GRACE_HOURS_DEFAULT,
+    IDEMPOTENCY_PURGE_MAX_BATCHES_DEFAULT,
+    PurgePolicy,
+    purge_expired_idempotency_reservations,
+)
 from bracket.models.db.account import UserAccountType
 from bracket.models.db.user import UserInsertable
 from bracket.sql.clubs import sql_give_user_access_to_club
@@ -122,6 +129,53 @@ async def register_user(
     for club_id in club_ids:
         await sql_give_user_access_to_club(user_created.id, ClubId(club_id))
         logger.info(f"Granted OWNER access to club {club_id}")
+
+
+@cli.command()
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Cuenta las filas elegibles y no borra nada.",
+)
+@click.option(
+    "--batch-size",
+    type=int,
+    default=IDEMPOTENCY_PURGE_BATCH_SIZE_DEFAULT,
+    show_default=True,
+    help="Filas por sentencia de borrado.",
+)
+@click.option(
+    "--max-batches",
+    type=int,
+    default=IDEMPOTENCY_PURGE_MAX_BATCHES_DEFAULT,
+    show_default=True,
+    help="Tope de lotes por ejecucion.",
+)
+@click.option(
+    "--grace-hours",
+    type=int,
+    default=IDEMPOTENCY_PURGE_GRACE_HOURS_DEFAULT,
+    show_default=True,
+    help="Margen despues de expires_at antes de borrar (S3.8c).",
+)
+@run_async
+async def purge_idempotency_keys(
+    dry_run: bool, batch_size: int, max_batches: int, grace_hours: int
+) -> None:
+    """Purga fisica de claves de idempotencia caducadas (S3.8c, LAB ONLY).
+
+    Solo borra filas ``COMPLETED`` con ``expires_at`` anterior al margen. La salida son agregados:
+    nunca claves, huellas, payloads ni actores.
+    """
+    policy = PurgePolicy(
+        batch_size=batch_size,
+        max_batches=max_batches,
+        grace_hours=grace_hours,
+        dry_run=dry_run,
+    )
+    report = await purge_expired_idempotency_reservations(policy)
+    for line in report.render_lines():
+        logger.info(line)
 
 
 if __name__ == "__main__":

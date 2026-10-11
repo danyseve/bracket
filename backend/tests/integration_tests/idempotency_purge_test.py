@@ -40,14 +40,17 @@ from bracket.sql.idempotency import (
 )
 from bracket.utils.id_types import ClubId, UserId
 from tests.integration_tests.idempotency_fixtures import (
-    LAB_PAYLOAD,
     LAB_PATH,
+    LAB_PAYLOAD,
     IdempotencyLab,
     lab_completion,
     lab_reservation,
     reservations_in_tenant,
     stored_reservation,
 )
+
+# Las pruebas usan la base y las fixtures del laboratorio, atadas al bucle de sesion.
+pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 WAITING_TIMEOUT_SECONDS = 10
 LIFETIME = timedelta(hours=1)
@@ -79,9 +82,13 @@ SELECT_ROW_FOR_UPDATE = """
 """
 
 
-@dataclass(frozen=True)
+@dataclass
 class StoredReservationView:
-    """Vista minima de la fila persistida, tal y como la mira el clasificador del protocolo."""
+    """Vista minima de la fila persistida, tal y como la mira el clasificador del protocolo.
+
+    Mutable a proposito: el ``Protocol`` de la vista no declara atributos de solo lectura, asi que
+    una version congelada no satisface la firma.
+    """
 
     state: str
     request_fingerprint: str
@@ -112,12 +119,23 @@ def reservation(
     )
 
 
-async def insert_completed(lab: IdempotencyLab, *, key: str, age_hours: int) -> None:
+async def insert_completed(
+    lab: IdempotencyLab,
+    *,
+    key: str,
+    age_hours: int,
+    tenant_club_id: ClubId | None = None,
+    actor_user_id: UserId | None = None,
+) -> None:
     """Reserva **finalizada**: es la unica forma en que una fila caducada puede quedar elegible."""
-    await sql_insert_idempotency_reservation(reservation(lab, key=key, age_hours=age_hours))
+    tenant = tenant_club_id if tenant_club_id is not None else lab.club_a
+    actor = actor_user_id if actor_user_id is not None else lab.user_a
+    await sql_insert_idempotency_reservation(
+        reservation(lab, key=key, age_hours=age_hours, tenant_club_id=tenant, actor_user_id=actor)
+    )
     completed = await sql_complete_idempotency_reservation(
-        tenant_club_id=lab.club_a,
-        actor_user_id=lab.user_a,
+        tenant_club_id=tenant,
+        actor_user_id=actor,
         idempotency_key=key,
         completion=lab_completion(),
     )
@@ -455,7 +473,10 @@ async def test_purge_keeps_foreign_keys_and_other_tenants_intact(
     await drain()
     await insert_completed(lab, key=lab_purge_key("propia-00000000001"), age_hours=EXPIRED_HOURS)
     await insert_completed(
-        lab, key=neighbour_key, age_hours=EXPIRED_HOURS, tenant_club_id=lab.club_b,
+        lab,
+        key=neighbour_key,
+        age_hours=EXPIRED_HOURS,
+        tenant_club_id=lab.club_b,
         actor_user_id=lab.user_b,
     )
 
@@ -470,7 +491,9 @@ async def test_purge_keeps_foreign_keys_and_other_tenants_intact(
     with pytest.raises(asyncpg.exceptions.ForeignKeyViolationError):
         await sql_insert_idempotency_reservation(
             reservation(
-                lab, key=lab_purge_key("sin-club-0000001"), age_hours=0,
+                lab,
+                key=lab_purge_key("sin-club-0000001"),
+                age_hours=0,
                 tenant_club_id=absent_club,
             )
         )
