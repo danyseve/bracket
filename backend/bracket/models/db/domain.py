@@ -56,6 +56,7 @@ type DomainChangeLogAction = Literal[
     "DISQUALIFY",
     "SET_REGISTRATION_WINDOW",
     "CLOSE_REGISTRATIONS",
+    "GENERATE_BRACKET",
 ]
 # Estado de identidad que el llamador puede declarar en una inscripcion **sin**
 # competidor. ``VERIFIED`` no se acepta desde fuera: se deriva de ``competitor_id``.

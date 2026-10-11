@@ -39,6 +39,7 @@ from bracket.utils.id_types import (
     CompetitorId,
     CompetitorXSportsClubId,
     SportsClubId,
+    StageItemId,
     TournamentId,
     TournamentRegistrationId,
 )
@@ -204,6 +205,50 @@ class RegistrationWindowCloseBody(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+
+
+class GenerateBracketTournamentBody(BaseModel):
+    """La generacion no lleva datos: el cuerpo existe para que un campo de mas sea un 422.
+
+    No hay campo libre de motivo: generar el cuadro no es una transicion de una inscripcion y no
+    entra en el catalogo cerrado de motivos de S3.3c-2. El cuerpo tampoco puede aportar identidad,
+    tenant ni el estado del cuadro.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class GenerateBracketStageItemResponse(BaseModel):
+    """Reparto de un cuadro tras la generacion: los mismos campos de reparto que publica F2C.
+
+    Ni ``changed`` ni ningun otro dato de la llamada: la respuesta describe el **estado** del
+    reparto, y por eso una repeticion con la misma clave devuelve exactamente el mismo cuerpo. Que
+    la operacion escribiera algo queda en su evento de auditoria, no en el contrato de lectura.
+    """
+
+    stage_item_id: StageItemId
+    entrant_count: int
+    bracket_size: int
+    bye_count: int
+    ghost_count: int
+
+
+class GenerateBracketTournamentResponse(BaseModel):
+    """Resultado de generar los cuadros del torneo entero por accion explicita (S3.5a).
+
+    No publica ``stages_created``/``matches_created``: la generacion de F2C no crea ni fases ni
+    eliminatorias, escribe el reparto de las ranuras de los cuadros que ya existen.
+
+    ``generated`` es la **post-condicion** del torneo (hay al menos un cuadro con el minimo de
+    participantes de F2C), no "esta llamada concreta escribio algo": asi una repeticion con la misma
+    clave devuelve el mismo cuerpo. ``skipped_stage_items`` cuenta los cuadros que F2C no admite
+    generar ahora mismo y que por tanto no se han tocado.
+    """
+
+    tournament_id: TournamentId
+    generated: bool
+    stage_items: list[GenerateBracketStageItemResponse]
+    skipped_stage_items: int
 
 
 class BracketReadinessIssue(BaseModel):

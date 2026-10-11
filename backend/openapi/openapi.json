@@ -583,6 +583,79 @@
         "title": "GenerateBracketResponse",
         "type": "object"
       },
+      "GenerateBracketStageItemResponse": {
+        "description": "Reparto de un cuadro tras la generacion: los mismos campos de reparto que publica F2C.\n\nNi ``changed`` ni ningun otro dato de la llamada: la respuesta describe el **estado** del\nreparto, y por eso una repeticion con la misma clave devuelve exactamente el mismo cuerpo. Que\nla operacion escribiera algo queda en su evento de auditoria, no en el contrato de lectura.",
+        "properties": {
+          "bracket_size": {
+            "title": "Bracket Size",
+            "type": "integer"
+          },
+          "bye_count": {
+            "title": "Bye Count",
+            "type": "integer"
+          },
+          "entrant_count": {
+            "title": "Entrant Count",
+            "type": "integer"
+          },
+          "ghost_count": {
+            "title": "Ghost Count",
+            "type": "integer"
+          },
+          "stage_item_id": {
+            "title": "Stage Item Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stage_item_id",
+          "entrant_count",
+          "bracket_size",
+          "bye_count",
+          "ghost_count"
+        ],
+        "title": "GenerateBracketStageItemResponse",
+        "type": "object"
+      },
+      "GenerateBracketTournamentBody": {
+        "additionalProperties": false,
+        "description": "La generacion no lleva datos: el cuerpo existe para que un campo de mas sea un 422.\n\nNo hay campo libre de motivo: generar el cuadro no es una transicion de una inscripcion y no\nentra en el catalogo cerrado de motivos de S3.3c-2. El cuerpo tampoco puede aportar identidad,\ntenant ni el estado del cuadro.",
+        "properties": {},
+        "title": "GenerateBracketTournamentBody",
+        "type": "object"
+      },
+      "GenerateBracketTournamentResponse": {
+        "description": "Resultado de generar los cuadros del torneo entero por accion explicita (S3.5a).\n\nNo publica ``stages_created``/``matches_created``: la generacion de F2C no crea ni fases ni\neliminatorias, escribe el reparto de las ranuras de los cuadros que ya existen.\n\n``generated`` es la **post-condicion** del torneo (hay al menos un cuadro con el minimo de\nparticipantes de F2C), no \"esta llamada concreta escribio algo\": asi una repeticion con la misma\nclave devuelve el mismo cuerpo. ``skipped_stage_items`` cuenta los cuadros que F2C no admite\ngenerar ahora mismo y que por tanto no se han tocado.",
+        "properties": {
+          "generated": {
+            "title": "Generated",
+            "type": "boolean"
+          },
+          "skipped_stage_items": {
+            "title": "Skipped Stage Items",
+            "type": "integer"
+          },
+          "stage_items": {
+            "items": {
+              "$ref": "#/components/schemas/GenerateBracketStageItemResponse"
+            },
+            "title": "Stage Items",
+            "type": "array"
+          },
+          "tournament_id": {
+            "title": "Tournament Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tournament_id",
+          "generated",
+          "stage_items",
+          "skipped_stage_items"
+        ],
+        "title": "GenerateBracketTournamentResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4597,6 +4670,71 @@
         "summary": "Update Court By Id",
         "tags": [
           "Courts"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/generate-bracket": {
+      "post": {
+        "description": "Genera el cuadro de eliminacion directa del torneo por accion **explicita** del organizador.\n\nOWNER-only y con ``Idempotency-Key`` obligatoria: no hay ningun camino que genere al cerrar la\nventana, ni el cliente puede pedirla sin clave. El cuerpo esta vacio a proposito (un\ncampo de mas\nes un 422): el actor, el instante y el porque quedan en la auditoria, no en la peticion.\n\nLa peticion **no** se fia de la revision que el cliente haya leido antes: dentro de la misma\ntransaccion \u2014y con la fila del torneo ya bloqueada\u2014 la revision de S3.4d se recalcula.\nSi no esta\nlista no se escribe nada y se responde ``409 BRACKET_NOT_READY`` con los bloqueos derivados. Una\nventana ``OPEN`` nunca genera; ``DEADLINE_PASSED`` y ``CLOSED`` si, siempre que la revision\nglobal este lista. No se cierra la ventana ni se toca su plazo.\n\nLa generacion es la de F2C, sin reimplementar su algoritmo: reparador de despedidas,\ndeterminista y con su bloqueo propio. Un cuadro que F2C no admite generar (sin participantes,\nalimentado por otro, o con actividad encima) no se toca y se cuenta aparte; el reparto de los\ndemas se escribe entero o no se escribe nada, porque todo ocurre en una sola transaccion. Un\ntorneo archivado responde el mismo 400 que la generacion de F2C (regla que ya existia) y uno de\notro tenant el mismo 404 que uno inexistente, antes de mirar su estado.",
+        "operationId": "generate_bracket_endpoint_tournaments__tournament_id__generate_bracket_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateBracketTournamentBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateBracketTournamentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Generate Bracket Endpoint",
+        "tags": [
+          "Tournament Registrations"
         ]
       }
     },

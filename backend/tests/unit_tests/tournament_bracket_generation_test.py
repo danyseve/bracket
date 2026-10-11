@@ -3,7 +3,8 @@
 Sin base de datos y sin HTTP: lo que se fija aqui es que la generacion **no** reimplementa nada de
 lo certificado. Que cuadro se puede generar lo dice el bloqueo de F2C, el reparto lo dice su
 planificador, el minimo de participantes es su unico minimo y la revision es entera la de S3.4d. Si
-alguien duplicara una de esas reglas aqui, estos tests lo dejan en evidencia antes que la suite larga.
+alguien duplicara una de esas reglas aqui, estos tests lo dejan en evidencia antes que la
+suite larga.
 
 Los constructores de cuadros son los del test certificado de F2C (``tests.unit_tests.
 generate_bracket_test``): fabricar otros seria probar contra una estructura distinta de la que la
@@ -31,7 +32,7 @@ from tests.unit_tests.generate_bracket_test import make_generated_stage_item, ma
 
 
 def _with_id(stage_item: StageItemWithRounds, stage_item_id: int) -> StageItemWithRounds:
-    """El constructor de prueba de F2C usa siempre el mismo identificador; el orden necesita varios."""
+    """El constructor de F2C usa siempre el mismo identificador; el orden necesita varios."""
     return stage_item.model_copy(update={"id": StageItemId(stage_item_id)})
 
 
@@ -58,7 +59,7 @@ def test_plan_generatable_brackets_keeps_the_read_order() -> None:
 
 
 def test_plan_generatable_brackets_reuses_f2c_blockers() -> None:
-    """Un cuadro bloqueado por F2C no se toca: no se inventa un bloqueo propio ni se fuerza el plan."""
+    """Un cuadro bloqueado por F2C no se toca: no se inventa un bloqueo ni se fuerza el plan."""
     too_few = _with_id(make_stage_item(4, 1), 1)
     tentative = _with_id(make_stage_item(4, 2, tentative_slots=2), 2)
     playable = _with_id(make_stage_item(4, 2), 3)

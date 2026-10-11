@@ -36,6 +36,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette import status
 
 from bracket.config import config
+from bracket.logic.bracket_generation import (
+    BracketNotReadyError,
+    TournamentBracketGeneration,
+    generate_bracket_for_tournament,
+    read_tournament_bracket_generation,
+)
 from bracket.logic.bracket_readiness import (
     BracketReadiness,
     CategoryReadiness,
@@ -64,12 +70,16 @@ from bracket.logic.registrations import (
     reinstate_registration,
     withdraw_registration,
 )
+from bracket.logic.scheduling.generation import BracketGenerationPlan
 from bracket.models.db.domain import ActorContext, TournamentRegistration
 from bracket.models.db.registration_api import (
     BracketReadinessCategory,
     BracketReadinessIssue,
     BracketReadinessResponse,
     BracketReadinessSummary,
+    GenerateBracketStageItemResponse,
+    GenerateBracketTournamentBody,
+    GenerateBracketTournamentResponse,
     RegistrationCreateBody,
     RegistrationFilterStatus,
     RegistrationLifecycleBody,
@@ -79,8 +89,10 @@ from bracket.models.db.registration_api import (
     RegistrationWindowCloseBody,
     RegistrationWindowResponse,
 )
+from bracket.models.db.tournament import Tournament
 from bracket.routes.domain_auth import actor_context_for_tournament
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
+from bracket.routes.util import disallow_archived_tournament
 from bracket.sql.bracket_readiness import (
     get_existing_single_elimination_brackets,
     get_registration_readiness_rows,
@@ -90,7 +102,12 @@ from bracket.sql.domain_reads import (
     get_registration,
     list_tournament_registrations,
 )
-from bracket.utils.id_types import CompetitorId, TournamentId, TournamentRegistrationId
+from bracket.utils.id_types import (
+    CompetitorId,
+    StageItemId,
+    TournamentId,
+    TournamentRegistrationId,
+)
 from bracket.utils.pagination import PaginationRegistrations
 
 router = APIRouter(prefix=config.api_prefix)
@@ -98,9 +115,10 @@ router = APIRouter(prefix=config.api_prefix)
 #: ``resource_type`` de la reserva de idempotencia (el mismo valor que la entidad de auditoria).
 _RESOURCE_TYPE = "tournament_registration"
 
-#: Las escrituras de la ventana son del **torneo**, no de una inscripcion: mismo criterio que su
-#: auditoria (``entity='tournament'``) y sin tocar la lista cerrada de recursos del protocolo.
-_WINDOW_RESOURCE_TYPE = "tournament"
+#: Las escrituras administrativas del torneo (ventana de S3.4c y generacion del cuadro de S3.5a)
+#: son del **torneo**, no de una inscripcion: mismo criterio que su auditoria
+#: (``entity='tournament'``) y sin tocar la lista cerrada de recursos del protocolo.
+_TOURNAMENT_RESOURCE_TYPE = "tournament"
 
 # Un rechazo de autorizacion del dominio usa el codigo del catalogo certificado (S3.3d §11), no su
 # mensaje interno: el contrato es el codigo.
@@ -120,6 +138,7 @@ _NOT_FOUND_DETAIL = "Not Found"
 _REQUEST_INVALID_DETAIL = "Registration request is invalid"
 _STATE_CONFLICT_DETAIL = "Registration state does not allow this operation"
 _DUPLICATE_DETAIL = "Registration already exists"
+_BRACKET_NOT_READY = "BRACKET_NOT_READY"
 
 
 class _ErrorMapping(NamedTuple):
@@ -163,11 +182,47 @@ def _http_exception(error: Exception) -> HTTPException:
     La lista es cerrada y el orden de ``_ERROR_MAP`` decide. Un error de la familia que no este
     contemplado **no** se convierte en un 4xx adivinado: sale como 500, igual que un codigo de
     idempotencia desconocido.
+
+    El rechazo por revision se traduce aparte porque es el **unico** cuyo cuerpo no es solo el
+    codigo: lleva los bloqueos derivados. El codigo sigue siendo el primero y sigue siendo cerrado.
     """
+    if isinstance(error, BracketNotReadyError):
+        return _not_ready_exception(error)
+
     for mapping in _ERROR_MAP:
         if isinstance(error, mapping.error_types):
             return HTTPException(status_code=mapping.status_code, detail=mapping.detail)
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=_STATE_ERROR)
+
+
+def _readiness_issue(entry: ReadinessIssue) -> BracketReadinessIssue:
+    """Bloqueo de la revision en su forma publica: codigo del vocabulario cerrado y recuentos."""
+    return BracketReadinessIssue(
+        code=entry.code,
+        count=entry.count,
+        category_key=entry.category_key,
+        required_minimum=entry.required_minimum,
+    )
+
+
+def _not_ready_exception(error: BracketNotReadyError) -> HTTPException:
+    """Rechazo por revision: ``409 BRACKET_NOT_READY`` con los bloqueos **derivados**.
+
+    Sin ellos el cliente no puede actuar y tendria que repetir la revision; son la misma proyeccion
+    publica y segura que devuelve la revision GET (codigos del vocabulario cerrado y recuentos), sin
+    filas, sin identidades, sin el actor y sin el tenant. La revision que viaja es la que se
+    **recalculo** dentro de la transaccion, no la que el cliente pudo leer antes.
+    """
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": _BRACKET_NOT_READY,
+            "blocking_issues": [
+                _readiness_issue(issue).model_dump(mode="json") for issue in error.readiness.issues
+            ],
+            "registration_window": error.readiness.window_state,
+        },
+    )
 
 
 def _assert_registration_is_in_tournament(
@@ -515,7 +570,7 @@ def _window_outcome(window: RegistrationWindow) -> OperationOutcome:
     return OperationOutcome(
         response_status=status.HTTP_200_OK,
         metadata={"resource_id": window.tournament_id},
-        resource_type=_WINDOW_RESOURCE_TYPE,
+        resource_type=_TOURNAMENT_RESOURCE_TYPE,
         resource_id=window.tournament_id,
     )
 
@@ -581,14 +636,6 @@ def _readiness_response(readiness: BracketReadiness) -> BracketReadinessResponse
     nada: dos revisiones del mismo estado devuelven exactamente lo mismo.
     """
 
-    def issue(entry: ReadinessIssue) -> BracketReadinessIssue:
-        return BracketReadinessIssue(
-            code=entry.code,
-            count=entry.count,
-            category_key=entry.category_key,
-            required_minimum=entry.required_minimum,
-        )
-
     def category(entry: CategoryReadiness) -> BracketReadinessCategory:
         return BracketReadinessCategory(
             category_key=entry.category_key,
@@ -596,7 +643,7 @@ def _readiness_response(readiness: BracketReadiness) -> BracketReadinessResponse
             confirmed_count=entry.confirmed_count,
             required_minimum=entry.required_minimum,
             ready=entry.ready,
-            blocking_issues=[issue(item) for item in entry.issues],
+            blocking_issues=[_readiness_issue(item) for item in entry.issues],
         )
 
     return BracketReadinessResponse(
@@ -611,7 +658,7 @@ def _readiness_response(readiness: BracketReadiness) -> BracketReadinessResponse
             disqualified=readiness.summary.disqualified,
         ),
         categories=[category(entry) for entry in readiness.categories],
-        blocking_issues=[issue(entry) for entry in readiness.issues],
+        blocking_issues=[_readiness_issue(entry) for entry in readiness.issues],
     )
 
 
@@ -722,3 +769,100 @@ async def close_registrations_endpoint(
         tournament_id=tournament_id,
     )
     return _window_response(window)
+
+
+# --- generacion explicita del cuadro del torneo (S3.5a) -----------------------------------------
+
+
+def _generation_stage_item(
+    stage_item_id: StageItemId, plan: BracketGenerationPlan
+) -> GenerateBracketStageItemResponse:
+    """Un cuadro en su forma publica: solo el reparto, nunca el identificador de sus equipos."""
+    return GenerateBracketStageItemResponse(
+        stage_item_id=stage_item_id,
+        entrant_count=plan.entrant_count,
+        bracket_size=plan.bracket_size,
+        bye_count=plan.bye_count,
+        ghost_count=plan.ghost_count,
+    )
+
+
+def _generation_response(
+    generation: TournamentBracketGeneration,
+) -> GenerateBracketTournamentResponse:
+    """Proyeccion publica de la generacion: el reparto de cada cuadro y el recuento de los fuera.
+
+    No hay campos nuevos que inventar: cada cuadro viaja como el reparto que ya publica la ruta de
+    F2C (participantes, tamano, despedidas y huecos) y el torneo con su recuento. Ni el actor, ni el
+    tenant, ni las ranuras, ni los equipos salen de aqui.
+    """
+    return GenerateBracketTournamentResponse(
+        tournament_id=generation.tournament_id,
+        generated=generation.generated,
+        stage_items=[
+            _generation_stage_item(bracket.stage_item_id, bracket.plan)
+            for bracket in generation.brackets
+        ],
+        skipped_stage_items=generation.skipped_stage_items,
+    )
+
+
+def _generation_outcome(tournament_id: TournamentId) -> OperationOutcome:
+    """Lo unico que el protocolo guarda de una generacion: su codigo y su torneo.
+
+    La respuesta no se guarda: se reconstruye releyendo el reparto, y esa relectura es justo lo que
+    hace que un replay devuelva el mismo cuerpo sin volver a generar nada.
+    """
+    return OperationOutcome(
+        response_status=status.HTTP_200_OK,
+        metadata={"resource_id": tournament_id},
+        resource_type=_TOURNAMENT_RESOURCE_TYPE,
+        resource_id=tournament_id,
+    )
+
+
+@router.post(
+    "/tournaments/{tournament_id}/generate-bracket",
+    response_model=GenerateBracketTournamentResponse,
+)
+async def generate_bracket_endpoint(
+    tournament_id: TournamentId,
+    request: Request,
+    body: GenerateBracketTournamentBody | None = None,
+    context: ActorContext = Depends(actor_context_for_tournament),
+    _: Tournament = Depends(disallow_archived_tournament),
+) -> GenerateBracketTournamentResponse:
+    """Genera el cuadro de eliminacion directa del torneo por accion **explicita** del organizador.
+
+    OWNER-only y con ``Idempotency-Key`` obligatoria: no hay ningun camino que genere al cerrar la
+    ventana, ni el cliente puede pedirla sin clave. El cuerpo esta vacio a proposito (un
+    campo de mas
+    es un 422): el actor, el instante y el porque quedan en la auditoria, no en la peticion.
+
+    La peticion **no** se fia de la revision que el cliente haya leido antes: dentro de la misma
+    transaccion —y con la fila del torneo ya bloqueada— la revision de S3.4d se recalcula.
+    Si no esta
+    lista no se escribe nada y se responde ``409 BRACKET_NOT_READY`` con los bloqueos derivados. Una
+    ventana ``OPEN`` nunca genera; ``DEADLINE_PASSED`` y ``CLOSED`` si, siempre que la revision
+    global este lista. No se cierra la ventana ni se toca su plazo.
+
+    La generacion es la de F2C, sin reimplementar su algoritmo: reparador de despedidas,
+    determinista y con su bloqueo propio. Un cuadro que F2C no admite generar (sin participantes,
+    alimentado por otro, o con actividad encima) no se toca y se cuenta aparte; el reparto de los
+    demas se escribe entero o no se escribe nada, porque todo ocurre en una sola transaccion. Un
+    torneo archivado responde el mismo 400 que la generacion de F2C (regla que ya existia) y uno de
+    otro tenant el mismo 404 que uno inexistente, antes de mirar su estado.
+    """
+
+    async def operation() -> OperationOutcome:
+        await generate_bracket_for_tournament(context, tournament_id)
+        return _generation_outcome(tournament_id)
+
+    await _run_protocol(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
+        require_owner=True,
+    )
+    return _generation_response(await read_tournament_bracket_generation(context, tournament_id))
