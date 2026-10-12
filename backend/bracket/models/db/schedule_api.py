@@ -26,7 +26,14 @@ class ScheduleGenerateBody(BaseModel):
     #: Tatamis activos del evento. ``None`` = todos los del torneo (no siempre son seis, §1).
     court_ids: list[CourtId] | None = None
     #: Solo se mueve una asignacion explicita si el organizador lo pide expresamente (§8).
-    preserve_assigned: bool = True
+    preserve_assigned: bool = Field(
+        True,
+        description=(
+            "true: conserva todas las asignaciones ya existentes, asi que sobre un plan completo "
+            "puede resultar en moved=0. false: permite replanificarlas segun el contrato del "
+            "planificador."
+        ),
+    )
 
 
 class ScheduleSummaryResponse(BaseModel):

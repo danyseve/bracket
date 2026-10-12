@@ -2999,6 +2999,7 @@
           },
           "preserve_assigned": {
             "default": true,
+            "description": "true: conserva todas las asignaciones ya existentes, asi que sobre un plan completo puede resultar en moved=0. false: permite replanificarlas segun el contrato del planificador.",
             "title": "Preserve Assigned",
             "type": "boolean"
           },
