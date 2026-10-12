@@ -4672,7 +4672,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -5328,6 +5328,49 @@
         "summary": "Healthcheck ping",
         "tags": [
           "Internals"
+        ]
+      }
+    },
+    "/public/tournaments/{tournament_id}/schedule": {
+      "get": {
+        "description": "Calendario publico del torneo: por tatami, AHORA, SIGUIENTE y los siguientes (\u00a712).",
+        "operationId": "get_public_tournament_schedule_endpoint_public_tournaments__tournament_id__schedule_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Tournament Schedule Endpoint",
+        "tags": [
+          "Public Schedule"
         ]
       }
     },

@@ -486,5 +486,18 @@
   "tatami_bracket_count_label": "Schema's",
   "tatami_next_match_label": "Volgende partij",
   "tatami_no_brackets": "Geen schema's",
-  "f3_error_category_in_use": "Dit schema is al begonnen: rond de partijen af of maak ze leeg voordat je het verplaatst."
+  "f3_error_category_in_use": "Dit schema is al begonnen: rond de partijen af of maak ze leeg voordat je het verplaatst.",
+  "public_state_now": "Nu",
+  "public_state_next": "Volgende",
+  "public_state_upcoming": "Binnenkort",
+  "public_state_waiting": "In afwachting",
+  "public_state_completed": "Afgerond",
+  "public_state_delayed": "Vertraagd",
+  "public_schedule_waiting_for": "Wacht op {{names}}",
+  "public_schedule_lag": "+{{minutes}} min vertraging",
+  "public_schedule_empty": "Geen gevechten in de wachtrij op deze mat",
+  "public_schedule_completed_title": "Laatste resultaten",
+  "public_schedule_updated": "Bijgewerkt om {{time}}",
+  "public_schedule_nothing": "Niets meer te vechten",
+  "public_schedule_unavailable": "Het openbare scherm is niet beschikbaar voor dit toernooi"
 }

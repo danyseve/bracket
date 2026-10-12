@@ -486,5 +486,18 @@
   "tatami_bracket_count_label": "Bäume",
   "tatami_next_match_label": "Nächster Kampf",
   "tatami_no_brackets": "Keine Bäume",
-  "f3_error_category_in_use": "Diese Kategorie läuft bereits: Kämpfe beenden oder leeren, bevor du sie verschiebst."
+  "f3_error_category_in_use": "Diese Kategorie läuft bereits: Kämpfe beenden oder leeren, bevor du sie verschiebst.",
+  "public_state_now": "Jetzt",
+  "public_state_next": "Als Nächstes",
+  "public_state_upcoming": "Demnächst",
+  "public_state_waiting": "Wartet",
+  "public_state_completed": "Beendet",
+  "public_state_delayed": "Verspätet",
+  "public_schedule_waiting_for": "Wartet auf {{names}}",
+  "public_schedule_lag": "+{{minutes}} Min. Verspätung",
+  "public_schedule_empty": "Keine Kämpfe auf dieser Matte in der Warteschlange",
+  "public_schedule_completed_title": "Letzte Ergebnisse",
+  "public_schedule_updated": "Aktualisiert um {{time}}",
+  "public_schedule_nothing": "Nichts mehr zu kämpfen",
+  "public_schedule_unavailable": "Die öffentliche Anzeige ist für dieses Turnier nicht verfügbar"
 }

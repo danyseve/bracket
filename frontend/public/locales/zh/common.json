@@ -486,5 +486,18 @@
   "tatami_bracket_count_label": "对阵表",
   "tatami_next_match_label": "下一场比赛",
   "tatami_no_brackets": "没有对阵表",
-  "f3_error_category_in_use": "该组别已经开始：请在移动前结束或清空它的比赛。"
+  "f3_error_category_in_use": "该组别已经开始：请在移动前结束或清空它的比赛。",
+  "public_state_now": "现在",
+  "public_state_next": "下一场",
+  "public_state_upcoming": "即将开始",
+  "public_state_waiting": "等待中",
+  "public_state_completed": "已完成",
+  "public_state_delayed": "延误",
+  "public_schedule_waiting_for": "等待 {{names}}",
+  "public_schedule_lag": "+{{minutes}} 分钟延误",
+  "public_schedule_empty": "该场地暂无待赛比赛",
+  "public_schedule_completed_title": "最新结果",
+  "public_schedule_updated": "{{time}} 更新",
+  "public_schedule_nothing": "没有剩余比赛",
+  "public_schedule_unavailable": "该赛事的公开画面不可用"
 }

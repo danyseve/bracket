@@ -29,6 +29,7 @@ from bracket.routes import (
     internals,
     matches,
     players,
+    public_schedule,
     rankings,
     rounds,
     stage_item_inputs,
@@ -93,6 +94,7 @@ routers = {
     "Tournament Registrations": domain_registrations.router,
     "Tournaments": tournaments.router,
     "Domain Schedule": domain_schedule.router,
+    "Public Schedule": public_schedule.router,
     "Users": users.router,
 }
 

@@ -486,5 +486,18 @@
   "tatami_bracket_count_label": "Scheman",
   "tatami_next_match_label": "Nästa match",
   "tatami_no_brackets": "Inga scheman",
-  "f3_error_category_in_use": "Den här kategorin pågår redan: avsluta eller töm dess matcher innan du flyttar den."
+  "f3_error_category_in_use": "Den här kategorin pågår redan: avsluta eller töm dess matcher innan du flyttar den.",
+  "public_state_now": "Nu",
+  "public_state_next": "Nästa",
+  "public_state_upcoming": "Kommande",
+  "public_state_waiting": "Väntar",
+  "public_state_completed": "Avslutad",
+  "public_state_delayed": "Försenad",
+  "public_schedule_waiting_for": "Väntar på {{names}}",
+  "public_schedule_lag": "+{{minutes}} min försening",
+  "public_schedule_empty": "Inga matcher i kö på denna matta",
+  "public_schedule_completed_title": "Senaste resultaten",
+  "public_schedule_updated": "Uppdaterad {{time}}",
+  "public_schedule_nothing": "Inget kvar att matcha",
+  "public_schedule_unavailable": "Den publika skärmen är inte tillgänglig för den här turneringen"
 }

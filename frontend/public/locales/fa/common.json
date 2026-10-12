@@ -472,5 +472,18 @@
   "tatami_bracket_count_label": "جدول‌ها",
   "tatami_next_match_label": "مسابقه بعدی",
   "tatami_no_brackets": "بدون جدول",
-  "f3_error_category_in_use": "این دسته در حال اجراست: پیش از جابه‌جایی، مسابقاتش را تمام یا خالی کنید."
+  "f3_error_category_in_use": "این دسته در حال اجراست: پیش از جابه‌جایی، مسابقاتش را تمام یا خالی کنید.",
+  "public_state_now": "اکنون",
+  "public_state_next": "بعدی",
+  "public_state_upcoming": "پیش رو",
+  "public_state_waiting": "در انتظار",
+  "public_state_completed": "پایان یافته",
+  "public_state_delayed": "با تأخیر",
+  "public_schedule_waiting_for": "در انتظار {{names}}",
+  "public_schedule_lag": "+{{minutes}} دقیقه تأخیر",
+  "public_schedule_empty": "هیچ مبارزه‌ای در صف این تاتامی نیست",
+  "public_schedule_completed_title": "آخرین نتایج",
+  "public_schedule_updated": "به‌روزرسانی در {{time}}",
+  "public_schedule_nothing": "چیزی برای مبارزه باقی نمانده",
+  "public_schedule_unavailable": "صفحه عمومی برای این مسابقات در دسترس نیست"
 }

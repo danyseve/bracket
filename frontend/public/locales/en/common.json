@@ -537,5 +537,18 @@
   "tatami_bracket_count_label": "Brackets",
   "tatami_next_match_label": "Next match",
   "tatami_no_brackets": "No brackets",
-  "f3_error_category_in_use": "This category is already under way: finish or clear its matches before moving it."
+  "f3_error_category_in_use": "This category is already under way: finish or clear its matches before moving it.",
+  "public_state_now": "Now",
+  "public_state_next": "Next",
+  "public_state_upcoming": "Upcoming",
+  "public_state_waiting": "Waiting",
+  "public_state_completed": "Completed",
+  "public_state_delayed": "Delayed",
+  "public_schedule_waiting_for": "Waiting for {{names}}",
+  "public_schedule_lag": "+{{minutes}} min late",
+  "public_schedule_empty": "No fights queued on this mat",
+  "public_schedule_completed_title": "Latest results",
+  "public_schedule_updated": "Updated at {{time}}",
+  "public_schedule_nothing": "Nothing left to fight",
+  "public_schedule_unavailable": "The public screen is not available for this tournament"
 }

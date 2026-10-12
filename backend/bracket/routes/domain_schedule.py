@@ -82,7 +82,7 @@ def _summary(
     }
 
 
-async def _load_schedule_view(
+async def load_schedule_view(
     *, tournament_id: TournamentId, upcoming_limit: int = 3
 ) -> TournamentScheduleResponse:
     """Vista de calendario del torneo: solo datos deportivos, con la estimacion ya derivada.
@@ -90,6 +90,9 @@ async def _load_schedule_view(
     Es una lectura: no escribe nada ni mueve el plan. El guardian de privacidad se aplica aqui
     tambien, porque esta vista y la publica comparten cuerpo: si alguien anade un dato privado al
     contrato, esta ruta falla en vez de publicarlo.
+
+    La comparte con la ruta publica (``routes/public_schedule.py``): el cuerpo es el mismo y solo
+    cambia quien puede pedirlo.
     """
     tournament = await sql_get_tournament(tournament_id)
     courts = await get_all_courts_in_tournament(tournament_id)
@@ -211,4 +214,4 @@ async def get_tournament_schedule_endpoint(
     context: ActorContext = Depends(actor_context_for_tournament),
 ) -> TournamentScheduleResponse:
     """Vista de calendario del organizador: por tatami, AHORA, SIGUIENTE y los siguientes (§12)."""
-    return await _load_schedule_view(tournament_id=tournament_id)
+    return await load_schedule_view(tournament_id=tournament_id)

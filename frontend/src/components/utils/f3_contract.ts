@@ -399,3 +399,75 @@ export function sortCategories<
     );
   });
 }
+
+/* -------------------------------------------------------------------------------------------- */
+/* S4.5 — pantalla pública del planificador (la grada).                                          */
+/* Los estados los decide el servidor: la pantalla los pinta, no los calcula.                    */
+/* -------------------------------------------------------------------------------------------- */
+
+/** Sondeo de la pantalla, en milisegundos: dentro de la ventana de 5–10 s que pide la grada. */
+export const PUBLIC_SCHEDULE_POLL_MS = 5_000;
+
+/** Estados que publica `GET /public/tournaments/{tid}/schedule` (vocabulario cerrado de S4.5). */
+export type PublicScheduleState = 'NOW' | 'NEXT' | 'UPCOMING' | 'WAITING' | 'COMPLETED' | 'DELAYED';
+
+export const PUBLIC_SCHEDULE_STATES: PublicScheduleState[] = [
+  'NOW',
+  'NEXT',
+  'UPCOMING',
+  'WAITING',
+  'COMPLETED',
+  'DELAYED',
+];
+
+/** Ficha pública de un combate: solo datos deportivos, nada de cuenta. */
+export interface PublicScheduleMatch {
+  match_id: number;
+  category: string;
+  round_name: string;
+  fighter_a: string | null;
+  fighter_b: string | null;
+  scheduled_start: string | null;
+  estimated_start: string | null;
+  state: string;
+  position_in_schedule: number | null;
+  waiting_for: string[];
+}
+
+/** Bloque de un tatami: AHORA, SIGUIENTE, los siguientes y lo último terminado. */
+export interface PublicScheduleCourt {
+  court_id: number;
+  court_name: string;
+  lag_minutes: number;
+  current: PublicScheduleMatch | null;
+  next: PublicScheduleMatch | null;
+  upcoming: PublicScheduleMatch[];
+  completed: PublicScheduleMatch[];
+}
+
+/** Cuerpo público completo (`tournament`, `generated_at`, `courts`). */
+export interface PublicSchedulePayload {
+  tournament: { name: string; start_time: string | null };
+  generated_at: string;
+  courts: PublicScheduleCourt[];
+}
+
+/**
+ * Ruta pública del calendario, sin sesión.
+ *
+ * La puerta la abre el panel público del torneo: si está apagado, el backend responde 401 y la
+ * pantalla lo dice (no se cae).
+ */
+export function publicScheduleUrl(tournament_id: number): string {
+  return `public/tournaments/${tournament_id}/schedule`;
+}
+
+/** Clave de traducción del estado visible: `NOW` → `public_state_now`. */
+export function publicStateKey(state: string): string {
+  return `public_state_${String(state).toLowerCase()}`;
+}
+
+/** Un estado que la pantalla no conoce no se pinta como si fuera uno de los suyos. */
+export function isPublicScheduleState(state: string): boolean {
+  return (PUBLIC_SCHEDULE_STATES as string[]).includes(state);
+}

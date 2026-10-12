@@ -486,5 +486,18 @@
   "tatami_bracket_count_label": "Ταμπλό",
   "tatami_next_match_label": "Επόμενος αγώνας",
   "tatami_no_brackets": "Χωρίς ταμπλό",
-  "f3_error_category_in_use": "Αυτή η κατηγορία έχει ήδη ξεκινήσει: ολοκλήρωσε ή άδειασε τους αγώνες της πριν τη μεταφέρεις."
+  "f3_error_category_in_use": "Αυτή η κατηγορία έχει ήδη ξεκινήσει: ολοκλήρωσε ή άδειασε τους αγώνες της πριν τη μεταφέρεις.",
+  "public_state_now": "Τώρα",
+  "public_state_next": "Επόμενο",
+  "public_state_upcoming": "Στη συνέχεια",
+  "public_state_waiting": "Σε αναμονή",
+  "public_state_completed": "Ολοκληρώθηκε",
+  "public_state_delayed": "Με καθυστέρηση",
+  "public_schedule_waiting_for": "Αναμονή για {{names}}",
+  "public_schedule_lag": "+{{minutes}} λεπτά καθυστέρηση",
+  "public_schedule_empty": "Δεν υπάρχουν αγώνες σε αναμονή σε αυτό το τατάμι",
+  "public_schedule_completed_title": "Τελευταία αποτελέσματα",
+  "public_schedule_updated": "Ενημερώθηκε στις {{time}}",
+  "public_schedule_nothing": "Δεν απομένει τίποτα για αγώνα",
+  "public_schedule_unavailable": "Η δημόσια οθόνη δεν είναι διαθέσιμη για αυτό το τουρνουά"
 }

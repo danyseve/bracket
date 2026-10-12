@@ -486,5 +486,18 @@
   "tatami_bracket_count_label": "Tableaux",
   "tatami_next_match_label": "Prochain combat",
   "tatami_no_brackets": "Aucun tableau",
-  "f3_error_category_in_use": "Cette catégorie est déjà en cours : termine ou vide ses combats avant de la déplacer."
+  "f3_error_category_in_use": "Cette catégorie est déjà en cours : termine ou vide ses combats avant de la déplacer.",
+  "public_state_now": "Maintenant",
+  "public_state_next": "Suivant",
+  "public_state_upcoming": "À venir",
+  "public_state_waiting": "En attente",
+  "public_state_completed": "Terminé",
+  "public_state_delayed": "En retard",
+  "public_schedule_waiting_for": "En attente de {{names}}",
+  "public_schedule_lag": "+{{minutes}} min de retard",
+  "public_schedule_empty": "Aucun combat en attente sur ce tatami",
+  "public_schedule_completed_title": "Derniers résultats",
+  "public_schedule_updated": "Mis à jour à {{time}}",
+  "public_schedule_nothing": "Plus rien à combattre",
+  "public_schedule_unavailable": "L'écran public n'est pas disponible pour ce tournoi"
 }

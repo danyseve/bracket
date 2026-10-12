@@ -3,6 +3,11 @@ import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 import { useNavigate } from 'react-router';
 import useSWR, { SWRResponse } from 'swr';
 
+import {
+  PUBLIC_SCHEDULE_POLL_MS,
+  PublicSchedulePayload,
+  publicScheduleUrl,
+} from '@components/utils/f3_contract';
 import { SchedulerSettings } from '@components/utils/match';
 import { TournamentFilter } from '@components/utils/tournament';
 import { Pagination } from '@components/utils/util';
@@ -220,6 +225,18 @@ export function getCourts(tournament_id: number): SWRResponse<CourtsResponse> {
 export function getCourtsLive(tournament_id: number | null): SWRResponse<CourtsResponse> {
   return useSWR(tournament_id == null ? null : `tournaments/${tournament_id}/courts`, fetcher, {
     refreshInterval: 60_000,
+  });
+}
+
+/**
+ * Pantalla pública del planificador (S4.5). Sondea cada pocos segundos: la TV solo repinta lo que
+ * el backend decide, no calcula estados por su cuenta.
+ */
+export function getPublicScheduleLive(
+  tournament_id: number | null
+): SWRResponse<PublicSchedulePayload> {
+  return useSWR(tournament_id == null ? null : publicScheduleUrl(tournament_id), fetcher, {
+    refreshInterval: PUBLIC_SCHEDULE_POLL_MS,
   });
 }
 
