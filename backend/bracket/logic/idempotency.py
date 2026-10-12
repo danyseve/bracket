@@ -63,14 +63,30 @@ IDEMPOTENCY_KEY_VERSION_PATTERN = re.compile(r"\Av[0-9]{1,3}\Z")
 # operacion necesita devolver datos al cliente, se reconstruyen a partir del recurso y se vuelven a
 # autorizar; lo guardado aqui **no** es una respuesta lista para reenviar.
 IDEMPOTENCY_ALLOWED_RESPONSE_KEYS: tuple[str, ...] = (
+    "affected_match_count",
     "audit_event_id",
     "competitor_id",
+    "court_id",
+    "court_name",
     "registration_status",
     "resource_id",
     "resource_type",
+    "stage_item_id",
 )
-IDEMPOTENCY_INTEGER_RESPONSE_KEYS = ("audit_event_id", "competitor_id", "resource_id")
-IDEMPOTENCY_TEXT_RESPONSE_KEYS = ("registration_status", "resource_type")
+#: Identificadores enteros positivos.
+IDEMPOTENCY_INTEGER_RESPONSE_KEYS = (
+    "audit_event_id",
+    "competitor_id",
+    "resource_id",
+    "stage_item_id",
+)
+#: Identificadores que admiten ``null`` como valor del contrato ("sin tatami"), no como ausencia.
+IDEMPOTENCY_NULLABLE_INTEGER_RESPONSE_KEYS = ("court_id",)
+#: Recuento del efecto de la operacion: ``0`` es un resultado valido (no-op confirmado).
+IDEMPOTENCY_COUNT_RESPONSE_KEYS = ("affected_match_count",)
+IDEMPOTENCY_TEXT_RESPONSE_KEYS = ("court_name", "registration_status", "resource_type")
+#: Textos que admiten ``null`` (un cuadro sin tatami no tiene nombre de tatami).
+IDEMPOTENCY_NULLABLE_TEXT_RESPONSE_KEYS = ("court_name",)
 
 # Provisional y revisable: 24 h es retencion de almacenamiento, no una promesa de que no haya
 # reejecucion despues (S3.3c-4 decide purga, rotacion y ventana real).
@@ -181,10 +197,28 @@ def validate_idempotency_state(state: Any) -> str:
 
 
 def _validated_metadata_value(key: str, value: Any) -> Any:
-    if key in IDEMPOTENCY_INTEGER_RESPONSE_KEYS:
+    if value is None:
+        # ``null`` solo donde el contrato lo declara valor admitido: un cuadro sin tatami y sin
+        # nombre de tatami. En cualquier otro metadato, un nulo es un dato que falta, no un valor.
+        if (
+            key in IDEMPOTENCY_NULLABLE_INTEGER_RESPONSE_KEYS
+            or key in IDEMPOTENCY_NULLABLE_TEXT_RESPONSE_KEYS
+        ):
+            return None
+        raise IdempotencyError(f"el metadato {key!r} no admite nulo")
+
+    if (
+        key in IDEMPOTENCY_INTEGER_RESPONSE_KEYS
+        or key in IDEMPOTENCY_NULLABLE_INTEGER_RESPONSE_KEYS
+    ):
         # ``bool`` es subclase de ``int``: se descarta a proposito.
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise IdempotencyError(f"el metadato {key!r} debe ser un identificador entero positivo")
+        return value
+
+    if key in IDEMPOTENCY_COUNT_RESPONSE_KEYS:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise IdempotencyError(f"el metadato {key!r} debe ser un recuento entero no negativo")
         return value
 
     limit = (

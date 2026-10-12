@@ -259,8 +259,13 @@ def test_downgrade_removes_only_the_new_column_and_keeps_the_data(migration_lab:
 def test_the_revision_is_a_single_head_on_top_of_the_registration_window(
     migration_lab: Engine,
 ) -> None:
-    """La revision cuelga de S3.4c y es una sola cabeza: no hay ramas ni migraciones paralelas."""
+    """La revision cuelga de S3.4c y la cadena sigue siendo lineal: una sola cabeza.
+
+    S4.3 anadio una revision despues de esta (restriccion del almacen de idempotencia), asi que la
+    cabeza ya no es la de S4.2: lo que se fija aqui es que la cadena no se ha ramificado y que esta
+    revision sigue estando dentro de ella.
+    """
     assert _scalar(migration_lab, "SELECT version_num FROM alembic_version") == PREVIOUS_REVISION
+    assert REVISION in _alembic("history")
     output = _alembic("heads")
-    assert REVISION in output
     assert output.count("(head)") == 1

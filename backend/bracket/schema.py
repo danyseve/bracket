@@ -732,12 +732,18 @@ tenant_quota_overrides = Table(
 # decisiones de S3.3c-4.
 _K_IDEMPOTENCY_STATES: tuple[str, ...] = ("IN_PROGRESS", "COMPLETED")
 _K_IDEMPOTENCY_METHODS: tuple[str, ...] = ("POST", "PUT", "PATCH", "DELETE")
+# S4.3: la asignacion de tatami declara su contrato de respuesta (el efecto de **esa** ejecucion,
+# que no se puede reconstruir del estado) ademas de los identificadores tecnicos de S3.3c-3.
 _K_IDEMPOTENCY_RESPONSE_KEYS: tuple[str, ...] = (
+    "affected_match_count",
     "audit_event_id",
     "competitor_id",
+    "court_id",
+    "court_name",
     "registration_status",
     "resource_id",
     "resource_type",
+    "stage_item_id",
 )
 _K_IDEMPOTENCY_KEY_MIN_LENGTH = 8
 _K_IDEMPOTENCY_KEY_MAX_LENGTH = 255

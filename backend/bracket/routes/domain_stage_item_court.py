@@ -79,6 +79,25 @@ _ERROR_MAP: tuple[_ErrorMapping, ...] = (
 )
 
 
+def _stored_response(assignment: StageItemCourtAssignment) -> dict[str, object]:
+    """Contrato de respuesta que se guarda con la operacion confirmada (escalares de lista cerrada).
+
+    Se guarda el **efecto** de esta ejecucion porque no se puede reconstruir del estado: tras
+    asignar, el estado ya no dice cuantos combates movio la operacion.
+    """
+    return {
+        "stage_item_id": int(assignment.stage_item_id),
+        "court_id": None if assignment.court_id is None else int(assignment.court_id),
+        "court_name": assignment.court_name,
+        "affected_match_count": assignment.affected_match_count,
+    }
+
+
+def _response(assignment: StageItemCourtAssignment) -> StageItemCourtResponse:
+    """Respuesta publica de la operacion, construida a partir del efecto ejecutado."""
+    return StageItemCourtResponse(**_stored_response(assignment))
+
+
 def _http_exception(error: Exception) -> HTTPException:
     """Traduce un rechazo del dominio al contrato HTTP de tatami.
 
@@ -147,10 +166,10 @@ async def assign_stage_item_court_endpoint(
     """Fija (o quita) el tatami de un cuadro entero y lo propaga a sus combates.
 
     La operacion de dominio hace todo el trabajo en una transaccion; esta ruta solo la ejecuta bajo
-    el protocolo de idempotencia y publica el estado resultante. La respuesta se construye con el
-    efecto de la operacion **si se ha ejecutado ahora**; si lo que llega es la repeticion de una
-    operacion ya confirmada, no se re-ejecuta nada y se publica el estado vigente (con efecto 0,
-    porque no se ha movido ningun combate en esta peticion).
+    el protocolo de idempotencia y publica el contrato de la operacion. La respuesta lleva el efecto
+    de la ejecucion (cuantos combates movio) y se guarda con el resultado confirmado: repetir la
+    misma clave devuelve **esa misma respuesta**, no una recalculada sobre el estado actual. Con una
+    clave nueva sobre el mismo tatami, la operacion si se ejecuta y confirma un no-op con efecto 0.
     """
     executed: list[StageItemCourtAssignment] = []
 
@@ -165,7 +184,7 @@ async def assign_stage_item_court_endpoint(
         executed.append(assignment)
         return OperationOutcome(
             response_status=status.HTTP_200_OK,
-            metadata={"resource_id": int(stage_item_id)},
+            metadata=_stored_response(assignment),
             resource_type=_RESOURCE_TYPE,
             resource_id=int(stage_item_id),
         )
@@ -178,15 +197,16 @@ async def assign_stage_item_court_endpoint(
     )
 
     if result.decision is IdempotencyDecision.RESERVED and executed:
-        assignment = executed[-1]
-    else:
-        assignment = await stage_item_court.read_stage_item_court_assignment(
-            context=context, tournament_id=tournament_id, stage_item_id=stage_item_id
-        )
+        return _response(executed[-1])
 
-    return StageItemCourtResponse(
-        stage_item_id=assignment.stage_item_id,
-        court_id=assignment.court_id,
-        court_name=assignment.court_name,
-        affected_match_count=assignment.affected_match_count,
+    stored = result.response_body
+    if stored is not None:
+        # Repeticion de una operacion confirmada: se reenvia el contrato guardado tal cual (el
+        # modelo vuelve a validar la forma). No se recalcula desde el estado actual.
+        return StageItemCourtResponse.model_validate(stored)
+
+    # Reserva sin contrato guardado (anterior a esta fase): se publica el estado vigente.
+    assignment = await stage_item_court.read_stage_item_court_assignment(
+        context=context, tournament_id=tournament_id, stage_item_id=stage_item_id
     )
+    return _response(assignment)

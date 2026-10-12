@@ -35,6 +35,7 @@ from starlette import status
 
 from bracket.config import config
 from bracket.database import database
+from bracket.logic.idempotency import IdempotencyError, validate_response_metadata
 from bracket.logic.idempotency_protocol import LOCK_TIMEOUT_MS
 from bracket.routes.domain_idempotency import IDEMPOTENCY_KEY_HEADER
 from bracket.utils.dummy_records import DUMMY_COURT1
@@ -705,8 +706,9 @@ async def test_replay_of_a_confirmed_unassignment_repeats_the_original_answer(
 ) -> None:
     """CASO A en la desasignacion: la repeticion confirma lo mismo, con nulos incluidos.
 
-    Es el caso que mas aprieta el almacen del resultado: la respuesta confirmada lleva ``court_id`` y
-    ``court_name`` a ``null`` (el cuadro se queda sin tatami) y hay que poder devolverla tal cual.
+    Es el caso que mas aprieta el almacen del resultado: la respuesta confirmada lleva
+    ``court_id`` y ``court_name`` a ``null`` (el cuadro se queda sin tatami) y hay que poder
+    devolverla tal cual.
     """
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
     key = uuid4().hex
@@ -728,6 +730,45 @@ async def test_replay_of_a_confirmed_unassignment_repeats_the_original_answer(
         "TATAMI_UNASSIGNED",
     ]
     assert await assignment_reservations(tatami.stage_item_id) == 2
+
+
+# --- 6b. el resultado confirmado se guarda con la lista cerrada de claves -------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_the_confirmed_response_is_stored_with_the_closed_key_set(
+    lab: GenerationLab, tatami: TatamiLab
+) -> None:
+    """La reserva guarda el contrato de la operacion, y una clave de fuera no se admite.
+
+    Es la evidencia de que el replay no inventa: lo que se reenvia es lo que quedo guardado. El
+    rechazo de claves de fuera se comprueba en el validador del protocolo (la restriccion de la
+    tabla usa la misma lista, y el caso positivo de este test es el que demuestra que la acepta).
+    """
+    key = uuid4().hex
+    first = await assign_ok_key(lab, tatami, key=key, court_id=tatami.court_a)
+
+    stored = await database.fetch_val(
+        query=(
+            "SELECT response_body FROM domain_idempotency_keys "
+            "WHERE request_path LIKE :path ORDER BY id DESC LIMIT 1"
+        ),
+        values={"path": f"%/stage-items/{int(tatami.stage_item_id)}/court"},
+    )
+
+    # El driver devuelve ``jsonb`` como texto: el cuerpo se compara ya deserializado.
+    stored_body: dict[str, object] = json.loads(stored) if isinstance(stored, str) else stored
+
+    assert stored_body == {
+        "stage_item_id": int(tatami.stage_item_id),
+        "court_id": int(tatami.court_a),
+        "court_name": "Tatami 1",
+        "affected_match_count": first["affected_match_count"],
+    }
+    with pytest.raises(IdempotencyError):
+        validate_response_metadata({**stored_body, "sneaky": 1})
+    with pytest.raises(IdempotencyError):
+        validate_response_metadata({**stored_body, "court_id": 0})
 
 
 # --- 7. concurrencia y bloqueo ------------------------------------------------------------------
