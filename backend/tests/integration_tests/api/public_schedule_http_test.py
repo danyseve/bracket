@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # `public_lab` y `two_court_lab` son fixtures.
 """Pantalla publica del planificador: quien entra, que cuerpo sale y que no toca (S4.5, LAB ONLY).
 
 ``GET /public/tournaments/{id}/schedule`` es la unica puerta de la grada. La sirve el mismo cargador

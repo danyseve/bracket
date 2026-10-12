@@ -65,7 +65,7 @@ def match(
 
 def plan(matches: list[MatchToSchedule], courts: list[int], **kwargs: object) -> SchedulePlan:
     """Planifica con los valores de la primera version salvo lo que diga la prueba."""
-    options = {"start_time": START, "minimum_rest_minutes": 15}
+    options: dict[str, object] = {"start_time": START, "minimum_rest_minutes": 15}
     options.update(kwargs)
     return build_schedule(matches=matches, courts=courts, **options)  # type: ignore[arg-type]
 
@@ -84,7 +84,7 @@ def test_cuatro_tatamis_activos_de_seis_solo_usan_los_activos() -> None:
     built = plan(matches, [1, 2, 3, 4])
 
     assert {slot.court_id for slot in built.slots} == {1, 2, 3, 4}
-    assert built.unscheduled_match_ids == ()
+    assert not built.unscheduled_match_ids
     assert all(slot.court_id not in (5, 6) for slot in built.slots)
 
 
@@ -163,7 +163,7 @@ def test_los_cruces_sin_decidir_tambien_reservan_slot() -> None:
     built = plan([*semis, final], [1, 2])
 
     assert built.slot_for(12) is not None
-    assert built.unscheduled_match_ids == ()
+    assert not built.unscheduled_match_ids
 
 
 def test_descanso_minimo_del_competidor() -> None:
@@ -211,7 +211,7 @@ def test_recalcular_puede_replanificar_lo_asignado_por_el_planificador() -> None
     ]
     built = plan(previous, [1, 2], preserve_assigned=False)
 
-    assert built.manual_match_ids == ()
+    assert not built.manual_match_ids
     assert {slot.court_id for slot in built.slots} == {1, 2}
 
 

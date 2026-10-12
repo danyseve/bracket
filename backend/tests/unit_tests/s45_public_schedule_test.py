@@ -160,8 +160,8 @@ def test_tatami_sin_combates_no_revienta() -> None:
 
     assert display.current is None
     assert display.next is None
-    assert display.upcoming == ()
-    assert display.completed == ()
+    assert not display.upcoming
+    assert not display.completed
 
 
 def test_los_combates_estructurales_no_se_publican() -> None:
