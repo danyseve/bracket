@@ -95,7 +95,12 @@ def _stored_response(assignment: StageItemCourtAssignment) -> dict[str, object]:
 
 def _response(assignment: StageItemCourtAssignment) -> StageItemCourtResponse:
     """Respuesta publica de la operacion, construida a partir del efecto ejecutado."""
-    return StageItemCourtResponse(**_stored_response(assignment))
+    return StageItemCourtResponse(
+        stage_item_id=assignment.stage_item_id,
+        court_id=assignment.court_id,
+        court_name=assignment.court_name,
+        affected_match_count=assignment.affected_match_count,
+    )
 
 
 def _http_exception(error: Exception) -> HTTPException:

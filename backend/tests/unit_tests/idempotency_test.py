@@ -255,11 +255,15 @@ def test_fingerprint_comparison_is_total_and_constant_time(
 
 def test_the_allowed_metadata_list_is_small_and_explicit() -> None:
     assert set(IDEMPOTENCY_ALLOWED_RESPONSE_KEYS) == {
+        "affected_match_count",
         "audit_event_id",
         "competitor_id",
+        "court_id",
+        "court_name",
         "registration_status",
         "resource_id",
         "resource_type",
+        "stage_item_id",
     }
 
 

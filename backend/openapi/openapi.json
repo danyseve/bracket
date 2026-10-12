@@ -7271,7 +7271,7 @@
     },
     "/tournaments/{tournament_id}/stage-items/{stage_item_id}/court": {
       "put": {
-        "description": "Fija (o quita) el tatami de un cuadro entero y lo propaga a sus combates.\n\nLa operacion de dominio hace todo el trabajo en una transaccion; esta ruta solo la ejecuta bajo\nel protocolo de idempotencia y publica el estado resultante. La respuesta se construye con el\nefecto de la operacion **si se ha ejecutado ahora**; si lo que llega es la repeticion de una\noperacion ya confirmada, no se re-ejecuta nada y se publica el estado vigente (con efecto 0,\nporque no se ha movido ningun combate en esta peticion).",
+        "description": "Fija (o quita) el tatami de un cuadro entero y lo propaga a sus combates.\n\nLa operacion de dominio hace todo el trabajo en una transaccion; esta ruta solo la ejecuta bajo\nel protocolo de idempotencia y publica el contrato de la operacion. La respuesta lleva el efecto\nde la ejecucion (cuantos combates movio) y se guarda con el resultado confirmado: repetir la\nmisma clave devuelve **esa misma respuesta**, no una recalculada sobre el estado actual. Con una\nclave nueva sobre el mismo tatami, la operacion si se ejecuta y confirma un no-op con efecto 0.",
         "operationId": "assign_stage_item_court_endpoint_tournaments__tournament_id__stage_items__stage_item_id__court_put",
         "parameters": [
           {
