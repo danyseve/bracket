@@ -520,5 +520,22 @@
     "f3_error_lock_timeout": "The operation took too long to get its turn. Try again.",
     "f3_error_unavailable": "The service is not available right now. Try again in a few minutes.",
     "f3_error_server": "A server error occurred. Try again later.",
-    "readiness_generation_empty": "There are no brackets to fill yet: the stage structure is created before the registrations are assigned."
+    "readiness_generation_empty": "There are no brackets to fill yet: the stage structure is created before the registrations are assigned.",
+  "tatami_control_notice": "Each bracket is assigned as a whole: the backend moves its matches to that tatami in the same transaction.",
+  "tatami_control_legacy_notice": "This backend does not publish the bracket's tatami: the board is derived from the matches.",
+  "tatami_assign_action": "Assign tatami",
+  "tatami_move_action": "Change tatami",
+  "tatami_assign_to": "Assign to {{court}}",
+  "tatami_move_to": "Move to {{court}}",
+  "tatami_remove_action": "Remove from tatami",
+  "tatami_reassign_confirm": "Move this category from {{from}} to {{to}}?",
+  "tatami_move_confirm": "Move",
+  "tatami_feedback_assigned": "Category assigned to {{court}}. {{count}} matches updated.",
+  "tatami_feedback_unassigned": "Category removed from the tatami. {{count}} matches updated.",
+  "tatami_feedback_unchanged": "No changes: the category was already there. {{count}} matches moved.",
+  "tatami_participants_label": "Participants",
+  "tatami_bracket_count_label": "Brackets",
+  "tatami_next_match_label": "Next match",
+  "tatami_no_brackets": "No brackets",
+  "f3_error_category_in_use": "This category is already under way: finish or clear its matches before moving it."
 }

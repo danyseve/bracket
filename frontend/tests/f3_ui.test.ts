@@ -18,8 +18,9 @@ import {
 } from '../src/components/utils/bracket_view.ts';
 import {
   buildTatamiOverview,
+  hasStageItemCourtContract,
+  TATAMI_ASSIGNMENT_CONTRACT,
   TATAMI_ASSIGNMENT_GRANULARITY,
-  TATAMI_BRACKET_ASSIGNMENT_SUPPORTED,
   tatamiStateKey,
   tatamiSubtitle,
   tatamiTitle,
@@ -253,9 +254,16 @@ test('503 F3_WRITE_DISABLED se explica con copy de producto y sin reintento auto
 
 /* ------------------------------------------------------------------------------- tatamis (§12) */
 
-test('el contrato declara que asignar un cuadro entero a un tatami no está soportado', () => {
-  assert.equal(TATAMI_BRACKET_ASSIGNMENT_SUPPORTED, false);
-  assert.equal(TATAMI_ASSIGNMENT_GRANULARITY, 'match');
+test('el contrato asigna el cuadro entero y se reconoce por el dato publicado (S4.2)', () => {
+  assert.equal(TATAMI_ASSIGNMENT_GRANULARITY, 'stage_item');
+  assert.equal(TATAMI_ASSIGNMENT_CONTRACT, 'stage_item.court_id');
+  assert.equal(hasStageItemCourtContract([{ court_id: null }]), true, 'null ya es contrato');
+  assert.equal(hasStageItemCourtContract([{ court_id: 10 }]), true);
+  assert.equal(
+    hasStageItemCourtContract([{ id: 1 }]),
+    false,
+    'un backend anterior no publica el campo'
+  );
 });
 
 test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
@@ -280,6 +288,8 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
           position_in_schedule: 1,
           stage_item_input1_score: 0,
           stage_item_input2_score: 0,
+          input1_team_id: null,
+          input2_team_id: null,
         },
         {
           id: 2,
@@ -288,6 +298,8 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
           position_in_schedule: 2,
           stage_item_input1_score: 0,
           stage_item_input2_score: 0,
+          input1_team_id: null,
+          input2_team_id: null,
         },
       ],
     },
@@ -305,6 +317,8 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
           position_in_schedule: 1,
           stage_item_input1_score: 4,
           stage_item_input2_score: 2,
+          input1_team_id: null,
+          input2_team_id: null,
         },
         {
           id: 4,
@@ -313,6 +327,8 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
           position_in_schedule: 2,
           stage_item_input1_score: 0,
           stage_item_input2_score: 0,
+          input1_team_id: null,
+          input2_team_id: null,
         },
       ],
     },
@@ -333,11 +349,12 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
       matches: [
         {
           id: 5,
-          court_id: null,
           start_time: '2026-10-12T09:00:00',
           position_in_schedule: 1,
           stage_item_input1_score: 0,
           stage_item_input2_score: 0,
+          input1_team_id: null,
+          input2_team_id: null,
         },
       ],
     },
@@ -405,7 +422,7 @@ test('la pantalla de tatamis no ofrece asignación por cuadro ni drag&drop', () 
 
   // El alta de tatamis reutiliza el modal que ya existía.
   assert.match(page, /CourtModal/);
-  assert.match(view, /TATAMI_BRACKET_ASSIGNMENT_SUPPORTED|tatami_assignment_gap_notice/);
+  assert.match(view, /tatami_assignment_granularity_notice/);
 });
 
 /* -------------------------------------------------------------------------------- cuadros (§12) */

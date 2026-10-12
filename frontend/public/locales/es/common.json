@@ -520,5 +520,22 @@
     "f3_error_lock_timeout": "La operación tardó demasiado en conseguir el turno. Vuelve a intentarlo.",
     "f3_error_unavailable": "El servicio no está disponible ahora mismo. Vuelve a intentarlo en unos minutos.",
     "f3_error_server": "Ha ocurrido un error en el servidor. Vuelve a intentarlo más tarde.",
-    "readiness_generation_empty": "Todavía no hay cuadros que repartir: la estructura de fases se crea antes de repartir las inscripciones."
+    "readiness_generation_empty": "Todavía no hay cuadros que repartir: la estructura de fases se crea antes de repartir las inscripciones.",
+  "tatami_control_notice": "Cada cuadro se asigna entero: el backend mueve sus combates a ese tatami en la misma transacción.",
+  "tatami_control_legacy_notice": "Este backend no publica el tatami del cuadro: el tablero se deriva de los combates.",
+  "tatami_assign_action": "Asignar tatami",
+  "tatami_move_action": "Mover de tatami",
+  "tatami_assign_to": "Asignar a {{court}}",
+  "tatami_move_to": "Mover a {{court}}",
+  "tatami_remove_action": "Quitar del tatami",
+  "tatami_reassign_confirm": "¿Mover esta categoría de {{from}} a {{to}}?",
+  "tatami_move_confirm": "Mover",
+  "tatami_feedback_assigned": "Categoría asignada a {{court}}. {{count}} combates actualizados.",
+  "tatami_feedback_unassigned": "Categoría fuera del tatami. {{count}} combates actualizados.",
+  "tatami_feedback_unchanged": "Sin cambios: la categoría ya estaba así. {{count}} combates movidos.",
+  "tatami_participants_label": "Participantes",
+  "tatami_bracket_count_label": "Cuadros",
+  "tatami_next_match_label": "Siguiente combate",
+  "tatami_no_brackets": "Sin cuadros",
+  "f3_error_category_in_use": "Esta categoría ya está en marcha: termina o vacía sus combates antes de moverla."
 }

@@ -469,5 +469,22 @@
     "f3_error_lock_timeout": "L'operazione ha impiegato troppo tempo a ottenere il turno. Riprova.",
     "f3_error_unavailable": "Il servizio non è disponibile in questo momento. Riprova tra qualche minuto.",
     "f3_error_server": "Si è verificato un errore sul server. Riprova più tardi.",
-    "readiness_generation_empty": "Non ci sono ancora tabelloni da riempire: la struttura delle fasi si crea prima di distribuire le iscrizioni."
+    "readiness_generation_empty": "Non ci sono ancora tabelloni da riempire: la struttura delle fasi si crea prima di distribuire le iscrizioni.",
+  "tatami_control_notice": "Ogni tabellone viene assegnato interamente: il backend sposta i suoi incontri su quel tatami nella stessa transazione.",
+  "tatami_control_legacy_notice": "Questo backend non pubblica il tatami del tabellone: la vista è derivata dagli incontri.",
+  "tatami_assign_action": "Assegna tatami",
+  "tatami_move_action": "Cambia tatami",
+  "tatami_assign_to": "Assegna a {{court}}",
+  "tatami_move_to": "Sposta in {{court}}",
+  "tatami_remove_action": "Togli dal tatami",
+  "tatami_reassign_confirm": "Spostare questa categoria da {{from}} a {{to}}?",
+  "tatami_move_confirm": "Sposta",
+  "tatami_feedback_assigned": "Categoria assegnata a {{court}}. {{count}} incontri aggiornati.",
+  "tatami_feedback_unassigned": "Categoria tolta dal tatami. {{count}} incontri aggiornati.",
+  "tatami_feedback_unchanged": "Nessun cambiamento: la categoria era già lì. {{count}} incontri spostati.",
+  "tatami_participants_label": "Partecipanti",
+  "tatami_bracket_count_label": "Tabelloni",
+  "tatami_next_match_label": "Prossimo incontro",
+  "tatami_no_brackets": "Nessun tabellone",
+  "f3_error_category_in_use": "Questa categoria è già in corso: termina o svuota i suoi incontri prima di spostarla."
 }

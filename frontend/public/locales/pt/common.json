@@ -469,5 +469,22 @@
     "f3_error_lock_timeout": "A operação demorou demasiado a obter a vez. Tente novamente.",
     "f3_error_unavailable": "O serviço não está disponível neste momento. Tente novamente dentro de alguns minutos.",
     "f3_error_server": "Ocorreu um erro no servidor. Tente novamente mais tarde.",
-    "readiness_generation_empty": "Ainda não há chaves para preencher: a estrutura de fases é criada antes de distribuir as inscrições."
+    "readiness_generation_empty": "Ainda não há chaves para preencher: a estrutura de fases é criada antes de distribuir as inscrições.",
+  "tatami_control_notice": "Cada quadro é atribuído por inteiro: o backend move as suas lutas para esse tatami na mesma transação.",
+  "tatami_control_legacy_notice": "Este backend não publica o tatami do quadro: o painel é derivado das lutas.",
+  "tatami_assign_action": "Atribuir tatami",
+  "tatami_move_action": "Mudar de tatami",
+  "tatami_assign_to": "Atribuir a {{court}}",
+  "tatami_move_to": "Mover para {{court}}",
+  "tatami_remove_action": "Retirar do tatami",
+  "tatami_reassign_confirm": "Mover esta categoria de {{from}} para {{to}}?",
+  "tatami_move_confirm": "Mover",
+  "tatami_feedback_assigned": "Categoria atribuída a {{court}}. {{count}} lutas atualizadas.",
+  "tatami_feedback_unassigned": "Categoria retirada do tatami. {{count}} lutas atualizadas.",
+  "tatami_feedback_unchanged": "Sem alterações: a categoria já estava aí. {{count}} lutas movidas.",
+  "tatami_participants_label": "Participantes",
+  "tatami_bracket_count_label": "Quadros",
+  "tatami_next_match_label": "Próxima luta",
+  "tatami_no_brackets": "Sem quadros",
+  "f3_error_category_in_use": "Esta categoria já está a decorrer: termina ou esvazia as suas lutas antes de a mover."
 }

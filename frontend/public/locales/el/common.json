@@ -469,5 +469,22 @@
     "f3_error_lock_timeout": "Η ενέργεια άργησε πολύ να πάρει σειρά. Δοκιμάστε ξανά.",
     "f3_error_unavailable": "Η υπηρεσία δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκιμάστε ξανά σε λίγα λεπτά.",
     "f3_error_server": "Παρουσιάστηκε σφάλμα στον διακομιστή. Δοκιμάστε ξανά αργότερα.",
-    "readiness_generation_empty": "Δεν υπάρχουν ακόμη ταμπλό προς συμπλήρωση: η δομή φάσεων δημιουργείται πριν από την κατανομή των εγγραφών."
+    "readiness_generation_empty": "Δεν υπάρχουν ακόμη ταμπλό προς συμπλήρωση: η δομή φάσεων δημιουργείται πριν από την κατανομή των εγγραφών.",
+  "tatami_control_notice": "Κάθε ταμπλό ανατίθεται ολόκληρο: το backend μεταφέρει τους αγώνες του σε αυτό το τατάμι στο ίδιο transaction.",
+  "tatami_control_legacy_notice": "Αυτό το backend δεν δημοσιεύει το τατάμι του ταμπλό: ο πίνακας προκύπτει από τους αγώνες.",
+  "tatami_assign_action": "Ανάθεση τατάμι",
+  "tatami_move_action": "Αλλαγή τατάμι",
+  "tatami_assign_to": "Ανάθεση σε {{court}}",
+  "tatami_move_to": "Μεταφορά σε {{court}}",
+  "tatami_remove_action": "Αφαίρεση από το τατάμι",
+  "tatami_reassign_confirm": "Μεταφορά αυτής της κατηγορίας από {{from}} σε {{to}};",
+  "tatami_move_confirm": "Μεταφορά",
+  "tatami_feedback_assigned": "Η κατηγορία ανατέθηκε σε {{court}}. {{count}} αγώνες ενημερώθηκαν.",
+  "tatami_feedback_unassigned": "Η κατηγορία αφαιρέθηκε από το τατάμι. {{count}} αγώνες ενημερώθηκαν.",
+  "tatami_feedback_unchanged": "Καμία αλλαγή: η κατηγορία ήταν ήδη εκεί. {{count}} αγώνες μετακινήθηκαν.",
+  "tatami_participants_label": "Συμμετέχοντες",
+  "tatami_bracket_count_label": "Ταμπλό",
+  "tatami_next_match_label": "Επόμενος αγώνας",
+  "tatami_no_brackets": "Χωρίς ταμπλό",
+  "f3_error_category_in_use": "Αυτή η κατηγορία έχει ήδη ξεκινήσει: ολοκλήρωσε ή άδειασε τους αγώνες της πριν τη μεταφέρεις."
 }

@@ -9,12 +9,27 @@ import {
 } from './client';
 import { client } from './client.gen';
 import type {
+  ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostData,
+  ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostErrors,
+  ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses,
   ActivateNextStageTournamentsTournamentIdStagesActivatePostData,
   ActivateNextStageTournamentsTournamentIdStagesActivatePostErrors,
   ActivateNextStageTournamentsTournamentIdStagesActivatePostResponses,
+  AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutData,
+  AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutErrors,
+  AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponses,
   ChangeStatusTournamentsTournamentIdChangeStatusPostData,
   ChangeStatusTournamentsTournamentIdChangeStatusPostErrors,
   ChangeStatusTournamentsTournamentIdChangeStatusPostResponses,
+  CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostData,
+  CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostErrors,
+  CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponses,
+  ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostData,
+  ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostErrors,
+  ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostResponses,
+  CreateCompetitorEndpointClubsClubIdCompetitorsPostData,
+  CreateCompetitorEndpointClubsClubIdCompetitorsPostErrors,
+  CreateCompetitorEndpointClubsClubIdCompetitorsPostResponses,
   CreateCourtTournamentsTournamentIdCourtsPostData,
   CreateCourtTournamentsTournamentIdCourtsPostErrors,
   CreateCourtTournamentsTournamentIdCourtsPostResponses,
@@ -33,6 +48,9 @@ import type {
   CreateRankingTournamentsTournamentIdRankingsPostData,
   CreateRankingTournamentsTournamentIdRankingsPostErrors,
   CreateRankingTournamentsTournamentIdRankingsPostResponses,
+  CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostData,
+  CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostErrors,
+  CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses,
   CreateRoundTournamentsTournamentIdRoundsPostData,
   CreateRoundTournamentsTournamentIdRoundsPostErrors,
   CreateRoundTournamentsTournamentIdRoundsPostResponses,
@@ -51,6 +69,12 @@ import type {
   CreateTournamentTournamentsPostData,
   CreateTournamentTournamentsPostErrors,
   CreateTournamentTournamentsPostResponses,
+  CreateUserAdminUsersAdminPostData,
+  CreateUserAdminUsersAdminPostErrors,
+  CreateUserAdminUsersAdminPostResponses,
+  DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostData,
+  DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostErrors,
+  DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses,
   DeleteClubClubsClubIdDeleteData,
   DeleteClubClubsClubIdDeleteErrors,
   DeleteClubClubsClubIdDeleteResponses,
@@ -81,11 +105,26 @@ import type {
   DeleteTournamentTournamentsTournamentIdDeleteData,
   DeleteTournamentTournamentsTournamentIdDeleteErrors,
   DeleteTournamentTournamentsTournamentIdDeleteResponses,
+  DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostData,
+  DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostErrors,
+  DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostResponses,
+  GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostData,
+  GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostErrors,
+  GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostResponses,
+  GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostData,
+  GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostErrors,
+  GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponses,
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetData,
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetErrors,
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetResponses,
+  GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetData,
+  GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetErrors,
+  GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetResponses,
   GetClubsClubsGetData,
   GetClubsClubsGetResponses,
+  GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetData,
+  GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetErrors,
+  GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponses,
   GetCourtsTournamentsTournamentIdCourtsGetData,
   GetCourtsTournamentsTournamentIdCourtsGetErrors,
   GetCourtsTournamentsTournamentIdCourtsGetResponses,
@@ -106,6 +145,12 @@ import type {
   GetRankingsTournamentsTournamentIdRankingsGetData,
   GetRankingsTournamentsTournamentIdRankingsGetErrors,
   GetRankingsTournamentsTournamentIdRankingsGetResponses,
+  GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetData,
+  GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetErrors,
+  GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses,
+  GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetData,
+  GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetErrors,
+  GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetResponses,
   GetStagesTournamentsTournamentIdStagesGetData,
   GetStagesTournamentsTournamentIdStagesGetErrors,
   GetStagesTournamentsTournamentIdStagesGetResponses,
@@ -118,13 +163,30 @@ import type {
   GetTournamentTournamentsTournamentIdGetData,
   GetTournamentTournamentsTournamentIdGetErrors,
   GetTournamentTournamentsTournamentIdGetResponses,
+  GetUsersAdminUsersAdminGetData,
+  GetUsersAdminUsersAdminGetResponses,
   GetUserUsersMeGetData,
   GetUserUsersMeGetResponses,
+  ListCompetitorsEndpointClubsClubIdCompetitorsGetData,
+  ListCompetitorsEndpointClubsClubIdCompetitorsGetErrors,
+  ListCompetitorsEndpointClubsClubIdCompetitorsGetResponses,
+  ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetData,
+  ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetErrors,
+  ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponses,
   LoginForAccessTokenTokenPostData,
   LoginForAccessTokenTokenPostErrors,
   LoginForAccessTokenTokenPostResponses,
   PingPingGetData,
   PingPingGetResponses,
+  PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutData,
+  PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutErrors,
+  PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponses,
+  PutUserActiveAdminUsersAdminUserIdActivePutData,
+  PutUserActiveAdminUsersAdminUserIdActivePutErrors,
+  PutUserActiveAdminUsersAdminUserIdActivePutResponses,
+  PutUserPasswordAdminUsersAdminUserIdPasswordPutData,
+  PutUserPasswordAdminUsersAdminUserIdPasswordPutErrors,
+  PutUserPasswordAdminUsersAdminUserIdPasswordPutResponses,
   PutUserPasswordUsersUserIdPasswordPutData,
   PutUserPasswordUsersUserIdPasswordPutErrors,
   PutUserPasswordUsersUserIdPasswordPutResponses,
@@ -134,12 +196,21 @@ import type {
   RegisterUserUsersRegisterPostData,
   RegisterUserUsersRegisterPostErrors,
   RegisterUserUsersRegisterPostResponses,
+  ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostData,
+  ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostErrors,
+  ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostResponses,
+  RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostData,
+  RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostErrors,
+  RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses,
   RescheduleMatchTournamentsTournamentIdMatchesMatchIdReschedulePostData,
   RescheduleMatchTournamentsTournamentIdMatchesMatchIdReschedulePostErrors,
   RescheduleMatchTournamentsTournamentIdMatchesMatchIdReschedulePostResponses,
   ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostData,
   ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostErrors,
   ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostResponses,
+  SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostData,
+  SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostErrors,
+  SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponses,
   StartNextRoundTournamentsTournamentIdStageItemsStageItemIdStartNextRoundPostData,
   StartNextRoundTournamentsTournamentIdStageItemsStageItemIdStartNextRoundPostErrors,
   StartNextRoundTournamentsTournamentIdStageItemsStageItemIdStartNextRoundPostResponses,
@@ -185,12 +256,16 @@ import type {
   UploadLogoTournamentsTournamentIdLogoPostData,
   UploadLogoTournamentsTournamentIdLogoPostErrors,
   UploadLogoTournamentsTournamentIdLogoPostResponses,
+  WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostData,
+  WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostErrors,
+  WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostResponses,
 } from './types.gen';
 
 export type Options<
   TData extends TDataShape = TDataShape,
   ThrowOnError extends boolean = boolean,
-> = Options2<TData, ThrowOnError> & {
+  TResponse = unknown,
+> = Options2<TData, ThrowOnError, TResponse> & {
   /**
    * You can provide a client instance returned by `createClient()` instead of
    * individual options. This might be also useful if you want to implement a
@@ -269,6 +344,177 @@ export const updateClubClubsClubIdPut = <ThrowOnError extends boolean = false>(
     responseType: 'json',
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/clubs/{club_id}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * List Competitors Endpoint
+ *
+ * Competidores del club de la ruta, con filtros, paginacion y el total del filtro.
+ *
+ * El ambito es del servidor: el club tiene que ser el tenant del contexto (si no, ya lo ha
+ * rechazado la dependencia) y la consulta se acota a el dentro del SQL, nunca despues de leer. La
+ * respuesta es la proyeccion publica, no la fila.
+ *
+ * Leer no exige ``Idempotency-Key``: no hay reserva ni operacion de dominio que repetir.
+ */
+export const listCompetitorsEndpointClubsClubIdCompetitorsGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ListCompetitorsEndpointClubsClubIdCompetitorsGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListCompetitorsEndpointClubsClubIdCompetitorsGetResponses,
+    ListCompetitorsEndpointClubsClubIdCompetitorsGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors',
+    ...options,
+  });
+
+/**
+ * Create Competitor Endpoint
+ *
+ * Alta de identidad en el club de la ruta. Exige ``Idempotency-Key``.
+ *
+ * Motivo por defecto del alta: ``PLANNED_ENTRY`` (lo resuelve el catalogo, no el router). No hay
+ * deduplicacion: dos altas con el mismo nombre son dos identidades (contrato S2).
+ */
+export const createCompetitorEndpointClubsClubIdCompetitorsPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<CreateCompetitorEndpointClubsClubIdCompetitorsPostData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateCompetitorEndpointClubsClubIdCompetitorsPostResponses,
+    CreateCompetitorEndpointClubsClubIdCompetitorsPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Get Competitor Endpoint
+ *
+ * Competidor concreto del club, con su estado real.
+ *
+ * El identificador se busca **siempre** acotado al tenant del contexto: un competidor de otro
+ * tenant no existe para esta ruta y responde el mismo 404 que uno inexistente.
+ */
+export const getCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponses,
+    GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}',
+    ...options,
+  });
+
+/**
+ * Activate Competitor Endpoint
+ *
+ * Reactivacion de una identidad dada de baja. Exige relacion ``OWNER`` con el club.
+ *
+ * Idempotente: si ya estaba activo no audita de nuevo. No toca el historial de nombres.
+ */
+export const activateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses,
+    ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/activate',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Deactivate Competitor Endpoint
+ *
+ * Baja logica del competidor. Exige relacion ``OWNER`` con el club.
+ *
+ * Idempotente: una segunda baja no audita de nuevo. No borra la identidad ni su historial, y no
+ * toca inscripciones ni snapshots (RS-9).
+ */
+export const deactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses,
+    DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/deactivate',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Rename Competitor Endpoint
+ *
+ * Renombrado controlado: cierra la entrada de nombre vigente y abre la nueva.
+ *
+ * Un nombre identico al vigente no cambia nada (sin historial ni auditoria). El competidor de otro
+ * tenant responde 404 antes de ejecutar nada.
+ */
+export const renameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses,
+    RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/rename',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -361,6 +607,12 @@ export const createTournamentTournamentsPost = <ThrowOnError extends boolean = f
 
 /**
  * Delete Tournament
+ *
+ * Borra el torneo y todas sus dependencias (ranking, stage_items, stages, rounds, matches,
+ * stage_item_inputs, players, courts y teams) en una unica transaccion.
+ *
+ * Una dependencia protegida o no contemplada por el contrato produce 409 con codigo estable y no
+ * deja eliminaciones parciales; nunca provoca un 500.
  */
 export const deleteTournamentTournamentsTournamentIdDelete = <ThrowOnError extends boolean = false>(
   options: Options<DeleteTournamentTournamentsTournamentIdDeleteData, ThrowOnError>
@@ -431,6 +683,39 @@ export const getAvailableInputsTournamentsTournamentIdAvailableInputsGet = <
     responseType: 'json',
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/tournaments/{tournament_id}/available_inputs',
+    ...options,
+  });
+
+/**
+ * Get Bracket Readiness Endpoint
+ *
+ * Revision final del estado de las inscripciones antes de generar cuadro (solo lectura).
+ *
+ * Responde a "esta listo este torneo para generar brackets?" y, si no, a "que problemas concretos
+ * lo impiden". OWNER y COLLABORATOR pueden leer; el tenant lo resuelve el servidor y nunca el
+ * cliente, y un torneo de otro tenant responde el mismo 404 que uno inexistente.
+ *
+ * No exige ``Idempotency-Key`` porque no hay ninguna escritura que repetir, no escribe auditoria y
+ * no altera estado. La ventana se lee **primero**: es la que autoriza el torneo y la que acota la
+ * lectura de la estructura competitiva a un torneo que el actor puede ver. No genera cuadros:
+ * solo revisa si se puede.
+ */
+export const getBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetResponses,
+    GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/bracket-readiness',
     ...options,
   });
 
@@ -531,6 +816,53 @@ export const updateCourtByIdTournamentsTournamentIdCourtsCourtIdPut = <
     responseType: 'json',
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/tournaments/{tournament_id}/courts/{court_id}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Generate Bracket Endpoint
+ *
+ * Genera el cuadro de eliminacion directa del torneo por accion **explicita** del organizador.
+ *
+ * OWNER-only y con ``Idempotency-Key`` obligatoria: no hay ningun camino que genere al cerrar la
+ * ventana, ni el cliente puede pedirla sin clave. El cuerpo esta vacio a proposito (un
+ * campo de mas
+ * es un 422): el actor, el instante y el porque quedan en la auditoria, no en la peticion.
+ *
+ * La peticion **no** se fia de la revision que el cliente haya leido antes: dentro de la misma
+ * transaccion —y con la fila del torneo ya bloqueada— la revision de S3.4d se recalcula.
+ * Si no esta
+ * lista no se escribe nada y se responde ``409 BRACKET_NOT_READY`` con los bloqueos derivados. Una
+ * ventana ``OPEN`` nunca genera; ``DEADLINE_PASSED`` y ``CLOSED`` si, siempre que la revision
+ * global este lista. No se cierra la ventana ni se toca su plazo.
+ *
+ * La generacion es la de F2C, sin reimplementar su algoritmo: reparador de despedidas,
+ * determinista y con su bloqueo propio. Un cuadro que F2C no admite generar (sin participantes,
+ * alimentado por otro, o con actividad encima) no se toca y se cuenta aparte; el reparto de los
+ * demas se escribe entero o no se escribe nada, porque todo ocurre en una sola transaccion. Un
+ * torneo archivado responde el mismo 400 que la generacion de F2C (regla que ya existia) y uno de
+ * otro tenant el mismo 404 que uno inexistente, antes de mirar su estado.
+ */
+export const generateBracketEndpointTournamentsTournamentIdGenerateBracketPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostResponses,
+    GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/generate-bracket',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -860,6 +1192,297 @@ export const updateRankingByIdTournamentsTournamentIdRankingsRankingIdPut = <
   });
 
 /**
+ * Get Registration Window Endpoint
+ *
+ * Ventana de inscripcion del torneo, con su estado derivado del plazo y del cierre manual.
+ *
+ * Lee cualquier miembro del tenant (OWNER o COLLABORATOR): es la misma informacion que necesita
+ * quien va a inscribirse, y el detalle de quien cerro y cuando no se publica. No exige
+ * ``Idempotency-Key`` y no escribe auditoria. Un torneo de otro tenant responde el mismo 404 que
+ * uno inexistente.
+ */
+export const getRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetResponses,
+    GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/registration-window',
+    ...options,
+  });
+
+/**
+ * Set Registration Window Endpoint
+ *
+ * Configura el plazo de inscripcion del torneo. ``registration_deadline`` nula lo limpia.
+ *
+ * OWNER-only y con ``Idempotency-Key``, por el mismo protocolo que el resto de escrituras F3. El
+ * cuerpo describe el estado deseado: no puede traer identidad, tenant ni el estado de cierre. Un
+ * plazo ya vencido cierra la ventana por reloj (``DEADLINE_PASSED``) sin escribir nada mas, y
+ * limpiar el plazo no reabre un cierre manual.
+ */
+export const setRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponses,
+    SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/registration-window',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * List Registrations Endpoint
+ *
+ * Inscripciones vigentes del torneo, con filtros, paginacion y el total del filtro.
+ *
+ * El ambito es del servidor: el torneo tiene que ser del tenant del contexto (si no, ya lo ha
+ * rechazado la dependencia) y la consulta se acota a el dentro del SQL, nunca despues de leer. La
+ * respuesta es la proyeccion publica, no la fila.
+ *
+ * Leer no exige ``Idempotency-Key``: no hay reserva ni operacion de dominio que repetir.
+ */
+export const listRegistrationsEndpointTournamentsTournamentIdRegistrationsGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponses,
+    ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/registrations',
+    ...options,
+  });
+
+/**
+ * Create Registration Endpoint
+ *
+ * Alta de una inscripcion en borrador. Exige ``Idempotency-Key`` y motivo ``PLANNED_ENTRY``.
+ */
+export const createRegistrationEndpointTournamentsTournamentIdRegistrationsPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses,
+    CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/registrations',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Close Registrations Endpoint
+ *
+ * Cierre manual de la ventana de inscripcion del torneo: deja de admitir altas nuevas.
+ *
+ * OWNER-only y con ``Idempotency-Key``. El cuerpo esta vacio a proposito (un campo de mas es un
+ * 422) porque cerrar no lleva datos: el actor y el instante quedan en la auditoria. Repetir el
+ * cierre con la misma clave repite la misma respuesta; con otra clave es un conflicto de estado
+ * (``409 REGISTRATION_ALREADY_CLOSED``), no un no-op silencioso. No altera el ciclo de vida de las
+ * inscripciones ya existentes.
+ */
+export const closeRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponses,
+    CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/registrations/close',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Get Registration Endpoint
+ *
+ * Inscripcion concreta del torneo, con su estado real.
+ *
+ * El identificador se busca **siempre** acotado al tenant del contexto (no hay consulta global por
+ * identificador): una inscripcion de otro tenant no existe para esta ruta y responde el mismo 404
+ * que una inexistente. Tampoco se confirma su existencia en otro torneo del mismo tenant, porque
+ * ademas tiene que estar en el torneo de la ruta.
+ */
+export const getRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses,
+    GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}',
+    ...options,
+  });
+
+/**
+ * Confirm Registration Endpoint
+ *
+ * ``DRAFT -> CONFIRMED``. Motivo opcional (``READY`` o ``DATA_VERIFIED``).
+ */
+export const confirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostResponses,
+      ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/{registration_id}/confirm',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+/**
+ * Disqualify Registration Endpoint
+ *
+ * ``CONFIRMED -> DISQUALIFIED``. Motivo obligatorio y relacion OWNER con el tenant.
+ */
+export const disqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostResponses,
+      DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/{registration_id}/disqualify',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+/**
+ * Reinstate Registration Endpoint
+ *
+ * ``WITHDRAWN -> CONFIRMED`` con la misma elegibilidad que confirmar. Motivo obligatorio.
+ */
+export const reinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostResponses,
+      ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/{registration_id}/reinstate',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+/**
+ * Withdraw Registration Endpoint
+ *
+ * ``DRAFT|CONFIRMED -> WITHDRAWN``. Motivo obligatorio; retirar una confirmada exige OWNER.
+ */
+export const withdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostResponses,
+      WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/{registration_id}/withdraw',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+/**
  * Create Round
  */
 export const createRoundTournamentsTournamentIdRoundsPost = <ThrowOnError extends boolean = false>(
@@ -942,6 +1565,40 @@ export const scheduleMatchesTournamentsTournamentIdScheduleMatchesPost = <
   });
 
 /**
+ * Assign Stage Item Court Endpoint
+ *
+ * Fija (o quita) el tatami de un cuadro entero y lo propaga a sus combates.
+ *
+ * La operacion de dominio hace todo el trabajo en una transaccion; esta ruta solo la ejecuta bajo
+ * el protocolo de idempotencia y publica el estado resultante. La respuesta se construye con el
+ * efecto de la operacion **si se ha ejecutado ahora**; si lo que llega es la repeticion de una
+ * operacion ya confirmada, no se re-ejecuta nada y se publica el estado vigente (con efecto 0,
+ * porque no se ha movido ningun combate en esta peticion).
+ */
+export const assignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPut = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).put<
+    AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponses,
+    AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/stage-items/{stage_item_id}/court',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
  * Create Stage Item
  */
 export const createStageItemTournamentsTournamentIdStageItemsPost = <
@@ -1007,6 +1664,35 @@ export const updateStageItemTournamentsTournamentIdStageItemsStageItemIdPut = <
       'Content-Type': 'application/json',
       ...options.headers,
     },
+  });
+
+/**
+ * Generate Bracket
+ *
+ * Distribute the entrants of a single elimination stage item over its slots, bye aware.
+ *
+ * The bracket size of the stage item is kept: it is the smallest power of two that holds the
+ * entrants. Assigning, removing or editing a team never generates the bracket on its own, this
+ * action is always explicit, and it is refused as soon as the current layout has scores, a
+ * winner or planning attached to it.
+ */
+export const generateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponses,
+    GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/stage_items/{stage_item_id}/generate_bracket',
+    ...options,
   });
 
 /**
@@ -1299,6 +1985,113 @@ export const createMultipleTeamsTournamentsTournamentIdTeamsMultiPost = <
     responseType: 'json',
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/tournaments/{tournament_id}/teams_multi',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Get Users Admin
+ *
+ * Lista todos los usuarios. Nunca incluye el hash de la contrasena.
+ */
+export const getUsersAdminUsersAdminGet = <ThrowOnError extends boolean = false>(
+  options?: Options<GetUsersAdminUsersAdminGetData, ThrowOnError>
+) =>
+  (options?.client ?? client).get<GetUsersAdminUsersAdminGetResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/users/admin',
+    ...options,
+  });
+
+/**
+ * Create User Admin
+ *
+ * Crea una cuenta. La contrasena se guarda unicamente como hash bcrypt.
+ */
+export const createUserAdminUsersAdminPost = <ThrowOnError extends boolean = false>(
+  options: Options<CreateUserAdminUsersAdminPostData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateUserAdminUsersAdminPostResponses,
+    CreateUserAdminUsersAdminPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/users/admin',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Put User Account Type Admin
+ */
+export const putUserAccountTypeAdminUsersAdminUserIdAccountTypePut = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponses,
+    PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/users/admin/{user_id}/account-type',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Put User Active Admin
+ */
+export const putUserActiveAdminUsersAdminUserIdActivePut = <ThrowOnError extends boolean = false>(
+  options: Options<PutUserActiveAdminUsersAdminUserIdActivePutData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    PutUserActiveAdminUsersAdminUserIdActivePutResponses,
+    PutUserActiveAdminUsersAdminUserIdActivePutErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/users/admin/{user_id}/active',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Put User Password Admin
+ *
+ * Restablece la contrasena de otro usuario (no se devuelve ni se registra).
+ */
+export const putUserPasswordAdminUsersAdminUserIdPasswordPut = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<PutUserPasswordAdminUsersAdminUserIdPasswordPutData, ThrowOnError>
+) =>
+  (options.client ?? client).put<
+    PutUserPasswordAdminUsersAdminUserIdPasswordPutResponses,
+    PutUserPasswordAdminUsersAdminUserIdPasswordPutErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/users/admin/{user_id}/password',
     ...options,
     headers: {
       'Content-Type': 'application/json',

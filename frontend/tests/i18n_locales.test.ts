@@ -53,6 +53,7 @@ const COMPONENT_SOURCES = [
   '../src/components/f3/registration_window_card.tsx',
   '../src/components/f3/readiness_panel.tsx',
   '../src/components/f3/tatami_board_view.tsx',
+  '../src/components/f3/tatami_control_board.tsx',
   '../src/components/modals/competitor_modal.tsx',
   '../src/components/modals/registration_modal.tsx',
   '../src/pages/tournaments/[id]/competitors.tsx',

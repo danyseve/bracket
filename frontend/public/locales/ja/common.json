@@ -469,5 +469,22 @@
     "f3_error_lock_timeout": "操作が順番を取得するのに時間がかかりすぎました。もう一度お試しください。",
     "f3_error_unavailable": "サービスは現在利用できません。数分後にもう一度お試しください。",
     "f3_error_server": "サーバーでエラーが発生しました。しばらくしてからもう一度お試しください。",
-    "readiness_generation_empty": "割り当てる表がまだありません。フェーズ構成は参加登録の割り当てより先に作成します。"
+    "readiness_generation_empty": "割り当てる表がまだありません。フェーズ構成は参加登録の割り当てより先に作成します。",
+  "tatami_control_notice": "各トーナメント表はまとめて割り当てられます。バックエンドが同じトランザクションでその試合をこの畳へ移します。",
+  "tatami_control_legacy_notice": "このバックエンドはトーナメント表の畳を公開していません。表示は試合から推定しています。",
+  "tatami_assign_action": "畳を割り当てる",
+  "tatami_move_action": "畳を変更",
+  "tatami_assign_to": "{{court}} に割り当てる",
+  "tatami_move_to": "{{court}} へ移動",
+  "tatami_remove_action": "畳から外す",
+  "tatami_reassign_confirm": "このカテゴリを {{from}} から {{to}} へ移動しますか？",
+  "tatami_move_confirm": "移動",
+  "tatami_feedback_assigned": "カテゴリを {{court}} に割り当てました。{{count}} 試合を更新しました。",
+  "tatami_feedback_unassigned": "カテゴリを畳から外しました。{{count}} 試合を更新しました。",
+  "tatami_feedback_unchanged": "変更なし: カテゴリはすでにその場所にありました。{{count}} 試合を移動しました。",
+  "tatami_participants_label": "参加者",
+  "tatami_bracket_count_label": "トーナメント表",
+  "tatami_next_match_label": "次の試合",
+  "tatami_no_brackets": "トーナメント表なし",
+  "f3_error_category_in_use": "このカテゴリはすでに進行中です。移動する前に試合を終了するか空にしてください。"
 }

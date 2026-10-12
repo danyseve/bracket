@@ -55,6 +55,145 @@ export type BodyUploadLogoTournamentsTournamentIdLogoPost = {
 };
 
 /**
+ * BracketReadinessBlocker
+ *
+ * Vocabulario **cerrado** de bloqueos del readiness.
+ *
+ * Los codigos son estables y son el contrato: un mensaje libre no lo es. Un cliente traduce el
+ * codigo, asi que no se renombra uno en su sitio y no se emite ninguno sin una condicion real
+ * detras (``docs/26`` §42.6).
+ */
+export type BracketReadinessBlocker =
+  | 'REGISTRATION_WINDOW_OPEN'
+  | 'REGISTRATIONS_PENDING'
+  | 'CATEGORY_NOT_ENOUGH_COMPETITORS'
+  | 'COMPETITOR_INACTIVE'
+  | 'INVALID_CATEGORY'
+  | 'REGISTRATION_INCONSISTENT'
+  | 'BRACKET_ALREADY_EXISTS';
+
+/**
+ * BracketReadinessCategory
+ *
+ * Una categoria del torneo: sus participantes confirmados y lo que le falta para tener cuadro.
+ *
+ * ``category_key`` y ``category_label`` nulas son la categoria sin clasificar, que el modelo
+ * admite: son las personas inscritas que todavia no tienen categoria asignada.
+ */
+export type BracketReadinessCategory = {
+  /**
+   * Blocking Issues
+   */
+  blocking_issues: Array<BracketReadinessIssue>;
+  /**
+   * Category Key
+   */
+  category_key: string | null;
+  /**
+   * Category Label
+   */
+  category_label: string | null;
+  /**
+   * Confirmed Count
+   */
+  confirmed_count: number;
+  /**
+   * Ready
+   */
+  ready: boolean;
+  /**
+   * Required Minimum
+   */
+  required_minimum: number;
+};
+
+/**
+ * BracketReadinessIssue
+ *
+ * Un bloqueo concreto de la revision de readiness (S3.4d).
+ *
+ * ``code`` pertenece a un vocabulario **cerrado** y es el contrato: no viaja ningun mensaje libre.
+ * ``count`` aparece solo cuando el bloqueo cuenta algo (inscripciones pendientes, competidores,
+ * cuadros) y ``required_minimum`` solo cuando compara un recuento con un minimo.
+ */
+export type BracketReadinessIssue = {
+  /**
+   * Category Key
+   */
+  category_key: string | null;
+  code: BracketReadinessBlocker;
+  /**
+   * Count
+   */
+  count: number | null;
+  /**
+   * Required Minimum
+   */
+  required_minimum: number | null;
+};
+
+/**
+ * BracketReadinessResponse
+ *
+ * Respuesta de la revision: si el torneo esta listo y, si no, que lo impide.
+ *
+ * Es una revision derivada: no hay estado ``READY`` guardado en ninguna columna, asi que no puede
+ * desincronizarse del torneo. No viajan modelos SQL crudos, ni el actor, ni el tenant, ni las
+ * filas de inscripcion: solo recuentos y bloqueos con codigo estable.
+ */
+export type BracketReadinessResponse = {
+  /**
+   * Blocking Issues
+   */
+  blocking_issues: Array<BracketReadinessIssue>;
+  /**
+   * Categories
+   */
+  categories: Array<BracketReadinessCategory>;
+  /**
+   * Ready
+   */
+  ready: boolean;
+  registration_window: RegistrationWindowState;
+  summary: BracketReadinessSummary;
+  /**
+   * Tournament Id
+   */
+  tournament_id: number;
+};
+
+/**
+ * BracketReadinessSummary
+ *
+ * Recuento de inscripciones **vigentes** por estado; ``total`` es la suma de los demas.
+ *
+ * Las corregidas y las sustituidas por una correccion no entran: contarlas seria contar dos veces
+ * a la misma persona.
+ */
+export type BracketReadinessSummary = {
+  /**
+   * Confirmed
+   */
+  confirmed: number;
+  /**
+   * Disqualified
+   */
+  disqualified: number;
+  /**
+   * Draft
+   */
+  draft: number;
+  /**
+   * Total
+   */
+  total: number;
+  /**
+   * Withdrawn
+   */
+  withdrawn: number;
+};
+
+/**
  * Club
  */
 export type Club = {
@@ -107,6 +246,116 @@ export type ClubsResponse = {
    * Data
    */
   data: Array<Club>;
+};
+
+/**
+ * CompetitorCreateBody
+ *
+ * Alta de identidad: el nombre y, opcionalmente, el motivo del alta.
+ *
+ * No hay campo de academia: en el dominio certificado (S2) un competidor puede existir
+ * sin academia y la afiliacion no es un dato de entrada del alta.
+ */
+export type CompetitorCreateBody = {
+  /**
+   * Display Name
+   */
+  display_name: string;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+};
+
+/**
+ * CompetitorLifecycleBody
+ *
+ * Motivo de una transicion de estado (baja logica o reactivacion).
+ *
+ * Cual de las dos formas es obligatoria lo decide el catalogo de motivos dentro de la
+ * operacion de dominio, no este modelo: aqui solo se declara el vocabulario cerrado.
+ */
+export type CompetitorLifecycleBody = {
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+};
+
+/**
+ * CompetitorListResponse
+ *
+ * Pagina de competidores con el total del **filtro**, no el de la pagina.
+ */
+export type CompetitorListResponse = {
+  /**
+   * Competitors
+   */
+  competitors: Array<CompetitorResponse>;
+  /**
+   * Count
+   */
+  count: number;
+};
+
+/**
+ * CompetitorRenameBody
+ *
+ * Renombrado controlado: el nombre nuevo y el motivo del cambio de datos basicos.
+ */
+export type CompetitorRenameBody = {
+  /**
+   * Display Name
+   */
+  display_name: string;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+};
+
+/**
+ * CompetitorResponse
+ *
+ * Proyeccion publica y estable de un competidor (lista blanca explicita).
+ *
+ * Se excluye a proposito el tenant (``managed_by_club_id``): el ambito ya esta en la ruta
+ * y el cliente no necesita repetirlo. Tampoco viaja ningun dato del actor ni de la
+ * auditoria, ni el historial de nombres (que es la traza interna del renombrado).
+ */
+export type CompetitorResponse = {
+  /**
+   * Active
+   */
+  active: boolean;
+  /**
+   * Created
+   */
+  created: string;
+  /**
+   * Display Name
+   */
+  display_name: string;
+  /**
+   * Id
+   */
+  id: number;
+  /**
+   * Updated At
+   */
+  updated_at: string | null;
 };
 
 /**
@@ -213,6 +462,115 @@ export type FullTeamWithPlayers = {
    * Wins
    */
   wins: number;
+};
+
+/**
+ * GenerateBracketResponse
+ *
+ * Result of explicitly generating the bracket of a single elimination stage item.
+ */
+export type GenerateBracketResponse = {
+  /**
+   * Bracket Size
+   */
+  bracket_size: number;
+  /**
+   * Bye Count
+   */
+  bye_count: number;
+  /**
+   * Changed
+   */
+  changed: boolean;
+  /**
+   * Entrant Count
+   */
+  entrant_count: number;
+  /**
+   * Ghost Count
+   */
+  ghost_count: number;
+  /**
+   * Stage Item Id
+   */
+  stage_item_id: number;
+};
+
+/**
+ * GenerateBracketStageItemResponse
+ *
+ * Reparto de un cuadro tras la generacion: los mismos campos de reparto que publica F2C.
+ *
+ * Ni ``changed`` ni ningun otro dato de la llamada: la respuesta describe el **estado** del
+ * reparto, y por eso una repeticion con la misma clave devuelve exactamente el mismo cuerpo. Que
+ * la operacion escribiera algo queda en su evento de auditoria, no en el contrato de lectura.
+ */
+export type GenerateBracketStageItemResponse = {
+  /**
+   * Bracket Size
+   */
+  bracket_size: number;
+  /**
+   * Bye Count
+   */
+  bye_count: number;
+  /**
+   * Entrant Count
+   */
+  entrant_count: number;
+  /**
+   * Ghost Count
+   */
+  ghost_count: number;
+  /**
+   * Stage Item Id
+   */
+  stage_item_id: number;
+};
+
+/**
+ * GenerateBracketTournamentBody
+ *
+ * La generacion no lleva datos: el cuerpo existe para que un campo de mas sea un 422.
+ *
+ * No hay campo libre de motivo: generar el cuadro no es una transicion de una inscripcion y no
+ * entra en el catalogo cerrado de motivos de S3.3c-2. El cuerpo tampoco puede aportar identidad,
+ * tenant ni el estado del cuadro.
+ */
+export type GenerateBracketTournamentBody = {
+  [key: string]: never;
+};
+
+/**
+ * GenerateBracketTournamentResponse
+ *
+ * Resultado de generar los cuadros del torneo entero por accion explicita (S3.5a).
+ *
+ * No publica ``stages_created``/``matches_created``: la generacion de F2C no crea ni fases ni
+ * eliminatorias, escribe el reparto de las ranuras de los cuadros que ya existen.
+ *
+ * ``generated`` es la **post-condicion** del torneo (hay al menos un cuadro con el minimo de
+ * participantes de F2C), no "esta llamada concreta escribio algo": asi una repeticion con la misma
+ * clave devuelve el mismo cuerpo. ``skipped_stage_items`` cuenta los cuadros que F2C no admite
+ * generar ahora mismo y que por tanto no se han tocado.
+ */
+export type GenerateBracketTournamentResponse = {
+  /**
+   * Generated
+   */
+  generated: boolean;
+  /**
+   * Skipped Stage Items
+   */
+  skipped_stage_items: number;
+  /**
+   * Stage Items
+   */
+  stage_items: Array<GenerateBracketStageItemResponse>;
+  /**
+   * Tournament Id
+   */
+  tournament_id: number;
 };
 
 /**
@@ -775,6 +1133,220 @@ export type RankingsResponse = {
 };
 
 /**
+ * RegistrationCreateBody
+ *
+ * Estado deseado de una inscripcion en borrador, mas el motivo opcional del alta.
+ *
+ * Los campos de borrador son los de :class:`RegistrationDraftData` en su forma de transporte:
+ * ``identity_status`` no admite ``VERIFIED`` (se deriva de ``competitor_id``) y ni ``status`` ni
+ * ``revision`` ni los enlaces de correccion son datos de entrada.
+ */
+export type RegistrationCreateBody = {
+  /**
+   * Affiliation Id
+   */
+  affiliation_id: number | null;
+  /**
+   * Category Key
+   */
+  category_key: string | null;
+  /**
+   * Category Label
+   */
+  category_label: string | null;
+  /**
+   * Competitor Id
+   */
+  competitor_id: number | null;
+  /**
+   * Competitor Name Snapshot
+   */
+  competitor_name_snapshot: string | null;
+  identity_status: RegistrationUnknownIdentityStatus | null;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+  representation: RegistrationRepresentation;
+  /**
+   * Sports Club Id
+   */
+  sports_club_id: number | null;
+};
+
+export type RegistrationIdentityStatus = 'UNVERIFIED' | 'AMBIGUOUS' | 'VERIFIED';
+
+/**
+ * RegistrationLifecycleBody
+ *
+ * Motivo de una transicion del ciclo de vida.
+ *
+ * Cual de las dos formas es obligatoria lo decide el catalogo de motivos (S3.3c-2) dentro de la
+ * operacion de dominio, no este modelo: aqui solo se declara el vocabulario cerrado.
+ */
+export type RegistrationLifecycleBody = {
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+};
+
+/**
+ * RegistrationListResponse
+ *
+ * Pagina de inscripciones vigentes del torneo, con el total del filtro.
+ *
+ * ``count`` es el total del filtro **sin** ``limit``/``offset``: es lo que permite saber si
+ * quedan mas paginas sin pedir una de mas. La pagina no repite ni se salta filas porque el orden
+ * es total (competidor, categoria e identificador).
+ */
+export type RegistrationListResponse = {
+  /**
+   * Count
+   */
+  count: number;
+  /**
+   * Registrations
+   */
+  registrations: Array<RegistrationResponse>;
+};
+
+export type RegistrationRepresentation = 'INDEPENDENT' | 'CLUB';
+
+/**
+ * RegistrationResponse
+ *
+ * Proyeccion publica y estable de una inscripcion (lista blanca explicita).
+ *
+ * Se excluyen a proposito ``corrects_registration_id``/``superseded_by_registration_id``
+ * (enlaces internos de correccion), ``verified_by_user_id``/``verified_at`` y todo metadato de
+ * idempotencia. Los nulos se serializan explicitos: el contrato no cambia de forma entre
+ * respuestas.
+ */
+export type RegistrationResponse = {
+  /**
+   * Category Key
+   */
+  category_key: string | null;
+  /**
+   * Category Label
+   */
+  category_label: string | null;
+  /**
+   * Competitor Id
+   */
+  competitor_id: number | null;
+  /**
+   * Competitor Name Snapshot
+   */
+  competitor_name_snapshot: string;
+  /**
+   * Created
+   */
+  created: string;
+  /**
+   * Id
+   */
+  id: number;
+  identity_status: RegistrationIdentityStatus;
+  representation: RegistrationRepresentation;
+  /**
+   * Revision
+   */
+  revision: number;
+  /**
+   * Sports Club Id
+   */
+  sports_club_id: number | null;
+  /**
+   * Sports Club Name Snapshot
+   */
+  sports_club_name_snapshot: string | null;
+  status: RegistrationStatus;
+  /**
+   * Tournament Id
+   */
+  tournament_id: number;
+  /**
+   * Updated At
+   */
+  updated_at: string | null;
+};
+
+export type RegistrationStatus = 'DRAFT' | 'CONFIRMED' | 'WITHDRAWN' | 'DISQUALIFIED' | 'CORRECTED';
+
+export type RegistrationUnknownIdentityStatus = 'UNVERIFIED' | 'AMBIGUOUS';
+
+/**
+ * RegistrationWindowBody
+ *
+ * Estado deseado del plazo de inscripcion del torneo. El cierre manual no se configura aqui.
+ *
+ * ``registration_deadline`` ausente o nula significa "sin plazo": el cuerpo describe el estado
+ * deseado, no un parche, asi que enviar dos veces el mismo instante es un no-op que no vuelve a
+ * auditarse. Cualquier otro campo (``registrations_closed_at``, ``actor_user_id``,
+ * ``tenant_club_id``, ...) se rechaza con 422, no se ignora.
+ */
+export type RegistrationWindowBody = {
+  /**
+   * Registration Deadline
+   */
+  registration_deadline: string | null;
+};
+
+/**
+ * RegistrationWindowCloseBody
+ *
+ * El cierre no lleva datos: el cuerpo existe para que un campo de mas sea un 422.
+ *
+ * No hay campo libre de motivo: el cierre no es una transicion de una inscripcion y no entra en
+ * el catalogo cerrado de motivos de S3.3c-2.
+ */
+export type RegistrationWindowCloseBody = {
+  [key: string]: never;
+};
+
+/**
+ * RegistrationWindowResponse
+ *
+ * Ventana de inscripcion del torneo (S3.4c): estado derivado, sin auditoria ni internos.
+ *
+ * ``state`` y ``registrations_open`` dicen lo mismo de dos formas (vocabulario y booleano)
+ * porque el cliente que solo necesita saber si puede inscribir no deberia tener que
+ * interpretar el vocabulario. ``registrations_closed_at`` es el instante del cierre manual,
+ * **no** quien lo hizo: el actor vive en la auditoria y no viaja al cliente.
+ */
+export type RegistrationWindowResponse = {
+  /**
+   * Registration Deadline
+   */
+  registration_deadline: string | null;
+  /**
+   * Registrations Closed At
+   */
+  registrations_closed_at: string | null;
+  /**
+   * Registrations Open
+   */
+  registrations_open: boolean;
+  state: RegistrationWindowState;
+  /**
+   * Tournament Id
+   */
+  tournament_id: number;
+};
+
+export type RegistrationWindowState = 'OPEN' | 'CLOSED' | 'DEADLINE_PASSED';
+
+/**
  * RoundCreateBody
  */
 export type RoundCreateBody = {
@@ -878,6 +1450,52 @@ export type StageItemActivateNextBody = {
    * Adjust To Time
    */
   adjust_to_time: string | null;
+};
+
+/**
+ * StageItemCourtBody
+ *
+ * Cuerpo de la operacion: el tatami destino, o ``null`` para desasignar.
+ *
+ * ``court_id`` es obligatorio **como campo**: ``null`` significa "quitar el tatami", y un cuerpo
+ * sin el campo no se interpreta como una desasignacion implicita (seria adivinar la intencion).
+ * El torneo y el cuadro viajan en la ruta, no en el cuerpo: el cuerpo no puede contradecir a la
+ * ruta.
+ */
+export type StageItemCourtBody = {
+  /**
+   * Court Id
+   */
+  court_id: number | null;
+};
+
+/**
+ * StageItemCourtResponse
+ *
+ * Tatami vigente del cuadro tras la operacion, con el efecto exacto sobre sus combates.
+ *
+ * ``affected_match_count`` es el efecto de **esta** operacion: cuantos combates ha movido;
+ * repetir la misma operacion con la misma clave no la re-ejecuta, asi que vale 0 y el resto de la
+ * respuesta describe el estado vigente. ``court_name`` viaja junto al identificador para que el
+ * cliente no tenga que cruzar el listado de tatamis por su cuenta.
+ */
+export type StageItemCourtResponse = {
+  /**
+   * Affected Match Count
+   */
+  affected_match_count: number;
+  /**
+   * Court Id
+   */
+  court_id: number | null;
+  /**
+   * Court Name
+   */
+  court_name: string | null;
+  /**
+   * Stage Item Id
+   */
+  stage_item_id: number;
 };
 
 /**
@@ -1166,6 +1784,11 @@ export type StageItemUpdateBody = {
  * StageItemWithRounds
  */
 export type StageItemWithRounds = {
+  court: Court | null;
+  /**
+   * Court Id
+   */
+  court_id: number | null;
   /**
    * Created
    */
@@ -1607,7 +2230,24 @@ export type UpcomingMatchesResponse = {
 /**
  * UserAccountType
  */
-export type UserAccountType = 'REGULAR' | 'DEMO';
+export type UserAccountType = 'REGULAR' | 'DEMO' | 'ADMIN';
+
+/**
+ * UserAccountTypeToUpdate
+ */
+export type UserAccountTypeToUpdate = {
+  account_type: UserAccountType;
+};
+
+/**
+ * UserActiveToUpdate
+ */
+export type UserActiveToUpdate = {
+  /**
+   * Active
+   */
+  active: boolean;
+};
 
 /**
  * UserPasswordToUpdate
@@ -1624,6 +2264,10 @@ export type UserPasswordToUpdate = {
  */
 export type UserPublic = {
   account_type: UserAccountType;
+  /**
+   * Active
+   */
+  active: boolean;
   /**
    * Created
    */
@@ -1647,6 +2291,27 @@ export type UserPublic = {
  */
 export type UserPublicResponse = {
   data: UserPublic;
+};
+
+/**
+ * UserToCreateByAdmin
+ *
+ * Alta de usuario desde administracion (no expuesta publicamente).
+ */
+export type UserToCreateByAdmin = {
+  account_type: UserAccountType;
+  /**
+   * Email
+   */
+  email: string;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Password
+   */
+  password: string;
 };
 
 /**
@@ -1686,9 +2351,29 @@ export type UserToUpdate = {
 };
 
 /**
+ * UsersPublicResponse
+ */
+export type UsersPublicResponse = {
+  /**
+   * Data
+   */
+  data: Array<UserPublic>;
+};
+
+/**
  * ValidationError
  */
 export type ValidationError = {
+  /**
+   * Context
+   */
+  ctx?: {
+    [key: string]: unknown;
+  };
+  /**
+   * Input
+   */
+  input?: unknown;
   /**
    * Location
    */
@@ -1809,6 +2494,246 @@ export type UpdateClubClubsClubIdPutResponses = {
 
 export type UpdateClubClubsClubIdPutResponse =
   UpdateClubClubsClubIdPutResponses[keyof UpdateClubClubsClubIdPutResponses];
+
+export type ListCompetitorsEndpointClubsClubIdCompetitorsGetData = {
+  body?: never;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+  };
+  query?: {
+    /**
+     * Display Name
+     *
+     * Solo los competidores cuyo nombre contiene este texto (coincidencia literal).
+     */
+    display_name?: string | null;
+    /**
+     * Include Inactive
+     *
+     * Incluir tambien las identidades dadas de baja.
+     */
+    include_inactive?: boolean;
+    /**
+     * Limit
+     *
+     * Max number of results in a single page.
+     */
+    limit?: number;
+    /**
+     * Offset
+     *
+     * Filter results starting from this offset.
+     */
+    offset?: number;
+  };
+  url: '/clubs/{club_id}/competitors';
+};
+
+export type ListCompetitorsEndpointClubsClubIdCompetitorsGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListCompetitorsEndpointClubsClubIdCompetitorsGetError =
+  ListCompetitorsEndpointClubsClubIdCompetitorsGetErrors[keyof ListCompetitorsEndpointClubsClubIdCompetitorsGetErrors];
+
+export type ListCompetitorsEndpointClubsClubIdCompetitorsGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: CompetitorListResponse;
+};
+
+export type ListCompetitorsEndpointClubsClubIdCompetitorsGetResponse =
+  ListCompetitorsEndpointClubsClubIdCompetitorsGetResponses[keyof ListCompetitorsEndpointClubsClubIdCompetitorsGetResponses];
+
+export type CreateCompetitorEndpointClubsClubIdCompetitorsPostData = {
+  body: CompetitorCreateBody;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors';
+};
+
+export type CreateCompetitorEndpointClubsClubIdCompetitorsPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type CreateCompetitorEndpointClubsClubIdCompetitorsPostError =
+  CreateCompetitorEndpointClubsClubIdCompetitorsPostErrors[keyof CreateCompetitorEndpointClubsClubIdCompetitorsPostErrors];
+
+export type CreateCompetitorEndpointClubsClubIdCompetitorsPostResponses = {
+  /**
+   * Successful Response
+   */
+  201: CompetitorResponse;
+};
+
+export type CreateCompetitorEndpointClubsClubIdCompetitorsPostResponse =
+  CreateCompetitorEndpointClubsClubIdCompetitorsPostResponses[keyof CreateCompetitorEndpointClubsClubIdCompetitorsPostResponses];
+
+export type GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetData = {
+  body?: never;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}';
+};
+
+export type GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetError =
+  GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetErrors[keyof GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetErrors];
+
+export type GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: CompetitorResponse;
+};
+
+export type GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponse =
+  GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponses[keyof GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponses];
+
+export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostData = {
+  /**
+   * Body
+   */
+  body?: CompetitorLifecycleBody | null;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}/activate';
+};
+
+export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostError =
+  ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostErrors[keyof ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostErrors];
+
+export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: CompetitorResponse;
+};
+
+export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponse =
+  ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses[keyof ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses];
+
+export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostData = {
+  /**
+   * Body
+   */
+  body?: CompetitorLifecycleBody | null;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}/deactivate';
+};
+
+export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostError =
+  DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostErrors[keyof DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostErrors];
+
+export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: CompetitorResponse;
+  };
+
+export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponse =
+  DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses[keyof DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses];
+
+export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostData = {
+  body: CompetitorRenameBody;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}/rename';
+};
+
+export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostError =
+  RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostErrors[keyof RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostErrors];
+
+export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: CompetitorResponse;
+};
+
+export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponse =
+  RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses[keyof RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses];
 
 export type GetMetricsMetricsGetData = {
   body?: never;
@@ -2063,6 +2988,38 @@ export type GetAvailableInputsTournamentsTournamentIdAvailableInputsGetResponses
 export type GetAvailableInputsTournamentsTournamentIdAvailableInputsGetResponse =
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetResponses[keyof GetAvailableInputsTournamentsTournamentIdAvailableInputsGetResponses];
 
+export type GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/bracket-readiness';
+};
+
+export type GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetError =
+  GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetErrors[keyof GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetErrors];
+
+export type GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: BracketReadinessResponse;
+};
+
+export type GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetResponse =
+  GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetResponses[keyof GetBracketReadinessEndpointTournamentsTournamentIdBracketReadinessGetResponses];
+
 export type ChangeStatusTournamentsTournamentIdChangeStatusPostData = {
   body: TournamentChangeStatusBody;
   path: {
@@ -2230,6 +3187,41 @@ export type UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses = {
 
 export type UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponse =
   UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses[keyof UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses];
+
+export type GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostData = {
+  /**
+   * Body
+   */
+  body?: GenerateBracketTournamentBody | null;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/generate-bracket';
+};
+
+export type GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostError =
+  GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostErrors[keyof GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostErrors];
+
+export type GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: GenerateBracketTournamentResponse;
+};
+
+export type GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostResponse =
+  GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostResponses[keyof GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostResponses];
 
 export type UploadLogoTournamentsTournamentIdLogoPostData = {
   body?: BodyUploadLogoTournamentsTournamentIdLogoPost;
@@ -2772,6 +3764,399 @@ export type UpdateRankingByIdTournamentsTournamentIdRankingsRankingIdPutResponse
 export type UpdateRankingByIdTournamentsTournamentIdRankingsRankingIdPutResponse =
   UpdateRankingByIdTournamentsTournamentIdRankingsRankingIdPutResponses[keyof UpdateRankingByIdTournamentsTournamentIdRankingsRankingIdPutResponses];
 
+export type GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/registration-window';
+};
+
+export type GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetError =
+  GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetErrors[keyof GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetErrors];
+
+export type GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: RegistrationWindowResponse;
+};
+
+export type GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetResponse =
+  GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetResponses[keyof GetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowGetResponses];
+
+export type SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostData = {
+  body: RegistrationWindowBody;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/registration-window';
+};
+
+export type SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostError =
+  SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostErrors[keyof SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostErrors];
+
+export type SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: RegistrationWindowResponse;
+};
+
+export type SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponse =
+  SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponses[keyof SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponses];
+
+export type ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: {
+    /**
+     * Status
+     *
+     * Solo las inscripciones en este estado vigente.
+     */
+    status?: 'DRAFT' | 'CONFIRMED' | 'WITHDRAWN' | 'DISQUALIFIED' | null;
+    /**
+     * Competitor Id
+     *
+     * Solo las inscripciones de este competidor.
+     */
+    competitor_id?: number | null;
+    /**
+     * Limit
+     *
+     * Max number of results in a single page.
+     */
+    limit?: number;
+    /**
+     * Offset
+     *
+     * Filter results starting from this offset.
+     */
+    offset?: number;
+  };
+  url: '/tournaments/{tournament_id}/registrations';
+};
+
+export type ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetError =
+  ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetErrors[keyof ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetErrors];
+
+export type ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: RegistrationListResponse;
+};
+
+export type ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponse =
+  ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponses[keyof ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponses];
+
+export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostData = {
+  body: RegistrationCreateBody;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/registrations';
+};
+
+export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostError =
+  CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostErrors[keyof CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostErrors];
+
+export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses = {
+  /**
+   * Successful Response
+   */
+  201: RegistrationResponse;
+};
+
+export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponse =
+  CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses[keyof CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses];
+
+export type CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostData = {
+  /**
+   * Body
+   */
+  body?: RegistrationWindowCloseBody | null;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/registrations/close';
+};
+
+export type CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostError =
+  CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostErrors[keyof CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostErrors];
+
+export type CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: RegistrationWindowResponse;
+};
+
+export type CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponse =
+  CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponses[keyof CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponses];
+
+export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+    /**
+     * Registration Id
+     */
+    registration_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/registrations/{registration_id}';
+};
+
+export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetError =
+  GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetErrors[keyof GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetErrors];
+
+export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationResponse;
+  };
+
+export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponse =
+  GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses[keyof GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses];
+
+export type ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostData =
+  {
+    /**
+     * Body
+     */
+    body?: RegistrationLifecycleBody | null;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+      /**
+       * Registration Id
+       */
+      registration_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}/confirm';
+  };
+
+export type ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostError =
+  ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostErrors[keyof ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostErrors];
+
+export type ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationResponse;
+  };
+
+export type ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostResponse =
+  ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostResponses[keyof ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostResponses];
+
+export type DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostData =
+  {
+    /**
+     * Body
+     */
+    body?: RegistrationLifecycleBody | null;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+      /**
+       * Registration Id
+       */
+      registration_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}/disqualify';
+  };
+
+export type DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostError =
+  DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostErrors[keyof DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostErrors];
+
+export type DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationResponse;
+  };
+
+export type DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostResponse =
+  DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostResponses[keyof DisqualifyRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdDisqualifyPostResponses];
+
+export type ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostData =
+  {
+    /**
+     * Body
+     */
+    body?: RegistrationLifecycleBody | null;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+      /**
+       * Registration Id
+       */
+      registration_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}/reinstate';
+  };
+
+export type ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostError =
+  ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostErrors[keyof ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostErrors];
+
+export type ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationResponse;
+  };
+
+export type ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostResponse =
+  ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostResponses[keyof ReinstateRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdReinstatePostResponses];
+
+export type WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostData =
+  {
+    /**
+     * Body
+     */
+    body?: RegistrationLifecycleBody | null;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+      /**
+       * Registration Id
+       */
+      registration_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}/withdraw';
+  };
+
+export type WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostError =
+  WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostErrors[keyof WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostErrors];
+
+export type WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationResponse;
+  };
+
+export type WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostResponse =
+  WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostResponses[keyof WithdrawRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdWithdrawPostResponses];
+
 export type CreateRoundTournamentsTournamentIdRoundsPostData = {
   body: RoundCreateBody;
   path: {
@@ -2908,6 +4293,44 @@ export type ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostResponses =
 export type ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostResponse =
   ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostResponses[keyof ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostResponses];
 
+export type AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutData = {
+  body: StageItemCourtBody;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+    /**
+     * Stage Item Id
+     */
+    stage_item_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/stage-items/{stage_item_id}/court';
+};
+
+export type AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutError =
+  AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutErrors[keyof AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutErrors];
+
+export type AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: StageItemCourtResponse;
+  };
+
+export type AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponse =
+  AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponses[keyof AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponses];
+
 export type CreateStageItemTournamentsTournamentIdStageItemsPostData = {
   body: StageItemCreateBody;
   path: {
@@ -3011,6 +4434,43 @@ export type UpdateStageItemTournamentsTournamentIdStageItemsStageItemIdPutRespon
 
 export type UpdateStageItemTournamentsTournamentIdStageItemsStageItemIdPutResponse =
   UpdateStageItemTournamentsTournamentIdStageItemsStageItemIdPutResponses[keyof UpdateStageItemTournamentsTournamentIdStageItemsStageItemIdPutResponses];
+
+export type GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+    /**
+     * Stage Item Id
+     */
+    stage_item_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/stage_items/{stage_item_id}/generate_bracket';
+};
+
+export type GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostError =
+  GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostErrors[keyof GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostErrors];
+
+export type GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: GenerateBracketResponse;
+  };
+
+export type GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponse =
+  GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponses[keyof GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponses];
 
 export type UpdateStageItemInputTournamentsTournamentIdStageItemsStageItemIdInputsStageItemInputIdPutData =
   {
@@ -3572,6 +5032,146 @@ export type CreateMultipleTeamsTournamentsTournamentIdTeamsMultiPostResponses = 
 
 export type CreateMultipleTeamsTournamentsTournamentIdTeamsMultiPostResponse =
   CreateMultipleTeamsTournamentsTournamentIdTeamsMultiPostResponses[keyof CreateMultipleTeamsTournamentsTournamentIdTeamsMultiPostResponses];
+
+export type GetUsersAdminUsersAdminGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/users/admin';
+};
+
+export type GetUsersAdminUsersAdminGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: UsersPublicResponse;
+};
+
+export type GetUsersAdminUsersAdminGetResponse =
+  GetUsersAdminUsersAdminGetResponses[keyof GetUsersAdminUsersAdminGetResponses];
+
+export type CreateUserAdminUsersAdminPostData = {
+  body: UserToCreateByAdmin;
+  path?: never;
+  query?: never;
+  url: '/users/admin';
+};
+
+export type CreateUserAdminUsersAdminPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type CreateUserAdminUsersAdminPostError =
+  CreateUserAdminUsersAdminPostErrors[keyof CreateUserAdminUsersAdminPostErrors];
+
+export type CreateUserAdminUsersAdminPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: UserPublicResponse;
+};
+
+export type CreateUserAdminUsersAdminPostResponse =
+  CreateUserAdminUsersAdminPostResponses[keyof CreateUserAdminUsersAdminPostResponses];
+
+export type PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutData = {
+  body: UserAccountTypeToUpdate;
+  path: {
+    /**
+     * User Id
+     */
+    user_id: number;
+  };
+  query?: never;
+  url: '/users/admin/{user_id}/account-type';
+};
+
+export type PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutError =
+  PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutErrors[keyof PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutErrors];
+
+export type PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponses = {
+  /**
+   * Successful Response
+   */
+  200: UserPublicResponse;
+};
+
+export type PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponse =
+  PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponses[keyof PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponses];
+
+export type PutUserActiveAdminUsersAdminUserIdActivePutData = {
+  body: UserActiveToUpdate;
+  path: {
+    /**
+     * User Id
+     */
+    user_id: number;
+  };
+  query?: never;
+  url: '/users/admin/{user_id}/active';
+};
+
+export type PutUserActiveAdminUsersAdminUserIdActivePutErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type PutUserActiveAdminUsersAdminUserIdActivePutError =
+  PutUserActiveAdminUsersAdminUserIdActivePutErrors[keyof PutUserActiveAdminUsersAdminUserIdActivePutErrors];
+
+export type PutUserActiveAdminUsersAdminUserIdActivePutResponses = {
+  /**
+   * Successful Response
+   */
+  200: UserPublicResponse;
+};
+
+export type PutUserActiveAdminUsersAdminUserIdActivePutResponse =
+  PutUserActiveAdminUsersAdminUserIdActivePutResponses[keyof PutUserActiveAdminUsersAdminUserIdActivePutResponses];
+
+export type PutUserPasswordAdminUsersAdminUserIdPasswordPutData = {
+  body: UserPasswordToUpdate;
+  path: {
+    /**
+     * User Id
+     */
+    user_id: number;
+  };
+  query?: never;
+  url: '/users/admin/{user_id}/password';
+};
+
+export type PutUserPasswordAdminUsersAdminUserIdPasswordPutErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type PutUserPasswordAdminUsersAdminUserIdPasswordPutError =
+  PutUserPasswordAdminUsersAdminUserIdPasswordPutErrors[keyof PutUserPasswordAdminUsersAdminUserIdPasswordPutErrors];
+
+export type PutUserPasswordAdminUsersAdminUserIdPasswordPutResponses = {
+  /**
+   * Successful Response
+   */
+  200: SuccessResponse;
+};
+
+export type PutUserPasswordAdminUsersAdminUserIdPasswordPutResponse =
+  PutUserPasswordAdminUsersAdminUserIdPasswordPutResponses[keyof PutUserPasswordAdminUsersAdminUserIdPasswordPutResponses];
 
 export type GetUserUsersMeGetData = {
   body?: never;

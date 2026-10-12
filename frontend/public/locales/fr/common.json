@@ -469,5 +469,22 @@
     "f3_error_lock_timeout": "L'opération a mis trop de temps à obtenir son tour. Réessayez.",
     "f3_error_unavailable": "Le service n'est pas disponible pour le moment. Réessayez dans quelques minutes.",
     "f3_error_server": "Une erreur serveur s'est produite. Réessayez plus tard.",
-    "readiness_generation_empty": "Aucun tableau à remplir pour l'instant : la structure des phases est créée avant la répartition des inscriptions."
+    "readiness_generation_empty": "Aucun tableau à remplir pour l'instant : la structure des phases est créée avant la répartition des inscriptions.",
+  "tatami_control_notice": "Chaque tableau est affecté en entier : le backend déplace ses combats sur ce tatami dans la même transaction.",
+  "tatami_control_legacy_notice": "Ce backend ne publie pas le tatami du tableau : la vue est déduite des combats.",
+  "tatami_assign_action": "Affecter un tatami",
+  "tatami_move_action": "Changer de tatami",
+  "tatami_assign_to": "Affecter à {{court}}",
+  "tatami_move_to": "Déplacer vers {{court}}",
+  "tatami_remove_action": "Retirer du tatami",
+  "tatami_reassign_confirm": "Déplacer cette catégorie de {{from}} vers {{to}} ?",
+  "tatami_move_confirm": "Déplacer",
+  "tatami_feedback_assigned": "Catégorie affectée à {{court}}. {{count}} combats mis à jour.",
+  "tatami_feedback_unassigned": "Catégorie retirée du tatami. {{count}} combats mis à jour.",
+  "tatami_feedback_unchanged": "Aucun changement : la catégorie était déjà là. {{count}} combats déplacés.",
+  "tatami_participants_label": "Participants",
+  "tatami_bracket_count_label": "Tableaux",
+  "tatami_next_match_label": "Prochain combat",
+  "tatami_no_brackets": "Aucun tableau",
+  "f3_error_category_in_use": "Cette catégorie est déjà en cours : termine ou vide ses combats avant de la déplacer."
 }

@@ -469,5 +469,22 @@
     "f3_error_lock_timeout": "该操作等待轮次的时间过长。请重试。",
     "f3_error_unavailable": "服务当前不可用。请在几分钟后重试。",
     "f3_error_server": "服务器发生错误。请稍后重试。",
-    "readiness_generation_empty": "暂时没有可分配的对阵表：阶段结构需在分配报名之前创建。"
+    "readiness_generation_empty": "暂时没有可分配的对阵表：阶段结构需在分配报名之前创建。",
+  "tatami_control_notice": "每个对阵表整体分配：后端在同一事务里把它的比赛移到该场地。",
+  "tatami_control_legacy_notice": "此后端不发布对阵表的场地：面板由比赛推导。",
+  "tatami_assign_action": "分配场地",
+  "tatami_move_action": "更换场地",
+  "tatami_assign_to": "分配到 {{court}}",
+  "tatami_move_to": "移到 {{court}}",
+  "tatami_remove_action": "从场地移除",
+  "tatami_reassign_confirm": "把这个组别从 {{from}} 移到 {{to}}？",
+  "tatami_move_confirm": "移动",
+  "tatami_feedback_assigned": "组别已分配到 {{court}}。已更新 {{count}} 场比赛。",
+  "tatami_feedback_unassigned": "组别已从场地移除。已更新 {{count}} 场比赛。",
+  "tatami_feedback_unchanged": "没有变化：该组别本来就在那里。已移动 {{count}} 场比赛。",
+  "tatami_participants_label": "参赛者",
+  "tatami_bracket_count_label": "对阵表",
+  "tatami_next_match_label": "下一场比赛",
+  "tatami_no_brackets": "没有对阵表",
+  "f3_error_category_in_use": "该组别已经开始：请在移动前结束或清空它的比赛。"
 }
