@@ -41,6 +41,7 @@ from bracket.models.db.util import StageWithStageItems
 #: Los dos unicos estados publicables y los dos lados de un combate.
 PLAYABLE: Final[QueueState] = "playable"
 WAITING_ON_WINNERS: Final[QueueState] = "waiting_on_winners"
+COMPLETED: Final[QueueState] = "completed"
 Side = Literal["a", "b"]
 
 MatchWithRounds = MatchWithDetails | MatchWithDetailsDefinitive
@@ -107,7 +108,13 @@ def _queue_match(match: MatchWithRounds, round_: Round) -> QueueMatch:
         fighter_b=_fighter(match.stage_item_input2),
         score_a=match.stage_item_input1_score,
         score_b=match.stage_item_input2_score,
-        state=WAITING_ON_WINNERS if waiting else PLAYABLE,
+        winner_stage_item_input_id=match.winner_stage_item_input_id,
+        result_method=match.result_method,
+        state=(
+            COMPLETED
+            if match.get_winner() is not None
+            else (WAITING_ON_WINNERS if waiting else PLAYABLE)
+        ),
         waiting_for=waiting,
     )
 
@@ -136,20 +143,23 @@ def build_court_queue(
                 )
             )
 
-    next_match_id = next(
-        (
-            match.match_id
-            for stage_item in stage_items
-            for match in stage_item.matches
-            if match.state == PLAYABLE
-        ),
-        None,
-    )
+    # "Actual" y "siguiente" no son el id menor ni el primero de la lista cruda: son los dos
+    # primeros combates JUGABLES en el orden de lectura, que ya implica dependencias resueltas y
+    # participantes conocidos. Un combate resuelto no vuelve a ser ni actual ni siguiente.
+    playable_match_ids = [
+        match.match_id
+        for stage_item in stage_items
+        for match in stage_item.matches
+        if match.state == PLAYABLE
+    ]
+    current_match_id = playable_match_ids[0] if playable_match_ids else None
+    next_match_id = playable_match_ids[1] if len(playable_match_ids) > 1 else None
     return CourtQueueResponse(
         tournament_id=tournament.id,
         tournament_name=tournament.name,
         court_id=court.id,
         court_name=court.name,
         stage_items=stage_items,
+        current_match_id=current_match_id,
         next_match_id=next_match_id,
     )

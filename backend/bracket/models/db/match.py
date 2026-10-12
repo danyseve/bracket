@@ -1,7 +1,8 @@
 from decimal import Decimal
+from typing import Literal
 
 from heliclockter import datetime_utc, timedelta
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from bracket.models.db.court import Court
 from bracket.models.db.shared import BaseModelORM
@@ -31,11 +32,34 @@ class MatchBaseInsertable(BaseModelORM):
         return self.start_time + timedelta(minutes=self.duration_minutes + self.margin_minutes)
 
 
+#: Catalogo cerrado de metodos de victoria (S4.4b, F3C, LAB ONLY).
+#:
+#: Es el MISMO vocabulario que ya usa la maquina de estados del marcador
+#: (``scoreboard-adapter/state.js``: ``METHODS``), que hasta ahora era local y "no mapeado a
+#: nada". No se inventa una enumeracion nueva: se adopta la existente como contrato del backend,
+#: que pasa a ser quien la valida y la persiste.
+ResultMethod = Literal[
+    "points",
+    "submission",
+    "decision",
+    "disqualification",
+    "walkover",
+    "referee_stoppage",
+    "other",
+]
+
+
 class MatchInsertable(MatchBaseInsertable):
     stage_item_input1_id: StageItemInputId | None = None
     stage_item_input2_id: StageItemInputId | None = None
     stage_item_input1_winner_from_match_id: MatchId | None = None
     stage_item_input2_winner_from_match_id: MatchId | None = None
+    #: Hecho durable del resultado (S4.4b): ganador declarado por la mesa/marcador y por que
+    #: metodo. Nulos en un combate sin jugar; sin ellos solo queda la deduccion por puntuaciones.
+    winner_stage_item_input_id: StageItemInputId | None = None
+    result_method: ResultMethod | None = None
+    #: Momento en que el combate quedo resuelto. Un combate jugado no vuelve a estar pendiente.
+    finished_at: datetime_utc | None = None
 
 
 class Match(MatchInsertable):
@@ -44,6 +68,21 @@ class Match(MatchInsertable):
     stage_item_input2: StageItemInput | None = None
 
     def get_winner(self) -> StageItemInput | None:
+        """Ganador del combate: el declarado, si lo hay; si no, el que dicen las puntuaciones.
+
+        Un combate puede terminar por puntos, sumision, decision, descalificacion, walkover o
+        parada del arbitro: solo la puntuacion no lo representa. El ganador declarado
+        (``winner_stage_item_input_id`` + ``result_method``) es el hecho durable que escribe la
+        mesa y lo que avanza al ganador; sin el se mantiene la deduccion por puntuaciones de
+        siempre, que es lo que necesitan los datos y los combates ya jugados.
+        """
+        if self.winner_stage_item_input_id is not None:
+            for input_ in (self.stage_item_input1, self.stage_item_input2):
+                if input_ is not None and input_.id == self.winner_stage_item_input_id:
+                    return input_
+
+            return None
+
         if self.stage_item_input1_score > self.stage_item_input2_score:
             return self.stage_item_input1
         if self.stage_item_input1_score < self.stage_item_input2_score:
@@ -93,6 +132,19 @@ class MatchBody(BaseModelORM):
     court_id: CourtId | None = None
     custom_duration_minutes: int | None = None
     custom_margin_minutes: int | None = None
+    #: Resultado declarado (S4.4b). Los dos campos van juntos o ninguno de los dos: un ganador sin
+    #: metodo no es un resultado, y un metodo sin ganador tampoco. Que el ganador sea uno de los
+    #: dos pases del combate se comprueba en la ruta, contra el combate real, no en el cuerpo.
+    winner_stage_item_input_id: StageItemInputId | None = None
+    result_method: ResultMethod | None = None
+
+    @model_validator(mode="after")
+    def _winner_and_method_go_together(self) -> "MatchBody":
+        has_winner = self.winner_stage_item_input_id is not None
+        has_method = self.result_method is not None
+        if has_winner != has_method:
+            raise ValueError("RESULT_WINNER_AND_METHOD_REQUIRED")
+        return self
 
 
 class MatchCreateBodyFrontend(BaseModelORM):

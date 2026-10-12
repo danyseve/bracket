@@ -617,6 +617,17 @@
             "title": "Court Name",
             "type": "string"
           },
+          "current_match_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Match Id"
+          },
           "next_match_id": {
             "anyOf": [
               {
@@ -650,6 +661,7 @@
           "court_id",
           "court_name",
           "stage_items",
+          "current_match_id",
           "next_match_id"
         ],
         "title": "CourtQueueResponse",
@@ -939,6 +951,18 @@
             "title": "Duration Minutes",
             "type": "integer"
           },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -957,6 +981,26 @@
               }
             ],
             "title": "Position In Schedule"
+          },
+          "result_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "submission",
+                  "decision",
+                  "disqualification",
+                  "walkover",
+                  "referee_stoppage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Method"
           },
           "round_id": {
             "title": "Round Id",
@@ -1067,6 +1111,17 @@
               }
             ],
             "title": "Start Time"
+          },
+          "winner_stage_item_input_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Stage Item Input Id"
           }
         },
         "required": [
@@ -1087,6 +1142,9 @@
           "stage_item_input2_id",
           "stage_item_input1_winner_from_match_id",
           "stage_item_input2_winner_from_match_id",
+          "winner_stage_item_input_id",
+          "result_method",
+          "finished_at",
           "id",
           "stage_item_input1",
           "stage_item_input2"
@@ -1129,6 +1187,26 @@
             ],
             "title": "Custom Margin Minutes"
           },
+          "result_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "submission",
+                  "decision",
+                  "disqualification",
+                  "walkover",
+                  "referee_stoppage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Method"
+          },
           "round_id": {
             "title": "Round Id",
             "type": "integer"
@@ -1142,6 +1220,17 @@
             "default": 0,
             "title": "Stage Item Input2 Score",
             "type": "integer"
+          },
+          "winner_stage_item_input_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Stage Item Input Id"
           }
         },
         "required": [
@@ -1150,7 +1239,9 @@
           "stage_item_input2_score",
           "court_id",
           "custom_duration_minutes",
-          "custom_margin_minutes"
+          "custom_margin_minutes",
+          "winner_stage_item_input_id",
+          "result_method"
         ],
         "title": "MatchBody",
         "type": "object"
@@ -1311,6 +1402,18 @@
             "title": "Duration Minutes",
             "type": "integer"
           },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -1329,6 +1432,26 @@
               }
             ],
             "title": "Position In Schedule"
+          },
+          "result_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "submission",
+                  "decision",
+                  "disqualification",
+                  "walkover",
+                  "referee_stoppage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Method"
           },
           "round_id": {
             "title": "Round Id",
@@ -1439,6 +1562,17 @@
               }
             ],
             "title": "Start Time"
+          },
+          "winner_stage_item_input_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Stage Item Input Id"
           }
         },
         "required": [
@@ -1459,6 +1593,9 @@
           "stage_item_input2_id",
           "stage_item_input1_winner_from_match_id",
           "stage_item_input2_winner_from_match_id",
+          "winner_stage_item_input_id",
+          "result_method",
+          "finished_at",
           "id",
           "stage_item_input1",
           "stage_item_input2",
@@ -1521,6 +1658,18 @@
             "title": "Duration Minutes",
             "type": "integer"
           },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -1539,6 +1688,26 @@
               }
             ],
             "title": "Position In Schedule"
+          },
+          "result_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "submission",
+                  "decision",
+                  "disqualification",
+                  "walkover",
+                  "referee_stoppage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Method"
           },
           "round_id": {
             "title": "Round Id",
@@ -1643,6 +1812,17 @@
               }
             ],
             "title": "Start Time"
+          },
+          "winner_stage_item_input_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Stage Item Input Id"
           }
         },
         "required": [
@@ -1663,6 +1843,9 @@
           "stage_item_input2_id",
           "stage_item_input1_winner_from_match_id",
           "stage_item_input2_winner_from_match_id",
+          "winner_stage_item_input_id",
+          "result_method",
+          "finished_at",
           "id",
           "stage_item_input1",
           "stage_item_input2",
@@ -1914,6 +2097,26 @@
             ],
             "title": "Position In Schedule"
           },
+          "result_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "submission",
+                  "decision",
+                  "disqualification",
+                  "walkover",
+                  "referee_stoppage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Method"
+          },
           "round_id": {
             "title": "Round Id",
             "type": "integer"
@@ -1949,7 +2152,8 @@
           "state": {
             "enum": [
               "playable",
-              "waiting_on_winners"
+              "waiting_on_winners",
+              "completed"
             ],
             "title": "State",
             "type": "string"
@@ -1960,6 +2164,17 @@
             },
             "title": "Waiting For",
             "type": "array"
+          },
+          "winner_stage_item_input_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Stage Item Input Id"
           }
         },
         "required": [
@@ -1976,7 +2191,9 @@
           "score_a",
           "score_b",
           "state",
-          "waiting_for"
+          "waiting_for",
+          "winner_stage_item_input_id",
+          "result_method"
         ],
         "title": "QueueMatch",
         "type": "object"

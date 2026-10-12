@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 
@@ -163,6 +165,7 @@ async def update_match_by_id(
     match: Match = Depends(match_dependency),
 ) -> SuccessResponse:
     await check_foreign_keys_belong_to_tournament(match_body, tournament_id)
+    ensure_result_winner_is_a_participant(match, match_body)
     tournament = await sql_get_tournament(tournament_id)
 
     await sql_update_match(match_id, match_body, tournament)
@@ -183,3 +186,21 @@ async def update_match_by_id(
         await update_inputs_in_subsequent_elimination_rounds(round_.id, stage_item, {match_id})
 
     return SuccessResponse()
+
+
+def ensure_result_winner_is_a_participant(match: Match, match_body: MatchBody) -> None:
+    """El ganador declarado tiene que ser uno de los dos pases de ESTE combate (S4.4b).
+
+    El cuerpo no lleva los pases del combate, asi que la comprobacion se hace contra el combate
+    real que ya cargo la dependencia. Un ganador ajeno no se persiste nunca: sin esto, un cliente
+    podria declarar vencedor a un competidor que no estaba en el tatami.
+    """
+    winner_id = match_body.winner_stage_item_input_id
+    if winner_id is None:
+        return
+
+    if winner_id not in (match.stage_item_input1_id, match.stage_item_input2_id):
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail="RESULT_WINNER_NOT_A_PARTICIPANT",
+        )

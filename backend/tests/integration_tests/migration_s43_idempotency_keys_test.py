@@ -124,6 +124,12 @@ def migration_lab() -> Iterator[Engine]:
         f"ALTER TABLE {TABLE} ADD CONSTRAINT {CONSTRAINT} "
         f"CHECK ({_body_check(tuple(sorted(S3_4C_KEYS)))})",
     )
+    # S4.4b: el metadata vivo declara ademas las columnas del resultado de combate (revision
+    # e4b8d1a70c52, posterior a la que prueba este modulo); se retiran para dejar el estado
+    # fisico previo de verdad, o el ``upgrade head`` del test chocaria con DuplicateColumn.
+    for column in ("winner_stage_item_input_id", "result_method", "finished_at"):
+        _execute(engine, f"ALTER TABLE matches DROP COLUMN IF EXISTS {column}")
+
     _alembic("stamp", PREVIOUS_REVISION)
 
     try:

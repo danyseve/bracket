@@ -65,6 +65,9 @@ from tests.integration_tests.sql import (
 
 #: Campos que publica un combate de la cola: un campo de mas es un fallo.
 QUEUE_MATCH_FIELDS = {
+    # Resultado del combate, si esta resuelto (S4.4b).
+    "winner_stage_item_input_id",
+    "result_method",
     "match_id",
     "round_id",
     "round_name",
@@ -83,6 +86,7 @@ QUEUE_MATCH_FIELDS = {
 
 PLAYABLE = "playable"
 WAITING = "waiting_on_winners"
+COMPLETED = "completed"
 TEAM_NAMES = ("Equipo S4.4 A", "Equipo S4.4 B", "Equipo S4.4 C", "Equipo S4.4 D")
 
 
@@ -340,7 +344,8 @@ async def test_queue_publishes_the_two_first_fights_and_the_final_waiting(
     ]
 
     # El primero jugable en el orden del contrato, y sin estado de combate que inventar.
-    assert body["next_match_id"] == progression.semi_a
+    assert body["current_match_id"] == progression.semi_a
+    assert body["next_match_id"] == progression.semi_b
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -368,11 +373,14 @@ async def test_result_resolves_only_that_pass_of_the_final(
     assert final["fighter_b"] is None
     assert waiting_sides(final) == ["b"]
 
-    # GAP DOCUMENTADO: el modelo no tiene hecho durable de "jugado", asi que el combate con
-    # resultado se sigue publicando como jugable. No se infiere del marcador ni se filtra aqui.
+    # CERRADO EN S4.4b: el combate jugado ya se publica como ``completed``, porque el resultado es
+    # un hecho del dato (ganador + metodo). No se infiere del marcador: lo escribe la mesa.
     semi_a = match_by_id(matches, progression.semi_a)
-    assert semi_a["state"] == PLAYABLE
+    assert semi_a["state"] == COMPLETED, semi_a
     assert semi_a["score_a"] == 2 and semi_a["score_b"] == 0
+    # El resultado de la otra semifinal no se ha tocado: cada combate tiene su propio hecho.
+    semi_b = match_by_id(matches, progression.semi_b)
+    assert semi_b["state"] == PLAYABLE
 
 
 @pytest.mark.asyncio(loop_scope="session")

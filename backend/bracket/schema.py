@@ -170,6 +170,16 @@ matches = Table(
     Column("court_id", BigInteger, ForeignKey("courts.id"), nullable=True),
     Column("stage_item_input1_score", Integer, nullable=False),
     Column("stage_item_input2_score", Integer, nullable=False),
+    # Hecho durable del resultado (S4.4b): ganador, metodo y fin del combate. Nulos en un combate
+    # sin jugar; mismas columnas y restricciones que anade la migracion e4b8d1a70c52.
+    Column(
+        "winner_stage_item_input_id",
+        BigInteger,
+        ForeignKey("stage_item_inputs.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("result_method", String(32), nullable=True),
+    Column("finished_at", DateTimeTZ, nullable=True),
     Column("position_in_schedule", Integer, nullable=True),
 )
 

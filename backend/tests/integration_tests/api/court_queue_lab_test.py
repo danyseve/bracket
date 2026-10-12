@@ -14,7 +14,8 @@ Decisiones que este contrato cierra y que no se pueden relajar sin cambiarlo:
   ``court_id`` del combate se publica como dato, no como criterio de seleccion;
 * el orden es **el del contrato de lectura del backend** (``stages`` -> ``stage_items`` ->
   ``rounds`` -> ``matches``), no ``position_in_schedule`` y nunca el marcador: no se reordena;
-* ``next_match_id`` es el primer combate **jugable** en ese orden, y ``null`` si no hay ninguno;
+* ``current_match_id`` es el primer combate **jugable** en ese orden y ``next_match_id`` el
+  que va detras (S4.4b), y ``null`` si no hay: nunca el id menor ni la posicion de calendario;
 * **no** se publica "combate actual" ni "terminado": el modelo no tiene estado oficial de combate
   y no se infiere del marcador (``score=0`` no significa nada, y en datos reales los combates sin
   jugar traen marcadores distintos de cero). El estado vivo lo tiene el marcador, no el backend.
@@ -65,6 +66,8 @@ QUEUE_FIELDS: Final = {
     "court_id",
     "court_name",
     "stage_items",
+    # "current" y "next" son dos punteros a combates jugables (S4.4b), no ids menores.
+    "current_match_id",
     "next_match_id",
 }
 #: Campos de cada cuadro de la cola.
@@ -85,15 +88,19 @@ QUEUE_MATCH_FIELDS: Final = {
     "score_b",
     "state",
     "waiting_for",
+    # Resultado del combate, si esta resuelto (S4.4b): ganador declarado y metodo.
+    "winner_stage_item_input_id",
+    "result_method",
 }
 #: Campos de cada luchador: los mismos que usa el contrato normalizado del Bridge.
 QUEUE_FIGHTER_FIELDS: Final = {"stage_item_input_id", "team_id", "name"}
 #: Campos del motivo de espera de un pase sin resolver.
 QUEUE_WAITING_FIELDS: Final = {"side", "from_stage_item_id", "winner_position", "from_match_id"}
 
-#: Estados posibles de un combate en la cola. No hay un tercero: no se inventa "terminado".
+#: Estados de un combate en la cola. ``completed`` es un hecho del dato (S4.4b), no una inferencia.
 PLAYABLE: Final = "playable"
 WAITING: Final = "waiting_on_winners"
+COMPLETED: Final = "completed"
 
 
 @dataclass(frozen=True)
@@ -357,7 +364,7 @@ async def test_queue_publishes_the_assigned_stage_item_and_its_matches(
     )
     assert match["fighter_a"]["name"] != match["fighter_b"]["name"]
     assert match["fighter_a"]["team_id"] != match["fighter_b"]["team_id"]
-    assert body["next_match_id"] == match["match_id"]
+    assert body["current_match_id"] == match["match_id"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -483,7 +490,7 @@ async def test_queue_keeps_the_backend_order_and_next_is_the_first_playable(
     assert published.index(waiting_case.waiting_match_id) > published.index(
         waiting_case.playable_match_id
     )
-    assert body["next_match_id"] == waiting_case.playable_match_id
+    assert body["current_match_id"] == waiting_case.playable_match_id
 
 
 @pytest.mark.asyncio(loop_scope="session")

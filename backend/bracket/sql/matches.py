@@ -88,6 +88,9 @@ async def sql_update_match(match_id: MatchId, match: MatchBody, tournament: Tour
         SET round_id = :round_id,
             stage_item_input1_score = :stage_item_input1_score,
             stage_item_input2_score = :stage_item_input2_score,
+            winner_stage_item_input_id = :winner_stage_item_input_id,
+            result_method = :result_method,
+            finished_at = :finished_at,
             court_id = :court_id,
             custom_duration_minutes = :custom_duration_minutes,
             custom_margin_minutes = :custom_margin_minutes,
@@ -114,6 +117,12 @@ async def sql_update_match(match_id: MatchId, match: MatchBody, tournament: Tour
             "round_id": match.round_id,
             "stage_item_input1_score": match.stage_item_input1_score,
             "stage_item_input2_score": match.stage_item_input2_score,
+            "winner_stage_item_input_id": match.winner_stage_item_input_id,
+            "result_method": match.result_method,
+            # Declarar un ganador cierra el combate; retirarlo (correccion de la mesa) lo reabre.
+            "finished_at": (
+                datetime_utc.now() if match.winner_stage_item_input_id is not None else None
+            ),
             "court_id": match.court_id,
             "custom_duration_minutes": match.custom_duration_minutes,
             "custom_margin_minutes": match.custom_margin_minutes,

@@ -4,12 +4,15 @@ El contrato es **cerrado**: sale lo justo para que un marcador pinte el torneo, 
 categoria, la ronda, los dos luchadores, el marcador y el siguiente combate, y nada mas. Ningun
 interno del modelo cruza la frontera: ni SQL, ni restricciones, ni conflictos entre pases.
 
-Dos ausencias son **decisiones**, no olvidos:
+Sobre el estado del combate (S4.4b), que antes eran dos ausencias deliberadas:
 
-* no hay "combate actual": el estado vivo lo tiene el marcador, no el backend;
-* no hay "terminado": el modelo no tiene estado oficial de combate y no se infiere del marcador
-  (en datos reales los combates sin jugar traen puntuaciones distintas de cero, asi que
-  ``score=0`` no significa nada y "terminado" tampoco se puede deducir de lo contrario).
+* **"terminado"** ya no hace falta deducirlo del marcador: el resultado es un hecho del dato
+  (``winner_stage_item_input_id`` + ``result_method`` en ``matches``), asi que se publica como
+  ``completed`` sin inferir nada de ``score=0``;
+* **"actual" y "siguiente"** se publican como punteros *deterministas* a los dos primeros combates
+  ``playable`` en el orden de lectura, no al id menor: dependen del orden real, de las
+  dependencias resueltas y de que los participantes se conozcan. El estado *vivo* de un combate
+  en curso sigue siendo del marcador; el backend solo dice que esta jugable y quien va despues.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from typing import Literal
 
 from heliclockter import datetime_utc
 
+from bracket.models.db.match import ResultMethod
 from bracket.models.db.shared import BaseModelORM
 from bracket.utils.id_types import (
     CourtId,
@@ -29,8 +33,12 @@ from bracket.utils.id_types import (
     TournamentId,
 )
 
-#: Estado de un combate en la cola: jugable, o esperando pases que aun no existen.
-QueueState = Literal["playable", "waiting_on_winners"]
+#: Estado de un combate en la cola.
+#:
+#: ``playable``: los dos pases tienen equipo y el combate no se ha jugado todavia.
+#: ``waiting_on_winners``: falta algun pase (lo alimenta un combate o un cuadro anterior).
+#: ``completed``: el combate esta resuelto (ganador declarado o puntuaciones decisivas).
+QueueState = Literal["playable", "waiting_on_winners", "completed"]
 
 
 class QueueFighter(BaseModelORM):
@@ -72,6 +80,9 @@ class QueueMatch(BaseModelORM):
     score_b: int
     state: QueueState
     waiting_for: list[QueueWaiting]
+    #: Resultado del combate, si esta resuelto: quien gano y por que metodo.
+    winner_stage_item_input_id: StageItemInputId | None = None
+    result_method: ResultMethod | None = None
 
 
 class QueueStageItem(BaseModelORM):
@@ -95,4 +106,6 @@ class CourtQueueResponse(BaseModelORM):
     court_id: CourtId
     court_name: str
     stage_items: list[QueueStageItem]
+    #: Primer combate jugable del tatami (nada de ids menores) y el que va detras.
+    current_match_id: MatchId | None = None
     next_match_id: MatchId | None = None

@@ -31,6 +31,7 @@ class ForeignKey(EnumAutoStr):
     matches_stage_item_input1_winner_from_match_id_fkey = auto()
     matches_stage_item_input2_id_fkey = auto()
     matches_stage_item_input2_winner_from_match_id_fkey = auto()
+    matches_winner_stage_item_input_id_fkey = auto()
     players_registration_id_fkey = auto()
     players_tournament_id_fkey = auto()
     players_x_teams_player_id_fkey = auto()
