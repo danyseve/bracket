@@ -606,6 +606,55 @@
         "title": "CourtBody",
         "type": "object"
       },
+      "CourtQueueResponse": {
+        "description": "Cola de un tatami: la lectura unica que el marcador necesita para arrancar.\n\n``next_match_id`` es el primer combate **jugable** en el orden publicado, o ``null`` si no hay\nninguno. No es el combate vivo: nadie lo ha empezado todavia.",
+        "properties": {
+          "court_id": {
+            "title": "Court Id",
+            "type": "integer"
+          },
+          "court_name": {
+            "title": "Court Name",
+            "type": "string"
+          },
+          "next_match_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Match Id"
+          },
+          "stage_items": {
+            "items": {
+              "$ref": "#/components/schemas/QueueStageItem"
+            },
+            "title": "Stage Items",
+            "type": "array"
+          },
+          "tournament_id": {
+            "title": "Tournament Id",
+            "type": "integer"
+          },
+          "tournament_name": {
+            "title": "Tournament Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tournament_id",
+          "tournament_name",
+          "court_id",
+          "court_name",
+          "stage_items",
+          "next_match_id"
+        ],
+        "title": "CourtQueueResponse",
+        "type": "object"
+      },
       "CourtsResponse": {
         "properties": {
           "data": {
@@ -1779,6 +1828,243 @@
           "data"
         ],
         "title": "PlayersResponse",
+        "type": "object"
+      },
+      "QueueFighter": {
+        "description": "Luchador de un combate, en la misma forma que el contrato normalizado del Bridge.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "stage_item_input_id": {
+            "title": "Stage Item Input Id",
+            "type": "integer"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stage_item_input_id",
+          "team_id",
+          "name"
+        ],
+        "title": "QueueFighter",
+        "type": "object"
+      },
+      "QueueMatch": {
+        "description": "Combate de la cola del tatami, con lo necesario para pintarlo y nada mas.",
+        "properties": {
+          "court_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Id"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "fighter_a": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueueFighter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fighter_b": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueueFighter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "match_id": {
+            "title": "Match Id",
+            "type": "integer"
+          },
+          "position_in_schedule": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position In Schedule"
+          },
+          "round_id": {
+            "title": "Round Id",
+            "type": "integer"
+          },
+          "round_is_draft": {
+            "title": "Round Is Draft",
+            "type": "boolean"
+          },
+          "round_name": {
+            "title": "Round Name",
+            "type": "string"
+          },
+          "score_a": {
+            "title": "Score A",
+            "type": "integer"
+          },
+          "score_b": {
+            "title": "Score B",
+            "type": "integer"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "state": {
+            "enum": [
+              "playable",
+              "waiting_on_winners"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "waiting_for": {
+            "items": {
+              "$ref": "#/components/schemas/QueueWaiting"
+            },
+            "title": "Waiting For",
+            "type": "array"
+          }
+        },
+        "required": [
+          "match_id",
+          "round_id",
+          "round_name",
+          "round_is_draft",
+          "position_in_schedule",
+          "start_time",
+          "duration_seconds",
+          "court_id",
+          "fighter_a",
+          "fighter_b",
+          "score_a",
+          "score_b",
+          "state",
+          "waiting_for"
+        ],
+        "title": "QueueMatch",
+        "type": "object"
+      },
+      "QueueStageItem": {
+        "description": "Cuadro asignado al tatami, con sus combates en el orden del contrato de lectura.",
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/QueueMatch"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "stage_item_id": {
+            "title": "Stage Item Id",
+            "type": "integer"
+          },
+          "type_name": {
+            "title": "Type Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage_item_id",
+          "name",
+          "type_name",
+          "matches"
+        ],
+        "title": "QueueStageItem",
+        "type": "object"
+      },
+      "QueueWaiting": {
+        "description": "Pase que todavia no se puede jugar, con su procedencia.\n\n``from_stage_item_id``/``winner_position`` apunta al ganador de otro cuadro; ``from_match_id``\nenlaza con el combate del mismo cuadro que lo alimenta. Los tres pueden venir a ``null``: un\npase puede estar simplemente vacio, y eso tambien es un hecho del dato, no un error.",
+        "properties": {
+          "from_match_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Match Id"
+          },
+          "from_stage_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Stage Item Id"
+          },
+          "side": {
+            "enum": [
+              "a",
+              "b"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "winner_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Position"
+          }
+        },
+        "required": [
+          "side",
+          "from_stage_item_id",
+          "winner_position",
+          "from_match_id"
+        ],
+        "title": "QueueWaiting",
         "type": "object"
       },
       "Ranking": {
@@ -4045,7 +4331,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -5368,6 +5654,68 @@
         "summary": "Update Court By Id",
         "tags": [
           "Courts"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/courts/{court_id}/queue": {
+      "get": {
+        "description": "Cola del tatami: cuadros asignados, sus combates y el siguiente jugable.",
+        "operationId": "get_court_queue_tournaments__tournament_id__courts__court_id__queue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "court_id",
+            "required": true,
+            "schema": {
+              "title": "Court Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_draft_rounds",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "No Draft Rounds",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourtQueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Court Queue",
+        "tags": [
+          "Court Queue"
         ]
       }
     },

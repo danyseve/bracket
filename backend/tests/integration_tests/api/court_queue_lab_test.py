@@ -37,8 +37,13 @@ from starlette import status
 from bracket.database import database
 from bracket.models.db.match import MatchInsertable
 from bracket.models.db.round import RoundInsertable
-from bracket.models.db.stage_item_inputs import StageItemInputInsertable
-from bracket.utils.id_types import CourtId, MatchId, StageItemId, TournamentId
+from bracket.utils.id_types import (
+    CourtId,
+    MatchId,
+    StageItemId,
+    StageItemInputId,
+    TournamentId,
+)
 from tests.integration_tests.api.generate_bracket_http_support import GenerationLab
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 from tests.integration_tests.api.stage_item_court_lab_test import (  # noqa: F401
@@ -51,7 +56,6 @@ from tests.integration_tests.api.stage_item_court_lab_test import (  # noqa: F40
 from tests.integration_tests.sql import (
     inserted_match,
     inserted_round,
-    inserted_stage_item_input,
 )
 
 #: Campos que publica la respuesta de la cola. Un campo de mas es un fallo: se cierra.
@@ -104,7 +108,9 @@ class WaitingCase:
     waiting_round_match_id: MatchId
 
 
-def queue_url(tournament_id: TournamentId, court_id: CourtId, *, no_draft_rounds: bool = False) -> str:
+def queue_url(
+    tournament_id: TournamentId, court_id: CourtId, *, no_draft_rounds: bool = False
+) -> str:
     """Ruta exacta del contrato: la cola del tatami, no del combate ni del cuadro."""
     suffix = "?no_draft_rounds=true" if no_draft_rounds else ""
     return f"{get_root_uvicorn_url()}tournaments/{tournament_id}/courts/{court_id}/queue{suffix}"
@@ -137,20 +143,22 @@ async def read_queue(
 
 
 async def queue_ok(*, tournament: TournamentId, court_id: CourtId) -> dict[str, Any]:
-    """Cola con la sesion OWNER y forma publicada cerrada."""
-    status_code, body = await read_queue(tournament=tournament, court_id=court_id)
+    """Cola por la via publica (sin sesion y sin borradores): la que usa un marcador de verdad."""
+    status_code, body = await read_queue(
+        tournament=tournament, court_id=court_id, no_draft_rounds=True
+    )
     assert status_code == status.HTTP_200_OK, body
     assert set(body) == QUEUE_FIELDS, body
     return body
 
 
-async def stage_item_input_ids(stage_item_id: StageItemId) -> dict[int, int]:
+async def stage_item_input_ids(stage_item_id: StageItemId) -> dict[int, StageItemInputId]:
     """Ranuras del cuadro, por numero de ranura: la cola no las publica, el test si las necesita."""
     rows = await database.fetch_all(
         query="SELECT id, slot FROM stage_item_inputs WHERE stage_item_id = :stage_item_id",
         values={"stage_item_id": stage_item_id},
     )
-    return {int(row["slot"]): int(row["id"]) for row in rows}
+    return {int(row["slot"]): StageItemInputId(int(row["id"])) for row in rows}
 
 
 async def fighter_name(stage_item_input_id: int) -> str:
@@ -187,7 +195,7 @@ async def tentative_input(
     slot: int,
     from_stage_item_id: StageItemId,
     winner_position: int,
-) -> AsyncIterator[int]:
+) -> AsyncIterator[StageItemInputId]:
     """Pase que espera al ganador de otro cuadro: el hecho real de "no jugable todavia".
 
     El ayudante del arnes solo inserta pases con equipo o vacios; el pase *tentativo* (el que
@@ -210,15 +218,19 @@ async def tentative_input(
     )
     assert input_id is not None
     try:
-        yield int(input_id)
+        yield StageItemInputId(int(input_id))
     finally:
         await database.execute(
-            query="DELETE FROM stage_item_inputs WHERE id = :input_id", values={"input_id": input_id}
+            query="DELETE FROM stage_item_inputs WHERE id = :input_id",
+            values={"input_id": input_id},
         )
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
-async def waiting_case(lab: GenerationLab, tatami: TatamiLab) -> AsyncIterator[WaitingCase]:
+async def waiting_case(
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
+) -> AsyncIterator[WaitingCase]:
     """Cuadro en el Tatami 1 con: un combate jugable, otro que espera pases y una ronda posterior.
 
     El combate original del arnes (equipo en las dos ranuras) queda con ``position_in_schedule``
@@ -297,9 +309,11 @@ async def waiting_case(lab: GenerationLab, tatami: TatamiLab) -> AsyncIterator[W
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_of_a_court_without_stage_items_is_empty(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
-    """Un tatami sin cuadros asignados devuelve una cola vacia, no un error ni un combate inventado."""
+    """Un tatami sin cuadros asignados devuelve una cola vacia, no un error ni un
+    combate inventado."""
     body = await queue_ok(tournament=lab.tournament, court_id=tatami.court_a)
 
     assert body["tournament_id"] == lab.tournament
@@ -311,7 +325,8 @@ async def test_queue_of_a_court_without_stage_items_is_empty(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_publishes_the_assigned_stage_item_and_its_matches(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
     """La cola publica el cuadro asignado con lo justo para pintar el combate."""
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
@@ -347,7 +362,8 @@ async def test_queue_publishes_the_assigned_stage_item_and_its_matches(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_of_a_court_without_the_stage_item_does_not_show_it(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
     """El cuadro pertenece al tatami que dice su asignacion: en otro tatami no aparece."""
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
@@ -360,25 +376,25 @@ async def test_queue_of_a_court_without_the_stage_item_does_not_show_it(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_of_an_unassigned_stage_item_is_in_no_court(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
     """Sin asignacion no hay tatami: el cuadro no se cuela en la cola de nadie."""
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
 
     body = await queue_ok(tournament=lab.tournament, court_id=tatami.court_b)
 
-    assert all(
-        item["stage_item_id"] != tatami.other_stage_item_id for item in body["stage_items"]
-    )
+    assert all(item["stage_item_id"] != tatami.other_stage_item_id for item in body["stage_items"])
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_of_a_court_of_another_tournament_is_not_found(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
     """El tatami se valida contra su torneo: el de otro torneo del mismo tenant no existe aqui."""
     status_code, body = await read_queue(
-        tournament=lab.tournament, court_id=tatami.other_tournament_court
+        tournament=lab.tournament, court_id=tatami.other_tournament_court, no_draft_rounds=True
     )
 
     assert status_code == status.HTTP_404_NOT_FOUND, body
@@ -387,30 +403,40 @@ async def test_queue_of_a_court_of_another_tournament_is_not_found(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_of_an_unknown_court_is_not_found(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
-    """Un tatami inexistente es 404 y no una cola vacia: no se confunde "no existe" con "sin nada"."""
-    status_code, body = await read_queue(tournament=lab.tournament, court_id=CourtId(10_000_000))
+    """Un tatami inexistente es 404 y no una cola vacia: no se confunde "no existe" con
+    "sin nada"."""
+    status_code, body = await read_queue(
+        tournament=lab.tournament, court_id=CourtId(10_000_000), no_draft_rounds=True
+    )
 
     assert status_code == status.HTTP_404_NOT_FOUND, body
     assert "10000000" in json.dumps(body)
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_queue_of_a_tournament_that_does_not_exist_is_not_found(
-    lab: GenerationLab, tatami: TatamiLab
+async def test_queue_of_a_tournament_that_does_not_exist_is_rejected(
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
-    """Un torneo inexistente tampoco tiene tatamis: 404 sin filtrar la existencia de otros."""
+    """Un torneo inexistente lo rechaza la sesion compartida (401) antes de mirar tatamis.
+
+    No es 404 propio: el criterio de sesion es el mismo que el de la lectura de cuadros, y no se
+    cambia aqui para que este contrato no filtre si un torneo existe o no.
+    """
     status_code, body = await read_queue(
-        tournament=TournamentId(10_000_001), court_id=tatami.court_a
+        tournament=TournamentId(10_000_001), court_id=tatami.court_a, no_draft_rounds=True
     )
 
-    assert status_code == status.HTTP_404_NOT_FOUND, body
+    assert status_code == status.HTTP_401_UNAUTHORIZED, body
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_needs_a_session_unless_the_drafts_are_excluded(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
     """Mismo criterio que la lectura de cuadros: sin sesion, solo la vista publica."""
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
@@ -429,14 +455,13 @@ async def test_queue_needs_a_session_unless_the_drafts_are_excluded(
     assert public_status == status.HTTP_200_OK, public_body
     assert owner_status == status.HTTP_200_OK
     assert set(public_body) == QUEUE_FIELDS, public_body
-    assert [item["stage_item_id"] for item in public_body["stage_items"]] == [
-        tatami.stage_item_id
-    ]
+    assert [item["stage_item_id"] for item in public_body["stage_items"]] == [tatami.stage_item_id]
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_keeps_the_backend_order_and_next_is_the_first_playable(
-    lab: GenerationLab, waiting_case: WaitingCase
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    waiting_case: WaitingCase,
 ) -> None:
     """Orden = contrato de lectura del backend; ``next_match_id`` = primer jugable de ese orden.
 
@@ -451,7 +476,11 @@ async def test_queue_keeps_the_backend_order_and_next_is_the_first_playable(
     persisted = await stage_item_matches(waiting_case.stage_item_id)
 
     assert published == persisted
-    assert published.index(waiting_case.waiting_match_id) < published.index(
+    positions = {
+        match["match_id"]: match["position_in_schedule"] for match in stage_item["matches"]
+    }
+    assert positions[waiting_case.waiting_match_id] < positions[waiting_case.playable_match_id]
+    assert published.index(waiting_case.waiting_match_id) > published.index(
         waiting_case.playable_match_id
     )
     assert body["next_match_id"] == waiting_case.playable_match_id
@@ -459,9 +488,11 @@ async def test_queue_keeps_the_backend_order_and_next_is_the_first_playable(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_reports_waiting_matches_with_their_pending_passes(
-    lab: GenerationLab, waiting_case: WaitingCase
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    waiting_case: WaitingCase,
 ) -> None:
-    """Un pase sin resolver se publica como espera, con su procedencia; no se omite ni se inventa."""
+    """Un pase sin resolver se publica como espera, con su procedencia; no se omite ni
+    se inventa."""
     body = await queue_ok(tournament=lab.tournament, court_id=waiting_case.court_a)
 
     [stage_item] = body["stage_items"]
@@ -489,9 +520,11 @@ async def test_queue_reports_waiting_matches_with_their_pending_passes(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_follows_the_tatami_reassignment(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
-    """La cola consume la asignacion de S4.3: al reasignar, el cuadro cambia de cola y de ninguna otra."""
+    """La cola consume la asignacion de S4.3: al reasignar, el cuadro cambia de cola y de
+    ninguna otra."""
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_b)
 
@@ -506,7 +539,8 @@ async def test_queue_follows_the_tatami_reassignment(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_hides_draft_rounds_when_asked(
-    lab: GenerationLab, tatami: TatamiLab
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    tatami: TatamiLab,  # noqa: F811  (fixture importado del modulo de contrato)
 ) -> None:
     """Una ronda en borrador no se publica a quien pide la vista publica."""
     now = datetime_utc.now()
@@ -531,12 +565,15 @@ async def test_queue_hides_draft_rounds_when_asked(
                 stage_item_input2_conflict=False,
             )
         ) as draft_match:
-            public = await read_queue(
+            public_status, public = await read_queue(
                 tournament=lab.tournament, court_id=tatami.court_a, no_draft_rounds=True
             )
-            private = await read_queue(
+            private_status, private = await read_queue(
                 tournament=lab.tournament, court_id=tatami.court_a, token=lab.owner_token
             )
+
+    assert public_status == status.HTTP_200_OK, public
+    assert private_status == status.HTTP_200_OK, private
 
     public_rounds = [
         match["round_id"] for item in public["stage_items"] for match in item["matches"]
@@ -554,9 +591,11 @@ async def test_queue_hides_draft_rounds_when_asked(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_queue_matches_the_order_of_the_stages_read(
-    lab: GenerationLab, waiting_case: WaitingCase
+    lab: GenerationLab,  # noqa: F811  (fixture importado del modulo de contrato)
+    waiting_case: WaitingCase,
 ) -> None:
-    """El orden de la cola es el de ``/stages`` para el mismo cuadro: una sola autoridad de orden."""
+    """El orden de la cola es el de ``/stages`` para el mismo cuadro: una sola autoridad
+    de orden."""
     queue_body = await queue_ok(tournament=lab.tournament, court_id=waiting_case.court_a)
 
     async with aiohttp.ClientSession() as session:
@@ -571,13 +610,9 @@ async def test_queue_matches_the_order_of_the_stages_read(
         for item in stage["stage_items"]
         if item["id"] == waiting_case.stage_item_id
     )
-    from_stages = [
-        match["id"] for round_ in stage_item["rounds"] for match in round_["matches"]
-    ]
+    from_stages = [match["id"] for round_ in stage_item["rounds"] for match in round_["matches"]]
     from_queue = [
-        match["match_id"]
-        for item in queue_body["stage_items"]
-        for match in item["matches"]
+        match["match_id"] for item in queue_body["stage_items"] for match in item["matches"]
     ]
 
     assert from_queue == from_stages
