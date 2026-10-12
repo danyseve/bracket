@@ -341,14 +341,23 @@ async def test_unassign_clears_the_stage_item_and_its_matches(
 async def test_assigning_the_same_court_again_is_a_noop_without_a_new_event(
     lab: GenerationLab, tatami: TatamiLab
 ) -> None:
-    """Repetir el mismo tatami no cambia nada: 200 estable, cero combates tocados, sin evento."""
+    """CASO B: clave nueva sobre el tatami ya asignado es un no-op real, sin evento nuevo.
+
+    No es un replay (la clave es nueva), asi que la operacion se ejecuta y comprueba el estado: no
+    mueve ningun combate y no audita nada, porque no hay efecto. El unico cambio es la reserva.
+    """
     first = await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
+    events_after_first = await tatami_audit()
 
     second = await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
 
-    assert second == {**first, "affected_match_count": 0}
+    assert first["affected_match_count"] >= 1
+    assert second["affected_match_count"] == 0
+    assert second["court_id"] == first["court_id"] == int(tatami.court_a)
     assert await stage_item_court(tatami.stage_item_id) == int(tatami.court_a)
-    assert [row["action"] for row in await tatami_audit()] == ["TATAMI_ASSIGNED"]
+    assert await tatami_audit() == events_after_first
+    assert [row["action"] for row in events_after_first] == ["TATAMI_ASSIGNED"]
+    assert await assignment_reservations(tatami.stage_item_id) == 2
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -643,10 +652,11 @@ async def test_replay_with_the_same_key_writes_once_and_answers_the_same(
     )
 
     assert first_status == second_status == status.HTTP_200_OK
-    # La repeticion no re-ejecuta la operacion: el estado publicado es el mismo y el efecto de esta
-    # peticion concreta es 0 combates movidos.
-    assert first_body["affected_match_count"] == 1
-    assert second_body == {**first_body, "affected_match_count": 0}
+    # Repeticion de una operacion ya confirmada (CASO A): se devuelve **la respuesta original** tal
+    # cual, con el mismo efecto. El cliente que reintenta ve exactamente lo mismo, incluido cuantos
+    # combates movio la operacion entonces.
+    assert first_body["affected_match_count"] >= 1
+    assert second_body == first_body
     assert await assignment_reservations(tatami.stage_item_id) == 1
     assert [row["action"] for row in await tatami_audit()] == ["TATAMI_ASSIGNED"]
 
@@ -689,6 +699,37 @@ async def assign_ok_key(
     return body
 
 
+@pytest.mark.asyncio(loop_scope="session")
+async def test_replay_of_a_confirmed_unassignment_repeats_the_original_answer(
+    lab: GenerationLab, tatami: TatamiLab
+) -> None:
+    """CASO A en la desasignacion: la repeticion confirma lo mismo, con nulos incluidos.
+
+    Es el caso que mas aprieta el almacen del resultado: la respuesta confirmada lleva ``court_id`` y
+    ``court_name`` a ``null`` (el cuadro se queda sin tatami) y hay que poder devolverla tal cual.
+    """
+    await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
+    key = uuid4().hex
+    first_status, _, first_body = await assign(
+        lab, stage_item_id=tatami.stage_item_id, court_id=None, key=key, token=lab.owner_token
+    )
+    second_status, _, second_body = await assign(
+        lab, stage_item_id=tatami.stage_item_id, court_id=None, key=key, token=lab.owner_token
+    )
+
+    assert first_status == second_status == status.HTTP_200_OK
+    assert first_body["court_id"] is None and first_body["court_name"] is None
+    assert first_body["affected_match_count"] >= 1
+    assert second_body == first_body
+    assert await stage_item_court(tatami.stage_item_id) is None
+    assert await match_courts(tatami.stage_item_id) == [None]
+    assert [row["action"] for row in await tatami_audit()] == [
+        "TATAMI_ASSIGNED",
+        "TATAMI_UNASSIGNED",
+    ]
+    assert await assignment_reservations(tatami.stage_item_id) == 2
+
+
 # --- 7. concurrencia y bloqueo ------------------------------------------------------------------
 
 
@@ -728,8 +769,9 @@ async def test_same_key_while_in_flight_is_a_safe_replay(
     second_status, _, second_body = await second
 
     assert first_status == second_status == status.HTTP_200_OK, (first_body, second_body)
-    # La repeticion no re-ejecuta: mismo estado, efecto nuevo cero y un unico efecto auditado.
-    assert second_body == {**first_body, "affected_match_count": 0}
+    # La repeticion en vuelo espera a la confirmada y **reproduce su respuesta** (CASO A): no la
+    # recalcula ni la completa con el estado actual.
+    assert second_body == first_body
     assert [row["action"] for row in await tatami_audit()] == ["TATAMI_ASSIGNED"]
     assert await assignment_reservations(tatami.stage_item_id) == 1
     assert await match_courts(tatami.stage_item_id) == [int(tatami.court_a)]
