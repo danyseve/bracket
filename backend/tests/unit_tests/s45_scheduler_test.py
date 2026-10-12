@@ -18,15 +18,16 @@ Reglas de plan (una por prueba, sin combinatoria escondida):
 * los tatamis se cargan por turnos (el que antes queda libre), con el id como desempate.
 """
 
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from heliclockter import datetime_utc
 
 from bracket.logic.planning.scheduler import (
     MatchToSchedule,
+    build_schedule,
     estimate_starts,
     observed_lag_minutes,
-    build_schedule,
 )
 
 UTC = ZoneInfo("UTC")
@@ -91,9 +92,9 @@ def test_planificacion_determinista() -> None:
     first = plan(matches, [1, 2, 3])
     second = plan(list(reversed(matches)), [1, 2, 3])
 
-    assert [(s.match_id, s.court_id, s.position_in_schedule, s.start_time) for s in first.slots] == [
-        (s.match_id, s.court_id, s.position_in_schedule, s.start_time) for s in second.slots
-    ]
+    assert [
+        (s.match_id, s.court_id, s.position_in_schedule, s.start_time) for s in first.slots
+    ] == [(s.match_id, s.court_id, s.position_in_schedule, s.start_time) for s in second.slots]
     assert first.slots == second.slots
 
 
@@ -183,7 +184,9 @@ def test_un_combate_no_arranca_antes_del_inicio_del_torneo() -> None:
 def test_respeta_las_asignaciones_manuales() -> None:
     """§8: una asignacion explicita (tatami y hora) no se sobrescribe en silencio."""
     manual_start = START + timedelta(hours=3)
-    manual = match(99, court=3, start=manual_start, round_order=1, participants=("team:1", "team:2"))
+    manual = match(
+        99, court=3, start=manual_start, round_order=1, participants=("team:1", "team:2")
+    )
     pending = [match(i, round_order=1) for i in range(1, 4)]
     built = plan([manual, *pending], [1, 2, 3])
 
@@ -229,24 +232,37 @@ def test_estimacion_es_el_plan_mas_el_retraso_del_tatami() -> None:
     built = plan([match(i, round_order=1, position=i) for i in range(1, 4)], [1])
     estimated = estimate_starts(plan=built, lag_minutes_by_court={1: 12})
 
-    planned = [slot.start_time for slot in sorted(built.slots, key=lambda s: s.position_in_schedule)]
-    assert [estimated[slot.match_id] for slot in sorted(built.slots, key=lambda s: s.position_in_schedule)] == [
-        start + timedelta(minutes=12) for start in planned
+    planned = [
+        slot.start_time for slot in sorted(built.slots, key=lambda s: s.position_in_schedule)
     ]
+    assert [
+        estimated[slot.match_id]
+        for slot in sorted(built.slots, key=lambda s: s.position_in_schedule)
+    ] == [start + timedelta(minutes=12) for start in planned]
     # El plan sigue intacto: la estimacion no escribe sobre el.
-    assert [slot.start_time for slot in sorted(built.slots, key=lambda s: s.position_in_schedule)] == planned
+    assert [
+        slot.start_time for slot in sorted(built.slots, key=lambda s: s.position_in_schedule)
+    ] == planned
 
 
 def test_lag_observado_sale_de_los_combates_terminados() -> None:
     """El retraso de un tatami es el mayor desvio observado en lo ya jugado, nunca negativo."""
-    finished_late = match(1, court=1, start=START, duration=5, margin=1)
-    assert observed_lag_minutes(
-        planned_end=START + timedelta(minutes=6), finished_at=START + timedelta(minutes=20)
-    ) == 14
-    assert observed_lag_minutes(
-        planned_end=START + timedelta(minutes=6), finished_at=START + timedelta(minutes=6)
-    ) == 0
-    assert observed_lag_minutes(
-        planned_end=START + timedelta(minutes=6), finished_at=None
-    ) == 0
-    assert finished_late.end_time == START + timedelta(minutes=6)
+    assert (
+        observed_lag_minutes(
+            planned_end=START + timedelta(minutes=6), finished_at=START + timedelta(minutes=20)
+        )
+        == 14
+    )
+    assert (
+        observed_lag_minutes(
+            planned_end=START + timedelta(minutes=6), finished_at=START + timedelta(minutes=6)
+        )
+        == 0
+    )
+    assert observed_lag_minutes(planned_end=START + timedelta(minutes=6), finished_at=None) == 0
+    assert (
+        observed_lag_minutes(
+            planned_end=START + timedelta(minutes=6), finished_at=START + timedelta(minutes=4)
+        )
+        == 0
+    )
