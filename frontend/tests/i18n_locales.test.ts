@@ -1,10 +1,14 @@
 /**
- * Comprobaciones reales de i18n del frontend (P2.8B F2C).
+ * Comprobaciones reales de i18n del frontend (P2.8B F2C + P2.8C/F3C S4.1).
  *
  * No basta con que las claves estén en el JSON: la UI se sirve a través de i18next +
  * i18next-http-backend, y un namespace mal puesto o un locale cacheado hacen que el operador vea
  * la clave cruda (`generate_bracket_modal_title`) en pantalla. Estos tests resuelven cada clave
  * `t('...')` de los componentes con la MISMA configuración que usa la aplicación.
+ *
+ * S4.1 añade dos familias que no aparecen como literal en el código —se componen en tiempo de
+ * ejecución (`registration_status_<estado>`, `readiness_blocker_<código>`, `f3_reason_<motivo>`…)—
+ * y una comprobación de paridad sobre los 12 locales.
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -13,6 +17,20 @@ import { test } from 'node:test';
 
 import { createInstance } from 'i18next';
 
+import { boardStageItems, bracketStateKey } from '../src/components/utils/bracket_view.ts';
+import {
+  COMPETITOR_CREATE_REASON_CODE,
+  COMPETITOR_LIFECYCLE_REASON_CODES,
+  COMPETITOR_RENAME_REASON_CODE,
+  REGISTRATION_CREATE_REASON_CODE,
+  REGISTRATION_REASON_CODES,
+  REGISTRATION_STATUSES,
+  readinessBlockerKey,
+  registrationActionKey,
+  registrationStatusKey,
+  registrationWindowKey,
+} from '../src/components/utils/f3_contract.ts';
+import { tatamiStateKey } from '../src/components/utils/tatami_board.ts';
 import { i18nInitOptions, LOCALES_REVISION } from '../i18n_options.ts';
 
 const LOCALES_DIR = new URL('../public/locales/', import.meta.url);
@@ -21,6 +39,45 @@ const COMPONENT_SOURCES = [
   '../src/components/modals/generate_bracket_modal.tsx',
   '../src/components/utils/generate_bracket.ts',
   '../src/components/builder/builder.tsx',
+  // S4.1 — F3 core
+  '../src/components/utils/f3_contract.ts',
+  '../src/components/utils/f3_errors.ts',
+  '../src/components/utils/f3_write.ts',
+  '../src/components/utils/f3_write_hook.ts',
+  '../src/components/utils/tatami_board.ts',
+  '../src/components/utils/bracket_view.ts',
+  '../src/components/f3/f3_error_alert.tsx',
+  '../src/components/f3/status_badge.tsx',
+  '../src/components/f3/organizer_only.tsx',
+  '../src/components/f3/reason_modal.tsx',
+  '../src/components/f3/registration_window_card.tsx',
+  '../src/components/f3/readiness_panel.tsx',
+  '../src/components/f3/tatami_board_view.tsx',
+  '../src/components/modals/competitor_modal.tsx',
+  '../src/components/modals/registration_modal.tsx',
+  '../src/pages/tournaments/[id]/competitors.tsx',
+  '../src/pages/tournaments/[id]/registrations.tsx',
+  '../src/pages/tournaments/[id]/brackets.tsx',
+  '../src/pages/tournaments/[id]/tatamis.tsx',
+];
+
+/** Los 12 idiomas que publica el proyecto. */
+const LOCALES = ['de', 'el', 'en', 'es', 'fa', 'fr', 'it', 'ja', 'nl', 'pt', 'sv', 'zh'];
+
+/** Prefijos de las claves introducidas en S4.1 (ninguno existía antes: no hay colisión). */
+const S4_1_PREFIXES = [
+  'f3_',
+  'competitors_',
+  'registrations_',
+  'registration_window_',
+  'registration_status_',
+  'registration_action_',
+  'readiness_',
+  'bracket_state_',
+  'brackets_',
+  'tatami_',
+  'tatamis_',
+  'organizer_actions_',
 ];
 
 type Locale = Record<string, string>;
@@ -158,4 +215,81 @@ test('en: el copy visible también es texto humano', async () => {
     'The bracket was already correct: nothing changed.'
   );
   assert.equal(i18n.t('close_button'), 'Close');
+});
+
+/* --------------------------------------------------------------------------------- S4.1 (F3) */
+
+test('S4.1: las claves dinámicas de estado, acción, bloqueo y motivo resuelven en es', async () => {
+  const i18n = await translate('es');
+
+  const blockers = [
+    'REGISTRATION_WINDOW_OPEN',
+    'REGISTRATIONS_PENDING',
+    'CATEGORY_NOT_ENOUGH_COMPETITORS',
+    'COMPETITOR_INACTIVE',
+    'REGISTRATION_INCONSISTENT',
+    'INVALID_CATEGORY',
+    'BRACKET_ALREADY_EXISTS',
+  ];
+  const reasonCodes = [
+    ...Object.values(REGISTRATION_REASON_CODES).flat(),
+    ...COMPETITOR_LIFECYCLE_REASON_CODES,
+    COMPETITOR_CREATE_REASON_CODE,
+    COMPETITOR_RENAME_REASON_CODE,
+    REGISTRATION_CREATE_REASON_CODE,
+  ];
+
+  const dynamicKeys = [
+    ...REGISTRATION_STATUSES.map(registrationStatusKey),
+    registrationStatusKey('CORRECTED'),
+    ...['OPEN', 'CLOSED', 'DEADLINE_PASSED'].map(registrationWindowKey),
+    ...(['confirm', 'withdraw', 'reinstate', 'disqualify'] as const).map(registrationActionKey),
+    ...blockers.map(readinessBlockerKey),
+    ...reasonCodes.map((code) => `f3_reason_${code.toLowerCase()}`),
+    ...['not_generated', 'generated', 'running', 'finished'].map(bracketStateKey),
+    ...['free', 'planned', 'partially_planned', 'running'].map(tatamiStateKey),
+  ];
+
+  assert.ok(dynamicKeys.length >= 40, 'se esperaban las familias dinámicas completas');
+
+  for (const key of dynamicKeys) {
+    assert.notEqual(String(i18n.t(key)), key, `la clave dinámica ${key} no resuelve en es`);
+  }
+});
+
+test('S4.1: los 12 locales tienen las claves nuevas, sin vacíos ni marcadores perdidos', () => {
+  const reference = loadLocale('en');
+  const keys = Object.keys(reference).filter((key) =>
+    S4_1_PREFIXES.some((prefix) => key.startsWith(prefix))
+  );
+
+  assert.ok(keys.length >= 190, `se esperaban >=190 claves de S4.1, hay ${keys.length}`);
+
+  const placeholders = (value: string) =>
+    [...value.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
+
+  for (const language of LOCALES) {
+    const locale = loadLocale(language);
+    for (const key of keys) {
+      const value = locale[key];
+      assert.equal(typeof value, 'string', `${language}: falta la clave ${key} de S4.1`);
+      assert.ok(value.trim().length > 0, `${language}: la clave ${key} está vacía`);
+      assert.deepEqual(
+        placeholders(value),
+        placeholders(reference[key]),
+        `${language}: los marcadores de ${key} no coinciden con el inglés`
+      );
+    }
+  }
+});
+
+test('S4.1: el adaptador del cuadro se apoya en los tipos generados', () => {
+  const source = readFileSync(
+    new URL('../src/components/utils/bracket_view.ts', import.meta.url),
+    'utf8'
+  );
+
+  // Solo tipos: el módulo no debe arrastrar dependencias de ejecución.
+  assert.match(source, /import type \{ MatchWithDetails, StageWithStageItems \} from '@openapi'/);
+  assert.equal(typeof boardStageItems, 'function');
 });
