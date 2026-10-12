@@ -6,14 +6,18 @@ import {
   IconBrandGithub,
   IconBrowser,
   IconCalendar,
+  IconClipboardList,
   IconDots,
   IconHome,
+  IconLayoutGrid,
   IconScoreboard,
   IconSettings,
   IconShieldLock,
+  IconTournament,
   IconTrophy,
   IconUser,
   IconUsers,
+  IconUsersGroup,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
@@ -152,6 +156,26 @@ export function TournamentLinks({ tournament_id }: any) {
       icon: IconUsers,
       label: capitalize(t('teams_title')),
       link: `${tm_prefix}/teams`,
+    },
+    {
+      icon: IconUsersGroup,
+      label: capitalize(t('competitors_title')),
+      link: `${tm_prefix}/competitors`,
+    },
+    {
+      icon: IconClipboardList,
+      label: capitalize(t('registrations_title')),
+      link: `${tm_prefix}/registrations`,
+    },
+    {
+      icon: IconTournament,
+      label: capitalize(t('brackets_title')),
+      link: `${tm_prefix}/brackets`,
+    },
+    {
+      icon: IconLayoutGrid,
+      label: capitalize(t('tatamis_title')),
+      link: `${tm_prefix}/tatamis`,
     },
     {
       icon: IconCalendar,

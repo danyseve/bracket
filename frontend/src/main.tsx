@@ -21,6 +21,8 @@ import CreateAccountPage from './pages/create_account';
 import CreateDemoAccountPage from './pages/demo';
 import LoginPage from './pages/login';
 import PasswordResetPage from './pages/password_reset';
+import BracketsPage from './pages/tournaments/[id]/brackets';
+import CompetitorsPage from './pages/tournaments/[id]/competitors';
 import DashboardSchedulePage from './pages/tournaments/[id]/dashboard';
 import DashboardNotFoundPage from './pages/tournaments/[id]/dashboard/dashboard_404';
 import CourtsPresentPage from './pages/tournaments/[id]/dashboard/present/courts';
@@ -28,11 +30,13 @@ import StandingsPresentPage from './pages/tournaments/[id]/dashboard/present/sta
 import DashboardStandingsPage from './pages/tournaments/[id]/dashboard/standings';
 import PlayersPage from './pages/tournaments/[id]/players';
 import RankingsPage from './pages/tournaments/[id]/rankings';
+import RegistrationsPage from './pages/tournaments/[id]/registrations';
 import ResultsPage from './pages/tournaments/[id]/results';
 import SchedulePage from './pages/tournaments/[id]/schedule';
 import SettingsPage from './pages/tournaments/[id]/settings';
 import StagesPage from './pages/tournaments/[id]/stages';
 import SwissTournamentPage from './pages/tournaments/[id]/stages/swiss/[stage_item_id]';
+import TatamisPage from './pages/tournaments/[id]/tatamis';
 import TeamsPage from './pages/tournaments/[id]/teams';
 import UserPage from './pages/user';
 
@@ -92,6 +96,10 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="rankings" element={<RankingsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="results" element={<ResultsPage />} />
+                  <Route path="competitors" element={<CompetitorsPage />} />
+                  <Route path="registrations" element={<RegistrationsPage />} />
+                  <Route path="brackets" element={<BracketsPage />} />
+                  <Route path="tatamis" element={<TatamisPage />} />
                   <Route path="stages">
                     <Route index element={<StagesPage />} />
                     <Route path="swiss/:stage_item_id" element={<SwissTournamentPage />} />

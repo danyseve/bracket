@@ -64,7 +64,13 @@ test('las cuatro pantallas nuevas son rutas del router existente', () => {
   const tournamentBlock = main.slice(main.indexOf('<Route path="/tournaments">'));
   assert.match(tournamentBlock, /<Route path=":id">/);
   assert.equal(main.match(/<Routes>/g)?.length, 1, 'solo debe haber un <Routes>');
-  assert.equal(main.match(/BrowserRouter/g)?.length, 2, 'un único BrowserRouter (import + uso)');
+  // Un único router montado (apertura y cierre) y ningún router paralelo.
+  assert.equal(main.match(/<BrowserRouter>/g)?.length, 1, 'un único <BrowserRouter> montado');
+  assert.doesNotMatch(
+    main,
+    /createBrowserRouter|RouterProvider|<HashRouter>|<MemoryRouter>/,
+    'sin router paralelo'
+  );
 });
 
 /* ---------------------------------------------------------------------------- navegación (§4) */
