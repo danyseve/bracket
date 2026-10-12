@@ -332,7 +332,8 @@ async def apply_plan(*, plan: TournamentPlan) -> int:
             continue
         await sql_reschedule_match_and_determine_duration_and_margin(
             court_id=CourtId(slot.court_id),
-            start_time=slot.start_time,
+            # El nucleo trabaja con ``datetime``; la capa de datos escribe ``datetime_utc``.
+            start_time=datetime_utc.from_datetime(slot.start_time),
             position_in_schedule=slot.position_in_schedule,
             match=match,
             tournament=plan.tournament,

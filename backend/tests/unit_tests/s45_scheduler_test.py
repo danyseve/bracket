@@ -18,13 +18,14 @@ Reglas de plan (una por prueba, sin combinatoria escondida):
 * los tatamis se cargan por turnos (el que antes queda libre), con el id como desempate.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from heliclockter import datetime_utc
 
 from bracket.logic.planning.scheduler import (
     MatchToSchedule,
+    SchedulePlan,
     build_schedule,
     estimate_starts,
     observed_lag_minutes,
@@ -62,15 +63,16 @@ def match(
     )
 
 
-def plan(matches: list[MatchToSchedule], courts: list[int], **kwargs: object):
+def plan(matches: list[MatchToSchedule], courts: list[int], **kwargs: object) -> SchedulePlan:
     """Planifica con los valores de la primera version salvo lo que diga la prueba."""
     options = {"start_time": START, "minimum_rest_minutes": 15}
     options.update(kwargs)
     return build_schedule(matches=matches, courts=courts, **options)  # type: ignore[arg-type]
 
 
-def starts_by_court(plan_) -> dict[int, list[datetime_utc]]:
-    result: dict[int, list[datetime_utc]] = {}
+def starts_by_court(plan_: SchedulePlan) -> dict[int, list[datetime]]:
+    # El nucleo trabaja con ``datetime`` puro: no conoce el tipo de la capa de datos.
+    result: dict[int, list[datetime]] = {}
     for slot in plan_.slots:
         result.setdefault(slot.court_id, []).append(slot.start_time)
     return result

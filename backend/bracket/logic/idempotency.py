@@ -59,19 +59,30 @@ IDEMPOTENCY_FINGERPRINT_LENGTH = 64
 IDEMPOTENCY_KEY_VERSION_MAX_LENGTH = 16
 IDEMPOTENCY_KEY_VERSION_PATTERN = re.compile(r"\Av[0-9]{1,3}\Z")
 
-# Lista permitida de metadatos de respuesta: identificadores tecnicos y estados. Nada mas. Si una
-# operacion necesita devolver datos al cliente, se reconstruyen a partir del recurso y se vuelven a
-# autorizar; lo guardado aqui **no** es una respuesta lista para reenviar.
+# Lista permitida de metadatos de respuesta: identificadores tecnicos, recuentos del efecto y la
+# marca temporal desde la que empieza el plan. Nada mas. Lo guardado aqui **no** es una respuesta
+# lista para reenviar: si una operacion necesita devolver datos al cliente, se reconstruyen a partir
+# del recurso y se vuelven a autorizar.
+# S4.5 amplia la lista con el contrato del planificador: cuantos tatamis y combates entraron en el
+# plan, cuantos se movieron en **esta** ejecucion, cuantos quedaron sin hueco y a que hora empieza.
+# Ese efecto no se reconstruye del estado actual, asi que viaja con el resultado confirmado.
 IDEMPOTENCY_ALLOWED_RESPONSE_KEYS: tuple[str, ...] = (
     "affected_match_count",
     "audit_event_id",
     "competitor_id",
+    "court_count",
     "court_id",
     "court_name",
+    "manual_match_count",
+    "moved_match_count",
     "registration_status",
     "resource_id",
     "resource_type",
+    "scheduled_match_count",
     "stage_item_id",
+    "start_time",
+    "tournament_id",
+    "unscheduled_match_count",
 )
 #: Identificadores enteros positivos.
 IDEMPOTENCY_INTEGER_RESPONSE_KEYS = (
@@ -79,14 +90,26 @@ IDEMPOTENCY_INTEGER_RESPONSE_KEYS = (
     "competitor_id",
     "resource_id",
     "stage_item_id",
+    "tournament_id",
 )
 #: Identificadores que admiten ``null`` como valor del contrato ("sin tatami"), no como ausencia.
 IDEMPOTENCY_NULLABLE_INTEGER_RESPONSE_KEYS = ("court_id",)
 #: Recuento del efecto de la operacion: ``0`` es un resultado valido (no-op confirmado).
-IDEMPOTENCY_COUNT_RESPONSE_KEYS = ("affected_match_count",)
+IDEMPOTENCY_COUNT_RESPONSE_KEYS = (
+    "affected_match_count",
+    "court_count",
+    "manual_match_count",
+    "moved_match_count",
+    "scheduled_match_count",
+    "unscheduled_match_count",
+)
 IDEMPOTENCY_TEXT_RESPONSE_KEYS = ("court_name", "registration_status", "resource_type")
 #: Textos que admiten ``null`` (un cuadro sin tatami no tiene nombre de tatami).
 IDEMPOTENCY_NULLABLE_TEXT_RESPONSE_KEYS = ("court_name",)
+#: Marca temporal ISO-8601 del hueco mas temprano del plan. Admite la cadena vacia, que es el valor
+#: del contrato cuando el plan no tiene ningun hueco: el mismo ``""`` que devuelve la respuesta.
+IDEMPOTENCY_TIMESTAMP_RESPONSE_KEYS = ("start_time",)
+IDEMPOTENCY_TIMESTAMP_VALUE_MAX_LENGTH = 40
 
 # Provisional y revisable: 24 h es retencion de almacenamiento, no una promesa de que no haya
 # reejecucion despues (S3.3c-4 decide purga, rotacion y ventana real).
@@ -219,6 +242,16 @@ def _validated_metadata_value(key: str, value: Any) -> Any:
     if key in IDEMPOTENCY_COUNT_RESPONSE_KEYS:
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise IdempotencyError(f"el metadato {key!r} debe ser un recuento entero no negativo")
+        return value
+
+    if key in IDEMPOTENCY_TIMESTAMP_RESPONSE_KEYS:
+        # Marca temporal: la cadena vacia **es** un valor del contrato (un plan sin huecos), no un
+        # dato que falte, asi que aqui no se exige longitud minima como en el resto de los textos.
+        if not isinstance(value, str) or len(value) > IDEMPOTENCY_TIMESTAMP_VALUE_MAX_LENGTH:
+            raise IdempotencyError(
+                f"el metadato {key!r} debe ser una marca temporal de hasta "
+                f"{IDEMPOTENCY_TIMESTAMP_VALUE_MAX_LENGTH} caracteres"
+            )
         return value
 
     limit = (

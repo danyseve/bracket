@@ -20,10 +20,11 @@ es determinista, repetir la operacion con una clave nueva no mueve ni un combate
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC
 from typing import Final
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from heliclockter import datetime_utc
 from starlette import status
 
 from bracket.config import config
@@ -111,7 +112,7 @@ async def _load_schedule_view(
         tournament_name=tournament.name,
         tournament_start_time=tournament.start_time,
         courts=courts_display,
-        generated_at=datetime.now(UTC),
+        generated_at=datetime_utc.now(),
     )
     assert_public_payload_is_safe(payload)
     return TournamentScheduleResponse.model_validate(payload)
@@ -162,8 +163,9 @@ async def _run_schedule_operation(
         ) from error
 
     if result.decision is IdempotencyDecision.RESERVED and executed:
-        return ScheduleSummaryResponse(**executed[-1])
-    return ScheduleSummaryResponse(**(result.response_body or {}))
+        return ScheduleSummaryResponse.model_validate(executed[-1])
+    # El resumen guardado se revalida al reenviarlo: no se devuelve un cuerpo sin comprobar.
+    return ScheduleSummaryResponse.model_validate(result.response_body or {})
 
 
 @router.post(

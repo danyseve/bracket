@@ -223,7 +223,7 @@ def test_cuerpo_publico_solo_lleva_datos_deportivos() -> None:
 def test_el_guardian_de_privacidad_detecta_fugas() -> None:
     """El guardian tiene que fallar si alguien cuela un dato de cuenta en el cuerpo publico."""
     for leak in ({"email": "a@b"}, {"fighters": [{"date_of_birth": "1990-01-01"}]}, {"jwt": "x"}):
-        payload = {"tournament": {"name": "x"}, "courts": [{"current": leak}]}
+        payload: dict[str, object] = {"tournament": {"name": "x"}, "courts": [{"current": leak}]}
         try:
             assert_public_payload_is_safe(payload)
         except AssertionError:

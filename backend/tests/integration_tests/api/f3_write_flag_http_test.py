@@ -44,6 +44,8 @@ from tests.integration_tests.api.shared import get_root_uvicorn_url
 EXPECTED_GUARDED: Final = (
     "POST /tournaments/{tournament_id}/generate-bracket",
     "PUT /tournaments/{tournament_id}/stage-items/{stage_item_id}/court",
+    "POST /tournaments/{tournament_id}/schedule/generate",
+    "POST /tournaments/{tournament_id}/schedule/recalculate",
     "POST /tournaments/{tournament_id}/registration-window",
     "POST /tournaments/{tournament_id}/registrations",
     "POST /tournaments/{tournament_id}/registrations/close",

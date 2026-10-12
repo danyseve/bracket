@@ -258,12 +258,19 @@ def test_the_allowed_metadata_list_is_small_and_explicit() -> None:
         "affected_match_count",
         "audit_event_id",
         "competitor_id",
+        "court_count",
         "court_id",
         "court_name",
+        "manual_match_count",
+        "moved_match_count",
         "registration_status",
         "resource_id",
         "resource_type",
+        "scheduled_match_count",
         "stage_item_id",
+        "start_time",
+        "tournament_id",
+        "unscheduled_match_count",
     }
 
 
@@ -273,6 +280,17 @@ def test_the_allowed_metadata_list_is_small_and_explicit() -> None:
         {"resource_type": "tournament_registration", "resource_id": 7},
         {"registration_status": "CONFIRMED"},
         {"competitor_id": 12, "audit_event_id": 99},
+        # S4.5: el resumen del planificador, incluida la cadena vacia de un plan sin huecos.
+        {
+            "tournament_id": 7,
+            "court_count": 2,
+            "scheduled_match_count": 3,
+            "moved_match_count": 3,
+            "manual_match_count": 0,
+            "unscheduled_match_count": 0,
+            "start_time": "2026-06-01T09:00:00+00:00",
+        },
+        {"start_time": ""},
         {},
     ],
 )
@@ -315,6 +333,16 @@ def test_forbidden_or_unknown_metadata_keys_are_rejected(metadata: dict[str, Any
         {"resource_type": "x" * 33},
         {"registration_status": "N" * 33},
         {"audit_event_id": True},
+        # S4.5: el torneo es un entero positivo; los recuentos no admiten negativos.
+        {"tournament_id": 0},
+        {"court_count": -1},
+        {"moved_match_count": True},
+        {"manual_match_count": "3"},
+        {"scheduled_match_count": 1.5},
+        {"unscheduled_match_count": None},
+        # La marca temporal es texto (vacio o ISO), nunca nulo ni un texto sin limite.
+        {"start_time": None},
+        {"start_time": "x" * 41},
     ],
 )
 def test_metadata_with_wrong_value_shapes_is_rejected(metadata: dict[str, Any]) -> None:

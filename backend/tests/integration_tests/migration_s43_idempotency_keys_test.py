@@ -161,5 +161,6 @@ def test_the_downgrade_restores_the_previous_key_set(migration_lab: Engine) -> N
 
     _alembic("upgrade", "head")
 
-    assert _declared_keys(migration_lab) == CURRENT_KEYS
+    # Una revision posterior (S4.5) amplia la lista; las de S4.3 siguen siendo subconjunto.
+    assert CURRENT_KEYS <= _declared_keys(migration_lab)
     assert _constraint_exists(migration_lab)

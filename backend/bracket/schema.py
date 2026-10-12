@@ -744,16 +744,25 @@ _K_IDEMPOTENCY_STATES: tuple[str, ...] = ("IN_PROGRESS", "COMPLETED")
 _K_IDEMPOTENCY_METHODS: tuple[str, ...] = ("POST", "PUT", "PATCH", "DELETE")
 # S4.3: la asignacion de tatami declara su contrato de respuesta (el efecto de **esa** ejecucion,
 # que no se puede reconstruir del estado) ademas de los identificadores tecnicos de S3.3c-3.
+# S4.5: el planificador de torneo declara el suyo con el mismo criterio (tatamis, combates
+# planificados/movidos/manuales/sin hueco y la hora de arranque).
 _K_IDEMPOTENCY_RESPONSE_KEYS: tuple[str, ...] = (
     "affected_match_count",
     "audit_event_id",
     "competitor_id",
+    "court_count",
     "court_id",
     "court_name",
+    "manual_match_count",
+    "moved_match_count",
     "registration_status",
     "resource_id",
     "resource_type",
+    "scheduled_match_count",
     "stage_item_id",
+    "start_time",
+    "tournament_id",
+    "unscheduled_match_count",
 )
 _K_IDEMPOTENCY_KEY_MIN_LENGTH = 8
 _K_IDEMPOTENCY_KEY_MAX_LENGTH = 255

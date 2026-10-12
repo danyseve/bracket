@@ -2973,6 +2973,101 @@
         "title": "RoundWithMatches",
         "type": "object"
       },
+      "ScheduleGenerateBody": {
+        "description": "Lo que el organizador decide: cuando empieza, cuanto descansa y en que tatamis se juega.",
+        "properties": {
+          "court_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Ids"
+          },
+          "minimum_rest_minutes": {
+            "default": 15,
+            "maximum": 240.0,
+            "minimum": 0.0,
+            "title": "Minimum Rest Minutes",
+            "type": "integer"
+          },
+          "preserve_assigned": {
+            "default": true,
+            "title": "Preserve Assigned",
+            "type": "boolean"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          }
+        },
+        "required": [
+          "start_time",
+          "minimum_rest_minutes",
+          "court_ids",
+          "preserve_assigned"
+        ],
+        "title": "ScheduleGenerateBody",
+        "type": "object"
+      },
+      "ScheduleSummaryResponse": {
+        "description": "Efecto de la operacion: cuantos combates se planificaron y cuantos se movieron.",
+        "properties": {
+          "court_count": {
+            "title": "Court Count",
+            "type": "integer"
+          },
+          "manual_match_count": {
+            "title": "Manual Match Count",
+            "type": "integer"
+          },
+          "moved_match_count": {
+            "title": "Moved Match Count",
+            "type": "integer"
+          },
+          "scheduled_match_count": {
+            "title": "Scheduled Match Count",
+            "type": "integer"
+          },
+          "start_time": {
+            "title": "Start Time",
+            "type": "string"
+          },
+          "tournament_id": {
+            "title": "Tournament Id",
+            "type": "integer"
+          },
+          "unscheduled_match_count": {
+            "title": "Unscheduled Match Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tournament_id",
+          "court_count",
+          "scheduled_match_count",
+          "moved_match_count",
+          "manual_match_count",
+          "unscheduled_match_count",
+          "start_time"
+        ],
+        "title": "ScheduleSummaryResponse",
+        "type": "object"
+      },
       "SingleCourtResponse": {
         "properties": {
           "data": {
@@ -4205,6 +4300,35 @@
         "title": "TournamentResponse",
         "type": "object"
       },
+      "TournamentScheduleResponse": {
+        "description": "Vista de calendario del torneo: por tatami, AHORA, SIGUIENTE y los siguientes (\u00a712).",
+        "properties": {
+          "courts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Courts",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "tournament": {
+            "additionalProperties": true,
+            "title": "Tournament",
+            "type": "object"
+          }
+        },
+        "required": [
+          "tournament",
+          "generated_at",
+          "courts"
+        ],
+        "title": "TournamentScheduleResponse",
+        "type": "object"
+      },
       "TournamentStatus": {
         "enum": [
           "OPEN",
@@ -4548,7 +4672,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -7784,6 +7908,170 @@
         "summary": "Update Round By Id",
         "tags": [
           "Rounds"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/schedule": {
+      "get": {
+        "description": "Vista de calendario del organizador: por tatami, AHORA, SIGUIENTE y los siguientes (\u00a712).",
+        "operationId": "get_tournament_schedule_endpoint_tournaments__tournament_id__schedule_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Tournament Schedule Endpoint",
+        "tags": [
+          "Domain Schedule"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/schedule/generate": {
+      "post": {
+        "description": "Planifica lo que todavia no tiene tatami ni hora, sin tocar lo ya asignado (\u00a77).",
+        "operationId": "generate_schedule_endpoint_tournaments__tournament_id__schedule_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleGenerateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Generate Schedule Endpoint",
+        "tags": [
+          "Domain Schedule"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/schedule/recalculate": {
+      "post": {
+        "description": "Vuelve a planificar el torneo; una asignacion explicita solo se mueve si se pide (\u00a79).",
+        "operationId": "recalculate_schedule_endpoint_tournaments__tournament_id__schedule_recalculate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleGenerateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Recalculate Schedule Endpoint",
+        "tags": [
+          "Domain Schedule"
         ]
       }
     },
