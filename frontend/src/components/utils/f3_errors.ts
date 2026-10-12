@@ -24,6 +24,7 @@ export type F3FailureKind =
   | 'registration_closed'
   | 'registration_already_closed'
   | 'bracket_not_ready'
+  | 'category_in_use'
   | 'idempotency_reused'
   | 'operation_in_progress'
   | 'write_disabled'
@@ -55,6 +56,7 @@ const MESSAGE_KEYS: Record<F3FailureKind, string> = {
   registration_closed: 'f3_error_registration_closed',
   registration_already_closed: 'f3_error_registration_already_closed',
   bracket_not_ready: 'f3_error_bracket_not_ready',
+  category_in_use: 'f3_error_category_in_use',
   idempotency_reused: 'f3_error_idempotency_reused',
   operation_in_progress: 'f3_error_operation_in_progress',
   write_disabled: 'f3_error_write_disabled',
@@ -75,6 +77,7 @@ const DETAIL_TO_KIND: Record<string, F3FailureKind> = {
   REGISTRATION_CLOSED: 'registration_closed',
   REGISTRATION_ALREADY_CLOSED: 'registration_already_closed',
   BRACKET_NOT_READY: 'bracket_not_ready',
+  STAGE_ITEM_IN_USE: 'category_in_use',
   IDEMPOTENCY_KEY_REUSED: 'idempotency_reused',
   OPERATION_IN_PROGRESS: 'operation_in_progress',
   F3_WRITE_DISABLED: 'write_disabled',

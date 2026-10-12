@@ -23,6 +23,9 @@ import {
   registrationsUrl,
   RegistrationWindow,
   registrationWindowUrl,
+  StageItemCourtBody,
+  StageItemCourtResult,
+  stageItemCourtUrl,
 } from '@components/utils/f3_contract';
 import { describeF3Failure, F3Failure } from '@components/utils/f3_errors';
 import { createAxios } from '@services/adapter';
@@ -178,6 +181,21 @@ export async function closeRegistrations(
 ): Promise<F3WriteOutcome<RegistrationWindow>> {
   return write(() =>
     createAxios().post(closeRegistrationsUrl(tournament_id), {}, idempotentHeaders(key))
+  );
+}
+
+/**
+ * Fija (o quita) el tatami de un cuadro (S4.2). El cuerpo va explícito —`court_id` siempre presente—
+ * porque `null` significa «sin tatami» y no «no cambiar nada».
+ */
+export async function setStageItemCourt(
+  tournament_id: number,
+  stage_item_id: number,
+  body: StageItemCourtBody,
+  key: string
+): Promise<F3WriteOutcome<StageItemCourtResult>> {
+  return write(() =>
+    createAxios().put(stageItemCourtUrl(tournament_id, stage_item_id), body, idempotentHeaders(key))
   );
 }
 

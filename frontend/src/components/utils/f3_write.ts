@@ -130,6 +130,15 @@ export class WriteGate {
     }
   }
 
+  /**
+   * Vuelve a dejar como pendiente la clave de un intento fallido: el reintento del usuario para el
+   * mismo intento lógico debe salir con la misma clave (S4.3 §8). Un fallo del servidor no libera la
+   * clave, porque la operación pudo quedar registrada.
+   */
+  restorePending(scope: string, key: string): void {
+    this.pending = { scope, key };
+  }
+
   /** Abandona la acción pendiente (el usuario cerró el formulario o cambió de intención). */
   reset(): void {
     this.pending = null;

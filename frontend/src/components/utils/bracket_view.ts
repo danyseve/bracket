@@ -9,7 +9,9 @@ import type { BoardMatch, BoardStageItem } from '@components/utils/tatami_board'
  * Aquí está el límite de tipos: los tipos generados (`@openapi`) son la única fuente y no se
  * reconstruye la estructura del cuadro (el backend ya la expone). Lo que sí se **deriva** es el
  * avance, porque el backend no publica un estado de combate: se lee del marcador. Es una
- * aproximación declarada — un combate decidido sin puntos puede contarse como pendiente.
+ * aproximación declarada — un combate decidido sin puntos puede contarse como pendiente. La
+ * asignación de tatami, en cambio, **no** se deriva: se lee del contrato (`stage_items[].court_id`,
+ * S4.2).
  */
 
 export type BracketState = 'not_generated' | 'generated' | 'running' | 'finished';
@@ -84,6 +86,8 @@ function toBoardMatch(match: MatchWithDetails): BoardMatch {
     position_in_schedule: match.position_in_schedule,
     stage_item_input1_score: match.stage_item_input1_score,
     stage_item_input2_score: match.stage_item_input2_score,
+    input1_team_id: slotTeamId(match, 1),
+    input2_team_id: slotTeamId(match, 2),
   };
 }
 
@@ -96,6 +100,7 @@ export function boardStageItems(stages: StageWithStageItems[]): BoardStageItem[]
       type: item.type,
       stage_id: stage.id,
       stage_name: stage.name,
+      court_id: item.court_id ?? null,
       matches: matchesOf(item).map(toBoardMatch),
     }))
   );
@@ -108,13 +113,22 @@ export function bracketRows(stages: StageWithStageItems[]): BracketRow[] {
       stage.stage_items.map((item) => {
         const matches = matchesOf(item);
         const entrants = entrantCount(matches);
-        const courtIds = Array.from(
-          new Set(
-            matches
-              .map((match) => match.court_id)
-              .filter((courtId): courtId is number => courtId != null)
-          )
-        ).sort((left, right) => left - right);
+        // El tatami del cuadro sale del contrato (S4.2): `null` significa «sin asignar» y no se
+        // deduce de los combates, porque eso publicaría un estado que el backend no guarda.
+        // Compatibilidad: si el estado publicado no trae el campo (backend anterior a S4.2), se
+        // mantiene la derivación de S4.1. Es el **único** punto del frontend que infiere.
+        const contract = 'court_id' in item;
+        const courtIds = contract
+          ? item.court_id != null
+            ? [item.court_id]
+            : []
+          : [
+              ...new Set(
+                matches
+                  .map((match) => match.court_id)
+                  .filter((court_id): court_id is number => court_id != null)
+              ),
+            ];
         return {
           stage_item_id: item.id,
           category_name: item.name,

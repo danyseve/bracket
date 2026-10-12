@@ -200,8 +200,30 @@ export function bracketReadinessUrl(tournament_id: number): string {
   return `tournaments/${tournament_id}/bracket-readiness`;
 }
 
+export interface StageItemCourtBody {
+  court_id: number | null;
+}
+
+/** Respuesta de la asignacion: el efecto de **esa** operacion (S4.2). */
+export interface StageItemCourtResult {
+  stage_item_id: number;
+  court_id: number | null;
+  court_name: string | null;
+  affected_match_count: number;
+}
+
 export function generateBracketUrl(tournament_id: number): string {
   return `tournaments/${tournament_id}/generate-bracket`;
+}
+
+/**
+ * Asignación de un cuadro entero a un tatami (S4.2). `null` desasigna.
+ *
+ * Es la única vía soportada: el cuadro es la unidad de asignación y el backend propaga el tatami a
+ * todos sus combates dentro de la misma transacción.
+ */
+export function stageItemCourtUrl(tournament_id: number, stage_item_id: number): string {
+  return `tournaments/${tournament_id}/stage-items/${stage_item_id}/court`;
 }
 
 /** Listado de competidores: los filtros son los del backend (`display_name`, `include_inactive`). */
