@@ -18,25 +18,25 @@ import {
   categoryKeyFromLabel,
   closeRegistrationsUrl,
   competitorActionUrl,
-  competitorUrl,
   competitorsQuery,
   competitorsUrl,
+  competitorUrl,
   generateBracketUrl,
   IDEMPOTENCY_KEY_HEADER,
   isTerminalStatus,
   isValidCategoryKey,
   MINIMUM_ENTRANTS,
   readinessBlockerKey,
+  REGISTRATION_REASON_CODES,
+  REGISTRATION_STATUSES,
   registrationActionKey,
   registrationActionUrl,
   registrationsQuery,
-  registrationsUrl,
   registrationStatusKey,
+  registrationsUrl,
   registrationUrl,
   registrationWindowKey,
   registrationWindowUrl,
-  REGISTRATION_REASON_CODES,
-  REGISTRATION_STATUSES,
   sortCategories,
   windowAdmitsNewRegistrations,
 } from '../src/components/utils/f3_contract.ts';
@@ -73,7 +73,10 @@ test('las rutas del contrato son las del OpenAPI de F3', () => {
   assert.equal(registrationsUrl(7), 'tournaments/7/registrations');
   assert.equal(registrationUrl(7, 3), 'tournaments/7/registrations/3');
   assert.equal(registrationActionUrl(7, 3, 'confirm'), 'tournaments/7/registrations/3/confirm');
-  assert.equal(registrationActionUrl(7, 3, 'disqualify'), 'tournaments/7/registrations/3/disqualify');
+  assert.equal(
+    registrationActionUrl(7, 3, 'disqualify'),
+    'tournaments/7/registrations/3/disqualify'
+  );
   assert.equal(closeRegistrationsUrl(7), 'tournaments/7/registrations/close');
   assert.equal(registrationWindowUrl(7), 'tournaments/7/registration-window');
 
@@ -82,7 +85,9 @@ test('las rutas del contrato son las del OpenAPI de F3', () => {
 });
 
 test('los filtros de listado viajan como el backend los espera', () => {
-  const competitors = new URLSearchParams(competitorsQuery({ display_name: 'ana', include_inactive: true, limit: 10, offset: 20 }));
+  const competitors = new URLSearchParams(
+    competitorsQuery({ display_name: 'ana', include_inactive: true, limit: 10, offset: 20 })
+  );
   assert.equal(competitors.get('display_name'), 'ana');
   assert.equal(competitors.get('include_inactive'), 'true');
   assert.equal(competitors.get('limit'), '10');
@@ -92,7 +97,9 @@ test('los filtros de listado viajan como el backend los espera', () => {
   assert.equal(defaults.get('include_inactive'), 'false');
   assert.equal(defaults.get('display_name'), null);
 
-  const registrations = new URLSearchParams(registrationsQuery({ registration_status: 'CONFIRMED', competitor_id: 5 }));
+  const registrations = new URLSearchParams(
+    registrationsQuery({ registration_status: 'CONFIRMED', competitor_id: 5 })
+  );
   assert.equal(registrations.get('registration_status'), 'CONFIRMED');
   assert.equal(registrations.get('competitor_id'), '5');
 });
@@ -284,13 +291,17 @@ test('sin respuesta HTTP el fallo es de red y el código del navegador no se pie
 });
 
 test('Retry-After del servidor se lee para poder avisar, no para reintentar solo', () => {
-  const throttled = describeF3Failure(
-    httpError(503, 'LOCK_TIMEOUT', { 'retry-after': '3' })
-  );
+  const throttled = describeF3Failure(httpError(503, 'LOCK_TIMEOUT', { 'retry-after': '3' }));
   assert.equal(throttled.retryAfterSeconds, 3);
   assert.equal(describeF3Failure(httpError(503, 'LOCK_TIMEOUT')).retryAfterSeconds, null);
-  assert.equal(describeF3Failure(httpError(503, 'LOCK_TIMEOUT', { 'retry-after': '0' })).retryAfterSeconds, null);
-  assert.equal(describeF3Failure(httpError(503, 'LOCK_TIMEOUT', { 'retry-after': 'ya' })).retryAfterSeconds, null);
+  assert.equal(
+    describeF3Failure(httpError(503, 'LOCK_TIMEOUT', { 'retry-after': '0' })).retryAfterSeconds,
+    null
+  );
+  assert.equal(
+    describeF3Failure(httpError(503, 'LOCK_TIMEOUT', { 'retry-after': 'ya' })).retryAfterSeconds,
+    null
+  );
 });
 
 test('el detalle en crudo del servidor nunca es el mensaje que se enseña', () => {
@@ -319,7 +330,10 @@ test('una acción lógica tiene una clave y reintentar la conserva', () => {
 });
 
 test('el alcance distingue acciones distintas sobre el mismo recurso', () => {
-  assert.notEqual(actionScope(['registration', 3, 'withdraw']), actionScope(['registration', 3, 'confirm']));
+  assert.notEqual(
+    actionScope(['registration', 3, 'withdraw']),
+    actionScope(['registration', 3, 'confirm'])
+  );
   assert.equal(actionScope(['a', null, undefined]), 'a||');
   assert.notEqual(actionScope(['7']), actionScope([7, 0]));
 });
@@ -384,7 +398,11 @@ test('WriteGate: un fallo conserva la clave para el reintento del usuario', asyn
   assert.equal(generated, 1);
 
   const fresh = await gate.run('withdraw|3', async (key) => key);
-  assert.notEqual(fresh.key, pendingAfterFailure, 'tras el éxito la acción siguiente estrena clave');
+  assert.notEqual(
+    fresh.key,
+    pendingAfterFailure,
+    'tras el éxito la acción siguiente estrena clave'
+  );
   assert.equal(generated, 2);
 });
 
@@ -414,6 +432,10 @@ test('la cabecera de idempotencia es la del backend y la clave no se enseña', (
   for (const source of ['../src/services/f3.ts', '../src/components/utils/f3_write_hook.ts']) {
     const code = readFileSync(new URL(source, import.meta.url), 'utf8');
     assert.doesNotMatch(code, /showNotification\([^)]*key/i, `${source} no debe mostrar la clave`);
-    assert.doesNotMatch(code, /console\.(log|debug|info)\([^)]*key/i, `${source} no debe trazar la clave`);
+    assert.doesNotMatch(
+      code,
+      /console\.(log|debug|info)\([^)]*key/i,
+      `${source} no debe trazar la clave`
+    );
   }
 });

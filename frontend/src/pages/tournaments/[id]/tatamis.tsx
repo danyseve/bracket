@@ -44,8 +44,9 @@ export default function TatamisPage() {
         <Grid.Col span="content">
           <Group gap="sm">
             <CourtModal
-              tournament_id={tournamentData.id}
               swrCourtsResponse={swrCourtsResponse}
+              tournamentId={tournamentData.id}
+              buttonSize="lg"
             />
           </Group>
         </Grid.Col>

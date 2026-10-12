@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "编辑操作暂时已停用。",
     "f3_error_lock_timeout": "该操作等待轮次的时间过长。请重试。",
     "f3_error_unavailable": "服务当前不可用。请在几分钟后重试。",
-    "f3_error_server": "服务器发生错误。请稍后重试。"
+    "f3_error_server": "服务器发生错误。请稍后重试。",
+    "readiness_generation_empty": "暂时没有可分配的对阵表：阶段结构需在分配报名之前创建。"
 }

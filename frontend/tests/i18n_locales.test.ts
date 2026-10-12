@@ -17,21 +17,21 @@ import { test } from 'node:test';
 
 import { createInstance } from 'i18next';
 
+import { i18nInitOptions, LOCALES_REVISION } from '../i18n_options.ts';
 import { boardStageItems, bracketStateKey } from '../src/components/utils/bracket_view.ts';
 import {
   COMPETITOR_CREATE_REASON_CODE,
   COMPETITOR_LIFECYCLE_REASON_CODES,
   COMPETITOR_RENAME_REASON_CODE,
+  readinessBlockerKey,
   REGISTRATION_CREATE_REASON_CODE,
   REGISTRATION_REASON_CODES,
   REGISTRATION_STATUSES,
-  readinessBlockerKey,
   registrationActionKey,
   registrationStatusKey,
   registrationWindowKey,
 } from '../src/components/utils/f3_contract.ts';
 import { tatamiStateKey } from '../src/components/utils/tatami_board.ts';
-import { i18nInitOptions, LOCALES_REVISION } from '../i18n_options.ts';
 
 const LOCALES_DIR = new URL('../public/locales/', import.meta.url);
 
@@ -246,8 +246,8 @@ test('S4.1: las claves dinámicas de estado, acción, bloqueo y motivo resuelven
     ...(['confirm', 'withdraw', 'reinstate', 'disqualify'] as const).map(registrationActionKey),
     ...blockers.map(readinessBlockerKey),
     ...reasonCodes.map((code) => `f3_reason_${code.toLowerCase()}`),
-    ...['not_generated', 'generated', 'running', 'finished'].map(bracketStateKey),
-    ...['free', 'planned', 'partially_planned', 'running'].map(tatamiStateKey),
+    ...(['not_generated', 'generated', 'running', 'finished'] as const).map(bracketStateKey),
+    ...(['free', 'planned', 'partially_planned', 'running'] as const).map(tatamiStateKey),
   ];
 
   assert.ok(dynamicKeys.length >= 40, 'se esperaban las familias dinámicas completas');

@@ -519,5 +519,6 @@
     "f3_error_write_disabled": "Editing operations are temporarily disabled.",
     "f3_error_lock_timeout": "The operation took too long to get its turn. Try again.",
     "f3_error_unavailable": "The service is not available right now. Try again in a few minutes.",
-    "f3_error_server": "A server error occurred. Try again later."
+    "f3_error_server": "A server error occurred. Try again later.",
+    "readiness_generation_empty": "There are no brackets to fill yet: the stage structure is created before the registrations are assigned."
 }

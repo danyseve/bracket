@@ -4,24 +4,24 @@ import {
   BracketReadiness,
   bracketReadinessUrl,
   closeRegistrationsUrl,
+  competitorActionUrl,
   CompetitorCreateBody,
   CompetitorList,
-  competitorActionUrl,
-  competitorUrl,
   competitorsQuery,
   competitorsUrl,
-  generateBracketUrl,
+  competitorUrl,
   GenerateBracketResult,
+  generateBracketUrl,
   IDEMPOTENCY_KEY_HEADER,
   LifecycleBody,
   Registration,
   RegistrationAction,
-  RegistrationCreateBody,
-  RegistrationStatus,
-  RegistrationWindow,
   registrationActionUrl,
+  RegistrationCreateBody,
   registrationsQuery,
+  RegistrationStatus,
   registrationsUrl,
+  RegistrationWindow,
   registrationWindowUrl,
 } from '@components/utils/f3_contract';
 import { describeF3Failure, F3Failure } from '@components/utils/f3_errors';
@@ -41,7 +41,10 @@ import { createAxios } from '@services/adapter';
 
 export type F3WriteOutcome<T> = { ok: true; data: T } | { ok: false; failure: F3Failure };
 
-const fetcher = (url: string) => createAxios().get(url).then((response) => response.data);
+const fetcher = (url: string) =>
+  createAxios()
+    .get(url)
+    .then((response) => response.data);
 
 async function write<T>(perform: () => Promise<{ data: T }>): Promise<F3WriteOutcome<T>> {
   try {
@@ -81,10 +84,7 @@ export function getRegistrations(
 }
 
 export function getRegistrationWindow(tournament_id: number): SWRResponse<RegistrationWindow> {
-  return useSWR(
-    tournament_id === -1 ? null : registrationWindowUrl(tournament_id),
-    fetcher
-  );
+  return useSWR(tournament_id === -1 ? null : registrationWindowUrl(tournament_id), fetcher);
 }
 
 export function getBracketReadiness(tournament_id: number): SWRResponse<BracketReadiness> {
@@ -98,9 +98,7 @@ export async function createCompetitor(
   body: CompetitorCreateBody,
   key: string
 ): Promise<F3WriteOutcome<{ id: number; display_name: string; active: boolean }>> {
-  return write(() =>
-    createAxios().post(competitorsUrl(club_id), body, idempotentHeaders(key))
-  );
+  return write(() => createAxios().post(competitorsUrl(club_id), body, idempotentHeaders(key)));
 }
 
 export async function renameCompetitor(

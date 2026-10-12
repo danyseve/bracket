@@ -11,7 +11,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { boardStageItems, bracketRows, bracketStateKey } from '../src/components/utils/bracket_view.ts';
+import {
+  boardStageItems,
+  bracketRows,
+  bracketStateKey,
+} from '../src/components/utils/bracket_view.ts';
 import {
   buildTatamiOverview,
   TATAMI_ASSIGNMENT_GRANULARITY,
@@ -95,7 +99,9 @@ test('la navegación del torneo enlaza las cuatro pantallas sin duplicar enlaces
     assert.match(tournamentLinks, new RegExp(`t\\('${label}'\\)`), `falta la etiqueta ${label}`);
   }
 
-  const hrefs = [...tournamentLinks.matchAll(/link: `\$\{tm_prefix\}([^`]*)`/g)].map((match) => match[1]);
+  const hrefs = [...tournamentLinks.matchAll(/link: `\$\{tm_prefix\}([^`]*)`/g)].map(
+    (match) => match[1]
+  );
   assert.equal(new Set(hrefs).size, hrefs.length, 'hay enlaces duplicados en TournamentLinks');
   assert.ok(hrefs.includes('/players'), 'no se debe perder el enlace existente de jugadores');
 });
@@ -105,7 +111,12 @@ test('la navegación del torneo enlaza las cuatro pantallas sin duplicar enlaces
 test('la pantalla de competidores cubre alta, listado, renombrado y ciclo de vida', () => {
   const competitors = source(COMPETITORS_PAGE);
 
-  for (const call of ['getCompetitors', 'createCompetitor', 'renameCompetitor', 'setCompetitorActive']) {
+  for (const call of [
+    'getCompetitors',
+    'createCompetitor',
+    'renameCompetitor',
+    'setCompetitorActive',
+  ]) {
     assert.match(competitors, new RegExp(`${call}\\(`), `competidores no usa ${call}`);
   }
 
@@ -195,7 +206,10 @@ test('generar brackets está deshabilitado sin readiness, pero el backend sigue 
 
   assert.match(panel, /generateTournamentBrackets\(/);
   assert.match(panel, /disabled=\{!readiness\.ready \|\| inflight\}/);
-  assert.match(panel, /readiness_generate_server_authority_notice|readiness_generate_hint_not_ready/);
+  assert.match(
+    panel,
+    /readiness_generate_server_authority_notice|readiness_generate_hint_not_ready/
+  );
 });
 
 test('409 BRACKET_NOT_READY refresca la revisión en vez de reintentar a ciegas', () => {
@@ -207,6 +221,17 @@ test('409 BRACKET_NOT_READY refresca la revisión en vez de reintentar a ciegas'
   assert.doesNotMatch(panel, /setTimeout|setInterval|for \(;;\)/, 'nada de reintentos automáticos');
 });
 
+test('una generación sin cuadros que repartir no se pinta como reparto ni como error', () => {
+  const panel = source(READINESS_PANEL);
+
+  // La post-condición `generated` es del torneo, no de la llamada: sin estructura de fases la
+  // respuesta es 200 con `stage_items` vacío y la UI lo explica aparte.
+  assert.match(panel, /stage_items\.length/);
+  assert.match(panel, /skipped_stage_items/);
+  assert.match(panel, /readiness_generation_empty/);
+  assert.match(panel, /readiness_generation_success/);
+});
+
 /* ------------------------------------------------------------------------------ write disabled */
 
 test('503 F3_WRITE_DISABLED se explica con copy de producto y sin reintento automático', () => {
@@ -216,7 +241,11 @@ test('503 F3_WRITE_DISABLED se explica con copy de producto y sin reintento auto
   assert.match(alert, /failure\.technicalCode/);
   assert.match(alert, /f3_error_technical_code/);
   assert.match(alert, /blockingIssues/);
-  assert.doesNotMatch(alert, /setTimeout|setInterval|location\.reload/, 'sin reintentos ni recargas');
+  assert.doesNotMatch(
+    alert,
+    /setTimeout|setInterval|location\.reload/,
+    'sin reintentos ni recargas'
+  );
 
   // El texto de "edición deshabilitada" vive en los locales, no en el componente.
   assert.doesNotMatch(alert, /temporarily disabled|deshabilitad[ao]s?\./i);
@@ -244,8 +273,22 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
       stage_id: 100,
       stage_name: 'Eliminatoria',
       matches: [
-        { id: 1, court_id: 10, start_time: '2026-10-12T09:00:00', position_in_schedule: 1, stage_item_input1_score: 0, stage_item_input2_score: 0 },
-        { id: 2, court_id: 10, start_time: null, position_in_schedule: 2, stage_item_input1_score: 0, stage_item_input2_score: 0 },
+        {
+          id: 1,
+          court_id: 10,
+          start_time: '2026-10-12T09:00:00',
+          position_in_schedule: 1,
+          stage_item_input1_score: 0,
+          stage_item_input2_score: 0,
+        },
+        {
+          id: 2,
+          court_id: 10,
+          start_time: null,
+          position_in_schedule: 2,
+          stage_item_input1_score: 0,
+          stage_item_input2_score: 0,
+        },
       ],
     },
     {
@@ -255,8 +298,22 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
       stage_id: 100,
       stage_name: 'Eliminatoria',
       matches: [
-        { id: 3, court_id: 11, start_time: '2026-10-12T09:00:00', position_in_schedule: 1, stage_item_input1_score: 4, stage_item_input2_score: 2 },
-        { id: 4, court_id: 12, start_time: '2026-10-12T09:00:00', position_in_schedule: 2, stage_item_input1_score: 0, stage_item_input2_score: 0 },
+        {
+          id: 3,
+          court_id: 11,
+          start_time: '2026-10-12T09:00:00',
+          position_in_schedule: 1,
+          stage_item_input1_score: 4,
+          stage_item_input2_score: 2,
+        },
+        {
+          id: 4,
+          court_id: 12,
+          start_time: '2026-10-12T09:00:00',
+          position_in_schedule: 2,
+          stage_item_input1_score: 0,
+          stage_item_input2_score: 0,
+        },
       ],
     },
     {
@@ -274,7 +331,14 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
       stage_id: 100,
       stage_name: 'Eliminatoria',
       matches: [
-        { id: 5, court_id: null, start_time: '2026-10-12T09:00:00', position_in_schedule: 1, stage_item_input1_score: 0, stage_item_input2_score: 0 },
+        {
+          id: 5,
+          court_id: null,
+          start_time: '2026-10-12T09:00:00',
+          position_in_schedule: 1,
+          stage_item_input1_score: 0,
+          stage_item_input2_score: 0,
+        },
       ],
     },
   ];
@@ -284,7 +348,11 @@ test('el tablero deriva los cuadros de cada tatami desde los combates', () => {
   assert.equal(overview.tatamis.length, 4);
   assert.equal(overview.tatamis[0].title, 'Tatami 1');
   assert.equal(overview.tatamis[0].match_count, 2);
-  assert.equal(overview.tatamis[0].state, 'partially_planned', 'un combate sin hora es plan parcial');
+  assert.equal(
+    overview.tatamis[0].state,
+    'partially_planned',
+    'un combate sin hora es plan parcial'
+  );
   assert.equal(overview.tatamis[0].categories.length, 1);
   assert.equal(overview.tatamis[0].categories[0].complete, true);
   assert.equal(overview.tatamis[0].categories[0].played_count, 0);
@@ -323,8 +391,16 @@ test('la pantalla de tatamis no ofrece asignación por cuadro ni drag&drop', () 
     ['tatami_board_view.tsx', view],
   ]) {
     assert.doesNotMatch(code, /drag|DndContext|Drop/, `${name} no debe implementar drag&drop`);
-    assert.doesNotMatch(code, /\.put\(|\.patch\(|\.post\(/, `${name} no debe escribir asignaciones`);
-    assert.doesNotMatch(code, /stage_items\/\$\{[^}]+\}\/court/, `${name} no debe llamar a un endpoint inexistente`);
+    assert.doesNotMatch(
+      code,
+      /\.put\(|\.patch\(|\.post\(/,
+      `${name} no debe escribir asignaciones`
+    );
+    assert.doesNotMatch(
+      code,
+      /stage_items\/\$\{[^}]+\}\/court/,
+      `${name} no debe llamar a un endpoint inexistente`
+    );
   }
 
   // El alta de tatamis reutiliza el modal que ya existía.

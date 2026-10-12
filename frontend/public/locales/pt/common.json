@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "As operações de edição estão temporariamente desativadas.",
     "f3_error_lock_timeout": "A operação demorou demasiado a obter a vez. Tente novamente.",
     "f3_error_unavailable": "O serviço não está disponível neste momento. Tente novamente dentro de alguns minutos.",
-    "f3_error_server": "Ocorreu um erro no servidor. Tente novamente mais tarde."
+    "f3_error_server": "Ocorreu um erro no servidor. Tente novamente mais tarde.",
+    "readiness_generation_empty": "Ainda não há chaves para preencher: a estrutura de fases é criada antes de distribuir as inscrições."
 }

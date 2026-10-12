@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "Bearbeitungsvorgänge sind vorübergehend deaktiviert.",
     "f3_error_lock_timeout": "Der Vorgang hat zu lange auf die Freigabe gewartet. Versuche es erneut.",
     "f3_error_unavailable": "Der Dienst ist derzeit nicht verfügbar. Versuche es in einigen Minuten erneut.",
-    "f3_error_server": "Auf dem Server ist ein Fehler aufgetreten. Versuche es später erneut."
+    "f3_error_server": "Auf dem Server ist ein Fehler aufgetreten. Versuche es später erneut.",
+    "readiness_generation_empty": "Es gibt noch keine Raster zu besetzen: die Phasenstruktur wird vor der Zuteilung der Anmeldungen angelegt."
 }

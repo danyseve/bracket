@@ -365,12 +365,15 @@ export function isValidCategoryKey(key: string): boolean {
 }
 
 /** Orden estable del bloque de categorías: por etiqueta visible y, si empatan, por clave. */
-export function sortCategories<T extends { category_key: string | null; category_label: string | null }>(
-  categories: T[]
-): T[] {
+export function sortCategories<
+  T extends { category_key: string | null; category_label: string | null },
+>(categories: T[]): T[] {
   return [...categories].sort((left, right) => {
     const leftName = categoryDisplayName(left.category_key, left.category_label);
     const rightName = categoryDisplayName(right.category_key, right.category_label);
-    return leftName.localeCompare(rightName) || String(left.category_key).localeCompare(String(right.category_key));
+    return (
+      leftName.localeCompare(rightName) ||
+      String(left.category_key).localeCompare(String(right.category_key))
+    );
   });
 }

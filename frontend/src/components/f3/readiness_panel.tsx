@@ -90,13 +90,19 @@ export default function ReadinessPanel({
     }
     if (outcome.value != null && outcome.value.ok) {
       const generated = outcome.value.data.stage_items.length;
-      showNotification({
-        color: 'green',
-        message: t('readiness_generation_success', {
-          generated,
-          skipped: outcome.value.data.skipped_stage_items,
-        }),
-      });
+      if (generated === 0 && outcome.value.data.skipped_stage_items === 0) {
+        // Sin cuadros que repartir: no es un error, pero tampoco un reparto. La estructura de
+        // fases del torneo se crea antes de repartir las inscripciones.
+        showNotification({ color: 'yellow', message: t('readiness_generation_empty') });
+      } else {
+        showNotification({
+          color: 'green',
+          message: t('readiness_generation_success', {
+            generated,
+            skipped: outcome.value.data.skipped_stage_items,
+          }),
+        });
+      }
       await swrReadiness.mutate();
       onChanged();
       return;
@@ -198,7 +204,9 @@ export default function ReadinessPanel({
                     <Table.Td>{category.required_minimum}</Table.Td>
                     <Table.Td>
                       <Badge color={category.ready ? 'green' : 'orange'} variant="light">
-                        {category.ready ? t('readiness_category_ready') : t('readiness_category_not_ready')}
+                        {category.ready
+                          ? t('readiness_category_ready')
+                          : t('readiness_category_not_ready')}
                       </Badge>
                     </Table.Td>
                     <Table.Td>

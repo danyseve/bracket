@@ -31,12 +31,17 @@ import {
   Competitor,
 } from '@components/utils/f3_contract';
 import { F3Failure, describeF3Failure } from '@components/utils/f3_errors';
-import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
 import { actionScope } from '@components/utils/f3_write';
 import useF3Write from '@components/utils/f3_write_hook';
+import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
 import TournamentLayout from '@pages/tournaments/_tournament_layout';
 import { getTournamentById } from '@services/adapter';
-import { createCompetitor, getCompetitors, renameCompetitor, setCompetitorActive } from '@services/f3';
+import {
+  createCompetitor,
+  getCompetitors,
+  renameCompetitor,
+  setCompetitorActive,
+} from '@services/f3';
 
 const PAGE_SIZE = 25;
 
@@ -51,7 +56,8 @@ export default function CompetitorsPage() {
   const { t } = useTranslation();
   const { tournamentData } = getTournamentIdFromRouter();
   const swrTournamentResponse = getTournamentById(tournamentData.id);
-  const club_id = swrTournamentResponse.data != null ? swrTournamentResponse.data.data.club_id : null;
+  const club_id =
+    swrTournamentResponse.data != null ? swrTournamentResponse.data.data.club_id : null;
 
   const [nameFilter, setNameFilter] = useState('');
   const [search] = useDebouncedValue(nameFilter, 300);
@@ -305,7 +311,9 @@ export default function CompetitorsPage() {
       {!swrCompetitors.isLoading && competitors.length === 0 ? (
         <Stack align="center" mt="md">
           <NoContent
-            title={isFiltered ? t('competitors_empty_filtered_title') : t('competitors_empty_title')}
+            title={
+              isFiltered ? t('competitors_empty_filtered_title') : t('competitors_empty_title')
+            }
             description={t('competitors_empty_description')}
           />
         </Stack>

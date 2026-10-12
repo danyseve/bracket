@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "Redigeringsåtgärder är tillfälligt inaktiverade.",
     "f3_error_lock_timeout": "Åtgärden tog för lång tid på sig att få sin tur. Försök igen.",
     "f3_error_unavailable": "Tjänsten är inte tillgänglig just nu. Försök igen om några minuter.",
-    "f3_error_server": "Ett fel uppstod på servern. Försök igen senare."
+    "f3_error_server": "Ett fel uppstod på servern. Försök igen senare.",
+    "readiness_generation_empty": "Det finns inga tablåer att fylla ännu: fasstrukturen skapas innan anmälningarna fördelas."
 }

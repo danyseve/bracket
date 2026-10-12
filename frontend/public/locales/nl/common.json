@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "Bewerkingen zijn tijdelijk uitgeschakeld.",
     "f3_error_lock_timeout": "De bewerking deed er te lang over om aan de beurt te komen. Probeer het opnieuw.",
     "f3_error_unavailable": "De service is nu niet beschikbaar. Probeer het over een paar minuten opnieuw.",
-    "f3_error_server": "Er is een fout op de server opgetreden. Probeer het later opnieuw."
+    "f3_error_server": "Er is een fout op de server opgetreden. Probeer het later opnieuw.",
+    "readiness_generation_empty": "Er zijn nog geen brackets om te vullen: de fasestructuur wordt aangemaakt voordat de inschrijvingen worden verdeeld."
 }

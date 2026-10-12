@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "Les opérations de modification sont temporairement désactivées.",
     "f3_error_lock_timeout": "L'opération a mis trop de temps à obtenir son tour. Réessayez.",
     "f3_error_unavailable": "Le service n'est pas disponible pour le moment. Réessayez dans quelques minutes.",
-    "f3_error_server": "Une erreur serveur s'est produite. Réessayez plus tard."
+    "f3_error_server": "Une erreur serveur s'est produite. Réessayez plus tard.",
+    "readiness_generation_empty": "Aucun tableau à remplir pour l'instant : la structure des phases est créée avant la répartition des inscriptions."
 }

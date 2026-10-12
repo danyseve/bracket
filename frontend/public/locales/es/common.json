@@ -519,5 +519,6 @@
     "f3_error_write_disabled": "Las operaciones de edición están temporalmente deshabilitadas.",
     "f3_error_lock_timeout": "La operación tardó demasiado en conseguir el turno. Vuelve a intentarlo.",
     "f3_error_unavailable": "El servicio no está disponible ahora mismo. Vuelve a intentarlo en unos minutos.",
-    "f3_error_server": "Ha ocurrido un error en el servidor. Vuelve a intentarlo más tarde."
+    "f3_error_server": "Ha ocurrido un error en el servidor. Vuelve a intentarlo más tarde.",
+    "readiness_generation_empty": "Todavía no hay cuadros que repartir: la estructura de fases se crea antes de repartir las inscripciones."
 }

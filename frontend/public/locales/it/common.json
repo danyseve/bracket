@@ -468,5 +468,6 @@
     "f3_error_write_disabled": "Le operazioni di modifica sono temporaneamente disabilitate.",
     "f3_error_lock_timeout": "L'operazione ha impiegato troppo tempo a ottenere il turno. Riprova.",
     "f3_error_unavailable": "Il servizio non è disponibile in questo momento. Riprova tra qualche minuto.",
-    "f3_error_server": "Si è verificato un errore sul server. Riprova più tardi."
+    "f3_error_server": "Si è verificato un errore sul server. Riprova più tardi.",
+    "readiness_generation_empty": "Non ci sono ancora tabelloni da riempire: la struttura delle fasi si crea prima di distribuire le iscrizioni."
 }

@@ -53,7 +53,10 @@ export default function ReasonModal({
     <Modal opened={opened} onClose={onClose} title={title}>
       <form
         onSubmit={form.onSubmit((values) => {
-          onSubmit(values.reason_code, values.reason_note.trim() === '' ? null : values.reason_note);
+          onSubmit(
+            values.reason_code,
+            values.reason_note.trim() === '' ? null : values.reason_note
+          );
         })}
       >
         <Stack gap="sm">

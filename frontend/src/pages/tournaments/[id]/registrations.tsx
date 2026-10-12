@@ -24,20 +24,20 @@ import { RegistrationStatusBadge } from '@components/f3/status_badge';
 import RegistrationModal, { SelectOption } from '@components/modals/registration_modal';
 import { NoContent } from '@components/no_content/empty_table_info';
 import {
+  REGISTRATION_REASON_CODES,
   Registration,
   RegistrationAction,
   RegistrationCreateBody,
   RegistrationStatus,
-  REGISTRATION_REASON_CODES,
   allowedTransitions,
   categoryDisplayName,
   registrationActionKey,
   windowAdmitsNewRegistrations,
 } from '@components/utils/f3_contract';
 import { F3Failure, describeF3Failure } from '@components/utils/f3_errors';
-import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
 import { actionScope } from '@components/utils/f3_write';
 import useF3Write from '@components/utils/f3_write_hook';
+import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
 import TournamentLayout from '@pages/tournaments/_tournament_layout';
 import { getTournamentById } from '@services/adapter';
 import {
@@ -64,7 +64,8 @@ export default function RegistrationsPage() {
   const { t } = useTranslation();
   const { tournamentData } = getTournamentIdFromRouter();
   const swrTournamentResponse = getTournamentById(tournamentData.id);
-  const club_id = swrTournamentResponse.data != null ? swrTournamentResponse.data.data.club_id : null;
+  const club_id =
+    swrTournamentResponse.data != null ? swrTournamentResponse.data.data.club_id : null;
 
   const [statusFilter, setStatusFilter] = useState<RegistrationStatus | null>(null);
   const [page, setPage] = useState(1);
@@ -127,7 +128,12 @@ export default function RegistrationsPage() {
   async function handleCreate(body: RegistrationCreateBody) {
     setFailure(null);
     const outcome = await run(
-      actionScope(['registration-create', tournamentData.id, body.competitor_id, body.category_key]),
+      actionScope([
+        'registration-create',
+        tournamentData.id,
+        body.competitor_id,
+        body.category_key,
+      ]),
       (key) => createRegistration(tournamentData.id, body, key)
     );
     if (outcome.status === 'ignored') {

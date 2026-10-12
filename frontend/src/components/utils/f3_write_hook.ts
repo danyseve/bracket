@@ -12,7 +12,7 @@ export function useF3Write() {
   const mounted = useRef(true);
 
   const run = useCallback(
-    async <T,>(scope: string, perform: (key: string) => Promise<T>): Promise<F3RunResult<T>> => {
+    async <T>(scope: string, perform: (key: string) => Promise<T>): Promise<F3RunResult<T>> => {
       if (gate.isInflight) {
         return { status: 'ignored' };
       }
