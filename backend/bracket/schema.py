@@ -97,6 +97,12 @@ stage_items = Table(
         ),
         nullable=False,
     ),
+    Column(
+        "court_id",
+        BigInteger,
+        ForeignKey("courts.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
 )
 
 stage_item_inputs = Table(

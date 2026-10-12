@@ -41,6 +41,10 @@ class ForeignKey(EnumAutoStr):
     stage_item_inputs_team_id_fkey = auto()
     stage_item_inputs_tournament_id_fkey = auto()
     stage_item_inputs_winner_from_stage_item_id_fkey = auto()
+    # FK de F3 (S4.2): el tatami explicito del cuadro. Declarada `ON DELETE SET NULL` a proposito
+    # ("borrar un tatami desasigna el cuadro"), de modo que entra en el subgrafo de borrado de un
+    # torneo sin bloquearlo: al borrar el torneo los cuadros se van antes que los tatamis.
+    stage_items_court_id_fkey = auto()
     stage_items_ranking_id_fkey = auto()
     stage_items_stage_id_fkey = auto()
     stages_tournament_id_fkey = auto()

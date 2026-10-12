@@ -1,4 +1,5 @@
 # pylint: disable=redefined-outer-name
+# pylint: disable=too-many-statements  # escenarios de punta a punta, no codigo de produccion
 """Validacion LAB del contrato que consume el frontend de S4.1 (F3 CORE, LAB ONLY).
 
 Este modulo no define un contrato nuevo: **repite por HTTP, contra la app real, la misma
@@ -260,7 +261,7 @@ async def test_competidores_ciclo_de_vida_por_http(clubs: CompetitorLab) -> None
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_alta_de_competidor_solo_por_nombre_y_sin_academia(clubs: CompetitorLab) -> None:
-    """Gap de academia: el alta que emite la UI no lleva ``sports_club_id`` y el backend la acepta."""
+    """Gap de academia: el alta de la UI no lleva ``sports_club_id`` y el backend la acepta."""
     club_id = clubs.club
     display_name = f"s4-1-independiente-{uuid4().hex[:8]}"
 
@@ -518,7 +519,7 @@ async def test_generate_bracket_409_no_ready_y_flujo_real(lab: GenerationLab) ->
     assert ready["ready"] is True, ready
     assert ready["blocking_issues"] == []
 
-    # La generacion de F3 **reparte** las inscripciones en los cuadros que ya existen (los crea F2C),
+    # La generacion de F3 **reparte** las inscripciones en los cuadros ya existentes (F2C),
     # asi que el escenario del organizador incluye la estructura de fases del torneo.
     async with bracket_structure(lab):
         generated_status, _, generated = await generate(lab, key=uuid4().hex, token=lab.owner_token)
@@ -544,7 +545,10 @@ async def test_generate_bracket_409_no_ready_y_flujo_real(lab: GenerationLab) ->
         stage_items = [item for stage in stages["data"] for item in stage["stage_items"]]
         assert stage_items, stages
         match_rows = [
-            match for item in stage_items for round_ in item["rounds"] for match in round_["matches"]
+            match
+            for item in stage_items
+            for round_ in item["rounds"]
+            for match in round_["matches"]
         ]
         assert match_rows, stages
         unassigned = [row for row in match_rows if row["court_id"] is None]
@@ -595,7 +599,7 @@ async def test_generate_bracket_409_no_ready_y_flujo_real(lab: GenerationLab) ->
         row = next(item for item in rows_after if item["id"] == target["id"])
         assert row["court_id"] == court_id
 
-        # Un tatami con combates encima no se puede borrar (`400 Could not delete court since it's used
+        # Un tatami con combates encima no se borra (`400 Could not delete court since it's used
         # by 1 matches`), asi que el flujo real primero libera el combate.
         release_status, released = await call(
             "PUT",
@@ -612,9 +616,7 @@ async def test_generate_bracket_409_no_ready_y_flujo_real(lab: GenerationLab) ->
             },
         )
         assert release_status == status.HTTP_200_OK, released
-        _, freed = await call(
-            "GET", f"tournaments/{lab.tournament}/stages", token=lab.owner_token
-        )
+        _, freed = await call("GET", f"tournaments/{lab.tournament}/stages", token=lab.owner_token)
         freed_row = next(
             match
             for stage in freed["data"]
@@ -740,7 +742,7 @@ async def test_idempotencia_misma_clave_mismo_resultado(lab: GenerationLab) -> N
     assert len(matching) == 1, matching
 
     # Clave nueva sobre **otra** identidad: accion nueva, fila nueva. La misma identidad no admite
-    # una segunda inscripcion viva (409 `Registration already exists`, que la UI pinta como duplicado).
+    # una segunda inscripcion viva (409 `Registration already exists`, que la UI marca duplicado).
     other_competitor = lab.competitors[3]
     third_status, third = await create_registration(lab, other_competitor)
     assert third_status == status.HTTP_201_CREATED, third

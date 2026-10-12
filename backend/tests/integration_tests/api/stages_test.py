@@ -69,6 +69,8 @@ async def test_stages_endpoint(
                             "created": DUMMY_MOCK_TIME.isoformat().replace("+00:00", "Z"),
                             "type": "ROUND_ROBIN",
                             "team_count": 4,
+                            "court_id": None,
+                            "court": None,
                             "rounds": [
                                 {
                                     "id": round_inserted.id,

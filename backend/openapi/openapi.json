@@ -2557,6 +2557,70 @@
         "title": "StageItemActivateNextBody",
         "type": "object"
       },
+      "StageItemCourtBody": {
+        "description": "Cuerpo de la operacion: el tatami destino, o ``null`` para desasignar.\n\n``court_id`` es obligatorio **como campo**: ``null`` significa \"quitar el tatami\", y un cuerpo\nsin el campo no se interpreta como una desasignacion implicita (seria adivinar la intencion).\nEl torneo y el cuadro viajan en la ruta, no en el cuerpo: el cuerpo no puede contradecir a la\nruta.",
+        "properties": {
+          "court_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Id"
+          }
+        },
+        "required": [
+          "court_id"
+        ],
+        "title": "StageItemCourtBody",
+        "type": "object"
+      },
+      "StageItemCourtResponse": {
+        "description": "Tatami vigente del cuadro tras la operacion, con el efecto exacto sobre sus combates.\n\n``affected_match_count`` es el efecto de **esta** operacion: cuantos combates ha movido;\nrepetir la misma operacion con la misma clave no la re-ejecuta, asi que vale 0 y el resto de la\nrespuesta describe el estado vigente. ``court_name`` viaja junto al identificador para que el\ncliente no tenga que cruzar el listado de tatamis por su cuenta.",
+        "properties": {
+          "affected_match_count": {
+            "title": "Affected Match Count",
+            "type": "integer"
+          },
+          "court_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Id"
+          },
+          "court_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Name"
+          },
+          "stage_item_id": {
+            "title": "Stage Item Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stage_item_id",
+          "court_id",
+          "court_name",
+          "affected_match_count"
+        ],
+        "title": "StageItemCourtResponse",
+        "type": "object"
+      },
       "StageItemCreateBody": {
         "properties": {
           "name": {
@@ -3007,6 +3071,27 @@
       },
       "StageItemWithRounds": {
         "properties": {
+          "court": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Court"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "court_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Id"
+          },
           "created": {
             "format": "date-time",
             "title": "Created",
@@ -3080,10 +3165,12 @@
           "type",
           "team_count",
           "ranking_id",
+          "court_id",
           "id",
           "rounds",
           "inputs",
-          "type_name"
+          "type_name",
+          "court"
         ],
         "title": "StageItemWithRounds",
         "type": "object"
@@ -3958,7 +4045,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -7179,6 +7266,73 @@
         "summary": "Schedule Matches",
         "tags": [
           "Matches"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/stage-items/{stage_item_id}/court": {
+      "put": {
+        "description": "Fija (o quita) el tatami de un cuadro entero y lo propaga a sus combates.\n\nLa operacion de dominio hace todo el trabajo en una transaccion; esta ruta solo la ejecuta bajo\nel protocolo de idempotencia y publica el estado resultante. La respuesta se construye con el\nefecto de la operacion **si se ha ejecutado ahora**; si lo que llega es la repeticion de una\noperacion ya confirmada, no se re-ejecuta nada y se publica el estado vigente (con efecto 0,\nporque no se ha movido ningun combate en esta peticion).",
+        "operationId": "assign_stage_item_court_endpoint_tournaments__tournament_id__stage_items__stage_item_id__court_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "stage_item_id",
+            "required": true,
+            "schema": {
+              "title": "Stage Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StageItemCourtBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageItemCourtResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Assign Stage Item Court Endpoint",
+        "tags": [
+          "Stage Item Court"
         ]
       }
     },

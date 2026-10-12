@@ -5,7 +5,7 @@ TDD: este modulo se escribio **antes** de la implementacion y fallo en rojo (la 
 ``PUT /tournaments/{id}/stage-items/{id}/court`` no existia: 404 en lugar del contrato aqui fijado).
 
 Lo que se fija es el contrato observable de una operacion de negocio que **escribe** y que hasta
-ahora no existia: asignar, reasignar y desasignar el tatami de un cuadro (``stage_item``) entero, sin
+ahora no existia: asignar, reasignar y desasignar el tatami de un cuadro entero, sin
 tocar combate a combate.
 
 * quien puede pedirla (OWNER-only) y con que forma (``Idempotency-Key`` y un cuerpo cerrado);
@@ -36,7 +36,6 @@ from starlette import status
 from bracket.config import config
 from bracket.database import database
 from bracket.logic.idempotency_protocol import LOCK_TIMEOUT_MS
-from bracket.models.db.court import CourtInsertable
 from bracket.routes.domain_idempotency import IDEMPOTENCY_KEY_HEADER
 from bracket.utils.dummy_records import DUMMY_COURT1
 from bracket.utils.id_types import CourtId, StageItemId, TournamentId
@@ -111,27 +110,29 @@ async def lab() -> AsyncIterator[GenerationLab]:
 async def tatami(lab: GenerationLab) -> AsyncIterator[TatamiLab]:
     """Dos cuadros sin actividad y tres tatamis: dos del torneo y uno de otro torneo del tenant."""
     now = datetime_utc.now()
-    async with bracket_structure(lab) as stage_item_id:
-        async with bracket_structure(lab) as other_stage_item_id:
+    async with inserted_court(
+        DUMMY_COURT1.model_copy(
+            update={"tournament_id": lab.tournament, "name": "Tatami 1", "created": now}
+        )
+    ) as court_a:
+        async with inserted_court(
+            DUMMY_COURT1.model_copy(
+                update={"tournament_id": lab.tournament, "name": "Tatami 2", "created": now}
+            )
+        ) as court_b:
             async with inserted_court(
                 DUMMY_COURT1.model_copy(
-                    update={"tournament_id": lab.tournament, "name": "Tatami 1", "created": now}
+                    update={
+                        "tournament_id": lab.other_tournament,
+                        "name": OTHER_TOURNAMENT_COURT_NAME,
+                        "created": now,
+                    }
                 )
-            ) as court_a:
-                async with inserted_court(
-                    DUMMY_COURT1.model_copy(
-                        update={"tournament_id": lab.tournament, "name": "Tatami 2", "created": now}
-                    )
-                ) as court_b:
-                    async with inserted_court(
-                        DUMMY_COURT1.model_copy(
-                            update={
-                                "tournament_id": lab.other_tournament,
-                                "name": OTHER_TOURNAMENT_COURT_NAME,
-                                "created": now,
-                            }
-                        )
-                    ) as foreign_court:
+            ) as foreign_court:
+                # Los cuadros se apilan DESPUES: su desmontaje va antes que el de los tatamis y
+                # ningun combate puede quedar apuntando a un tatami que ya no existe.
+                async with bracket_structure(lab) as stage_item_id:
+                    async with bracket_structure(lab) as other_stage_item_id:
                         yield TatamiLab(
                             stage_item_id=stage_item_id,
                             other_stage_item_id=other_stage_item_id,
@@ -139,6 +140,13 @@ async def tatami(lab: GenerationLab) -> AsyncIterator[TatamiLab]:
                             court_b=CourtId(court_b.id),
                             other_tournament_court=CourtId(foreign_court.id),
                         )
+
+
+def error_detail(body: dict[str, object]) -> dict[str, object]:
+    """Detalle estructurado de un rechazo, ya estrechado para poder leerlo sin indexar `object`."""
+    detail = body["detail"]
+    assert isinstance(detail, dict), body
+    return detail
 
 
 async def assign(
@@ -223,7 +231,8 @@ async def set_match_activity(
         query=(
             "UPDATE matches SET stage_item_input1_score = :score, "
             "start_time = CASE WHEN :started THEN now() ELSE NULL END "
-            "WHERE id = (SELECT matches.id FROM matches JOIN rounds ON matches.round_id = rounds.id "
+            "WHERE id = (SELECT matches.id FROM matches JOIN rounds "
+            "ON matches.round_id = rounds.id "
             "WHERE rounds.stage_item_id = :stage_item_id ORDER BY matches.id LIMIT 1)"
         ),
         values={"score": score, "started": started, "stage_item_id": stage_item_id},
@@ -252,9 +261,7 @@ async def assignment_reservations(stage_item_id: StageItemId) -> int:
     """Reservas de idempotencia de esta ruta y cuadro: la operacion no reutiliza claves."""
     return int(
         await database.fetch_val(
-            query=(
-                "SELECT count(*) FROM domain_idempotency_keys WHERE request_path LIKE :path"
-            ),
+            query=("SELECT count(*) FROM domain_idempotency_keys WHERE request_path LIKE :path"),
             values={"path": f"%/stage-items/{int(stage_item_id)}/court"},
         )
     )
@@ -571,7 +578,7 @@ async def test_scored_match_blocks_the_assignment(lab: GenerationLab, tatami: Ta
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_started_match_blocks_the_reassignment(lab: GenerationLab, tatami: TatamiLab) -> None:
-    """Un combate ya con hora de inicio bloquea tambien el cambio de tatami de un cuadro asignado."""
+    """Un combate con hora de inicio bloquea tambien el cambio de tatami de un cuadro asignado."""
     await assign_ok(lab, stage_item_id=tatami.stage_item_id, court_id=tatami.court_a)
     await set_match_activity(tatami.stage_item_id, started=True)
 
@@ -584,7 +591,7 @@ async def test_started_match_blocks_the_reassignment(lab: GenerationLab, tatami:
     )
 
     assert status_code == status.HTTP_409_CONFLICT
-    assert body["detail"]["code"] == STAGE_ITEM_IN_USE
+    assert error_detail(body)["code"] == STAGE_ITEM_IN_USE
     assert await stage_item_court(tatami.stage_item_id) == int(tatami.court_a)
     assert await match_courts(tatami.stage_item_id) == [int(tatami.court_a)]
     assert [row["action"] for row in await tatami_audit()] == ["TATAMI_ASSIGNED"]
@@ -605,7 +612,7 @@ async def test_activity_blocks_the_unassignment_too(lab: GenerationLab, tatami: 
     )
 
     assert status_code == status.HTTP_409_CONFLICT
-    assert body["detail"]["code"] == STAGE_ITEM_IN_USE
+    assert error_detail(body)["code"] == STAGE_ITEM_IN_USE
     assert await stage_item_court(tatami.stage_item_id) == int(tatami.court_a)
     assert await match_courts(tatami.stage_item_id) == [int(tatami.court_a)]
 
@@ -636,7 +643,10 @@ async def test_replay_with_the_same_key_writes_once_and_answers_the_same(
     )
 
     assert first_status == second_status == status.HTTP_200_OK
-    assert second_body == first_body
+    # La repeticion no re-ejecuta la operacion: el estado publicado es el mismo y el efecto de esta
+    # peticion concreta es 0 combates movidos.
+    assert first_body["affected_match_count"] == 1
+    assert second_body == {**first_body, "affected_match_count": 0}
     assert await assignment_reservations(tatami.stage_item_id) == 1
     assert [row["action"] for row in await tatami_audit()] == ["TATAMI_ASSIGNED"]
 
@@ -683,10 +693,10 @@ async def assign_ok_key(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_key_in_flight_is_rejected_while_the_operation_holds_the_row(
+async def test_same_key_while_in_flight_is_a_safe_replay(
     lab: GenerationLab, tatami: TatamiLab
 ) -> None:
-    """Con la misma clave y la operacion en vuelo, la segunda peticion no escribe: 409 o 503."""
+    """Misma clave y mismo cuerpo en vuelo: la segunda espera y reproduce, no escribe dos veces."""
     key = uuid4().hex
     async with database.transaction():
         await database.execute(
@@ -717,9 +727,9 @@ async def test_key_in_flight_is_rejected_while_the_operation_holds_the_row(
     first_status, _, first_body = await first
     second_status, _, second_body = await second
 
-    assert first_status == status.HTTP_200_OK, first_body
-    assert second_status in (status.HTTP_409_CONFLICT, status.HTTP_503_SERVICE_UNAVAILABLE)
-    assert second_body["detail"] in ("OPERATION_IN_PROGRESS", "LOCK_TIMEOUT")
+    assert first_status == second_status == status.HTTP_200_OK, (first_body, second_body)
+    # La repeticion no re-ejecuta: mismo estado, efecto nuevo cero y un unico efecto auditado.
+    assert second_body == {**first_body, "affected_match_count": 0}
     assert [row["action"] for row in await tatami_audit()] == ["TATAMI_ASSIGNED"]
     assert await assignment_reservations(tatami.stage_item_id) == 1
     assert await match_courts(tatami.stage_item_id) == [int(tatami.court_a)]
@@ -729,7 +739,7 @@ async def test_key_in_flight_is_rejected_while_the_operation_holds_the_row(
 async def test_concurrent_assignments_leave_a_consistent_state(
     lab: GenerationLab, tatami: TatamiLab
 ) -> None:
-    """Dos asignaciones simultaneas de distinta clave se serializan: el cuadro y sus combates coinciden."""
+    """Dos asignaciones a la vez de distinta clave se serializan: cuadro y combates coinciden."""
     first, second = await asyncio.gather(
         assign(
             lab,
@@ -825,7 +835,7 @@ async def test_each_effect_has_exactly_one_event(lab: GenerationLab, tatami: Tat
         "TATAMI_UNASSIGNED",
     ]
     assert {row["entity"] for row in events} == {"stage_item"}
-    assert {row["changed_fields"][0] for row in events} == {"court_id"}
+    assert all(row["changed_fields"] == ["court_id"] for row in events)
 
 
 # --- 9. el planner respeta la asignacion explicita ----------------------------------------------
@@ -837,23 +847,28 @@ async def test_planner_refuses_to_overwrite_an_explicit_court(
 ) -> None:
     """Con tatami asignado, el planner rechaza la generacion en lugar de pisar la decision."""
     await ready_tournament(lab)
-    async with bracket_structure(lab) as stage_item_id:
-        async with inserted_court(
-            DUMMY_COURT1.model_copy(
-                update={
-                    "tournament_id": lab.tournament,
-                    "name": "Tatami del planner",
-                    "created": datetime_utc.now(),
-                }
-            )
-        ) as court:
-            court_id = CourtId(court.id)
+    async with inserted_court(
+        DUMMY_COURT1.model_copy(
+            update={
+                "tournament_id": lab.tournament,
+                "name": "Tatami del planner",
+                "created": datetime_utc.now(),
+            }
+        )
+    ) as court:
+        court_id = CourtId(court.id)
+        async with bracket_structure(lab) as stage_item_id:
             await assign_ok(lab, stage_item_id=stage_item_id, court_id=court_id)
 
             status_code, _, body = await generate(lab, key=uuid4().hex, token=lab.owner_token)
 
             assert status_code == status.HTTP_409_CONFLICT, body
-            assert body == {"detail": "generate_bracket_blocked: planning"}
+            # El planner no pisa la decision: el cuadro con tatami queda "congelado" para la
+            # generacion (BRACKET_ALREADY_EXISTS) y la generacion se rechaza en bloque.
+            assert body["detail"]["code"] == "BRACKET_NOT_READY"
+            assert [issue["code"] for issue in body["detail"]["blocking_issues"]] == [
+                "BRACKET_ALREADY_EXISTS"
+            ]
             assert await stage_item_court(stage_item_id) == int(court_id)
             assert await match_courts(stage_item_id) == [int(court_id)]
 
@@ -865,7 +880,7 @@ async def test_planner_refuses_to_overwrite_an_explicit_court(
 async def test_read_api_exposes_the_assignment_explicitly(
     lab: GenerationLab, tatami: TatamiLab
 ) -> None:
-    """``GET /stages`` publica el tatami del cuadro con nombre: el frontend no tiene que inferirlo."""
+    """``GET /stages`` publica el tatami del cuadro con nombre, sin inferirlo de los combates."""
     async with aiohttp.ClientSession() as session:
         async with session.get(
             stages_url(lab.tournament), headers={"Authorization": f"Bearer {lab.owner_token}"}
@@ -908,21 +923,22 @@ async def test_read_api_exposes_the_assignment_explicitly(
 async def test_readiness_still_reads_with_the_assignment_in_place(
     lab: GenerationLab, tatami: TatamiLab
 ) -> None:
-    """El readiness sigue siendo de lectura: asignar no lo rompe ni lo bloquea."""
+    """El readiness sigue siendo de lectura y publica el cuadro congelado por la asignacion."""
     await ready_tournament(lab)
-    async with bracket_structure(lab) as stage_item_id:
-        async with inserted_court(
-            DUMMY_COURT1.model_copy(
-                update={
-                    "tournament_id": lab.tournament,
-                    "name": "Tatami del readiness",
-                    "created": datetime_utc.now(),
-                }
-            )
-        ) as court:
+    async with inserted_court(
+        DUMMY_COURT1.model_copy(
+            update={
+                "tournament_id": lab.tournament,
+                "name": "Tatami del readiness",
+                "created": datetime_utc.now(),
+            }
+        )
+    ) as court:
+        async with bracket_structure(lab) as stage_item_id:
             await assign_ok(lab, stage_item_id=stage_item_id, court_id=CourtId(court.id))
 
             readiness = await call_readiness(lab)
 
-    assert readiness["ready"] is True
     assert readiness["registration_window"] == "CLOSED"
+    assert readiness["ready"] is False
+    assert [issue["code"] for issue in readiness["blocking_issues"]] == ["BRACKET_ALREADY_EXISTS"]

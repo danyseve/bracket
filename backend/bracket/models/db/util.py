@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import field_validator, model_validator
 
+from bracket.models.db.court import Court
 from bracket.models.db.match import Match, MatchWithDetails, MatchWithDetailsDefinitive
 from bracket.models.db.round import Round
 from bracket.models.db.stage import Stage
@@ -27,6 +28,7 @@ class StageItemWithRounds(StageItem):
     rounds: list[RoundWithMatches]
     inputs: list[StageItemInput]
     type_name: str
+    court: Court | None = None
 
     @model_validator(mode="before")
     @classmethod

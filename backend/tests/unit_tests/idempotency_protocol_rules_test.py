@@ -32,11 +32,17 @@ PROTOCOL_MODULE = BACKEND_ROOT / "bracket" / "logic" / "idempotency_protocol.py"
 ADAPTER_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_idempotency.py"
 REGISTRATIONS_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_registrations.py"
 COMPETITORS_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_competitors.py"
+STAGE_ITEM_COURT_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_stage_item_court.py"
 
 #: Consumidores autorizados del adaptador: el propio adaptador, el router F3 de inscripciones
-#: (S3.4a) y el de competidores (S3.7a). La lista es cerrada y explicita: cualquier otro
-#: modulo que mencione el adaptador rompe el guard.
-AUTHORIZED_CONSUMERS = (ADAPTER_MODULE, REGISTRATIONS_MODULE, COMPETITORS_MODULE)
+#: (S3.4a), el de competidores (S3.7a) y el de tatami (S4.2). La lista es cerrada y explicita:
+#: cualquier otro modulo que mencione el adaptador rompe el guard.
+AUTHORIZED_CONSUMERS = (
+    ADAPTER_MODULE,
+    REGISTRATIONS_MODULE,
+    COMPETITORS_MODULE,
+    STAGE_ITEM_COURT_MODULE,
+)
 
 
 def _protocol_error_classes() -> list[type[IdempotencyProtocolError]]:

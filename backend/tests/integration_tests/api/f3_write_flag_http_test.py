@@ -40,9 +40,10 @@ from tests.integration_tests.api.generate_bracket_http_support import (
 )
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
-#: Las doce familias de escritura de F3 (inscripciones, generacion y competidores).
+#: Las trece familias de escritura de F3 (inscripciones, generacion, competidores y tatami).
 EXPECTED_GUARDED: Final = (
     "POST /tournaments/{tournament_id}/generate-bracket",
+    "PUT /tournaments/{tournament_id}/stage-items/{stage_item_id}/court",
     "POST /tournaments/{tournament_id}/registration-window",
     "POST /tournaments/{tournament_id}/registrations",
     "POST /tournaments/{tournament_id}/registrations/close",

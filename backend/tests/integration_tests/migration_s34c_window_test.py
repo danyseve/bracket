@@ -296,7 +296,12 @@ def test_upgrade_can_be_reapplied_after_a_downgrade(migration_lab: Engine) -> No
 
 
 def test_the_revision_graph_still_has_a_single_head(migration_lab: Engine) -> None:
+    """La cadena no se ha bifurcado: una sola cabeza y S3.4c sigue dentro de la historia.
+
+    S4.2 anadio una revision encima (el tatami del cuadro), asi que la cabeza ya no es S3.4c: lo que
+    se protege aqui es que nadie haya creado una rama paralela.
+    """
     heads = [line for line in _alembic("heads").splitlines() if line.strip()]
 
     assert len(heads) == 1, f"cabeza unica: {heads}"
-    assert S34C_REVISION in heads[0]
+    assert S34C_REVISION in _alembic("history")

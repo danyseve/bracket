@@ -223,6 +223,13 @@ _ENTITY_TENANT_PREDICATE: dict[str, str] = {
         "WHERE tournaments.id = :entity_id "
         "AND tournaments.club_id = :tenant_club_id"
     ),
+    "stage_item": (
+        "SELECT 1 FROM stage_items "
+        "JOIN stages ON stages.id = stage_items.stage_id "
+        "JOIN tournaments ON tournaments.id = stages.tournament_id "
+        "WHERE stage_items.id = :entity_id "
+        "AND tournaments.club_id = :tenant_club_id"
+    ),
 }
 
 
