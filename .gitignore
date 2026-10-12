@@ -17,3 +17,6 @@ backend/static
 backend/frontend-dist
 
 /process-compose.yml
+
+# Log de pruebas de Frontend F3 que nunca debe versionarse.
+.f3-test.log
