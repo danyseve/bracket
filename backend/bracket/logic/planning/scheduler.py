@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 
 
 @dataclass(frozen=True)
-class MatchToSchedule:
+class MatchToSchedule:  # pylint: disable=too-many-instance-attributes
     """Lo minimo que el planificador necesita saber de un combate."""
 
     match_id: int
@@ -95,7 +95,9 @@ def observed_lag_minutes(*, planned_end: datetime, finished_at: datetime | None)
     return max(0, int((finished_at - planned_end).total_seconds() // 60))
 
 
-def build_schedule(
+# 13 ramas, una por regla del plan (descanso, alimentadores, tatami libre, asignacion
+# manual). Partirlas en funciones mas pequenas cambiaria el algoritmo sin ganar claridad.
+def build_schedule(  # pylint: disable=too-many-branches
     *,
     matches: Iterable[MatchToSchedule],
     courts: Sequence[int],
@@ -163,7 +165,7 @@ def build_schedule(
             if feeder is not None:
                 earliest = max(earliest, feeder.end_time + rest)
         for key in match.participant_keys:
-            for busy_start, busy_end in participant_busy.get(key, []):
+            for _busy_start, busy_end in participant_busy.get(key, []):
                 earliest = max(earliest, busy_end + rest)
 
         court_start = [

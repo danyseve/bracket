@@ -48,7 +48,7 @@ PUBLIC_MATCH_KEYS = frozenset(
 
 
 @dataclass(frozen=True)
-class PublicMatch:
+class PublicMatch:  # pylint: disable=too-many-instance-attributes
     """Un combate visto desde la grada: lo deportivo, sin registro de cuenta ni auditoria."""
 
     match_id: int
@@ -73,7 +73,7 @@ class PublicMatch:
 
 
 @dataclass(frozen=True)
-class DisplayEntry:
+class DisplayEntry:  # pylint: disable=too-many-instance-attributes
     match_id: int
     category: str
     round_name: str
