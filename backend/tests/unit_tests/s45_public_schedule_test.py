@@ -97,7 +97,14 @@ def test_combate_sin_rivales_es_pendiente_de_ganador() -> None:
     display = build_court_display(
         court_id=1,
         court_name="Tatami 1",
-        matches=[match(9, fighter_a=None, fighter_b=None, waiting_for=("Ganador combate 10", "Ganador combate 11"))],
+        matches=[
+            match(
+                9,
+                fighter_a=None,
+                fighter_b=None,
+                waiting_for=("Ganador combate 10", "Ganador combate 11"),
+            )
+        ],
     )
 
     assert display.current is not None
@@ -186,7 +193,15 @@ def test_cuerpo_publico_solo_lleva_datos_deportivos() -> None:
     assert_public_payload_is_safe(payload)
     assert set(payload) == {"tournament", "generated_at", "courts"}
     court = payload["courts"][0]  # type: ignore[index]
-    assert set(court) == {"court_id", "court_name", "lag_minutes", "current", "next", "upcoming", "completed"}
+    assert set(court) == {
+        "court_id",
+        "court_name",
+        "lag_minutes",
+        "current",
+        "next",
+        "upcoming",
+        "completed",
+    }
     current = court["current"]
     assert set(current) == {
         "match_id",
