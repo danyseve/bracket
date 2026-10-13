@@ -6,6 +6,7 @@ import {
   Grid,
   Group,
   List,
+  Paper,
   SimpleGrid,
   Stack,
   Table,
@@ -24,6 +25,8 @@ import {
   MINIMUM_ENTRANTS,
   ReadinessIssue,
   categoryDisplayName,
+  classificationBlockedCategories,
+  classificationBlockedCount,
   readinessBlockerKey,
   sortCategories,
 } from '@components/utils/f3_contract';
@@ -59,11 +62,60 @@ function BlockerList({ issues }: { issues: ReadinessIssue[] }) {
 }
 
 /**
- * Preparación de los cuadros (S4.1 §7-§8).
+ * Bloqueos de **clasificación** de la revisión (§17).
  *
- * Consume `GET bracket-readiness` y traduce cada bloqueo a una frase. El botón de generación solo se
- * habilita cuando la revisión dice `ready`, pero **el backend sigue mandando**: si el POST responde
- * `BRACKET_NOT_READY` se muestra el rechazo, se refresca la revisión y no se reintenta solo.
+ * La revisión publica los bloqueos con código cerrado; los que describen un problema de
+ * clasificación (a-3 §9) se agrupan aquí por categoría y se traducen a frases humanas, de modo que
+ * el organizador vea **qué** inscripciones están bloqueadas y **por qué** (falta de peso, categoría
+ * incompatible…), no solo un `ready=false` mudo. No se inventan nombres: se usa la etiqueta que
+ * publica el backend y el recuento de cada bloqueo.
+ */
+function ClassificationBlockers({ readiness }: { readiness: BracketReadiness }) {
+  const { t } = useTranslation();
+  const rows = classificationBlockedCategories(readiness);
+
+  if (rows.length === 0) {
+    return (
+      <Text size="sm" c="green">
+        {t('readiness_classification_blockers_empty')}
+      </Text>
+    );
+  }
+
+  return (
+    <Stack gap={6}>
+      <Text size="xs" c="dimmed">
+        {t('readiness_classification_blocker_count', {
+          count: classificationBlockedCount(rows),
+        })}
+      </Text>
+      {rows.map((row, index) => (
+        <Paper
+          key={`${row.category_key ?? 'sin-categoria'}-${index}`}
+          withBorder
+          radius="sm"
+          p="xs"
+        >
+          <Text size="sm" fw={600}>
+            {row.category_key == null
+              ? t('readiness_classification_unclassified')
+              : categoryDisplayName(row.category_key, row.category_label)}
+          </Text>
+          <BlockerList issues={row.issues} />
+        </Paper>
+      ))}
+    </Stack>
+  );
+}
+
+/**
+ * Preparación de los cuadros (S4.1 §7-§8 + S4.8a-4 §17).
+ *
+ * Consume `GET bracket-readiness` y traduce cada bloqueo a una frase. Además de la tabla por
+ * categoría, muestra los bloqueos de **clasificación** por inscripción/categoría en lenguaje humano
+ * (§17). El botón de generación solo se habilita cuando la revisión dice `ready`, pero **el backend
+ * sigue mandando**: si el POST responde `BRACKET_NOT_READY` se muestra el rechazo, se refresca la
+ * revisión y no se reintenta solo.
  */
 export default function ReadinessPanel({
   tournament_id,
@@ -222,6 +274,13 @@ export default function ReadinessPanel({
                 {t('readiness_blockers_title')}
               </Text>
               <BlockerList issues={readiness.blocking_issues} />
+            </Stack>
+
+            <Stack gap={4}>
+              <Text size="sm" fw={600}>
+                {t('readiness_classification_blockers_title')}
+              </Text>
+              <ClassificationBlockers readiness={readiness} />
             </Stack>
 
             <Group gap="sm" align="center">

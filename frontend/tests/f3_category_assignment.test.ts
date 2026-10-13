@@ -27,8 +27,8 @@ import {
 } from '../src/components/utils/f3_category_assignment.ts';
 import { preselectedCategoryKey } from '../src/components/utils/f3_classification.ts';
 import type { RegistrationClassification } from '../src/components/utils/f3_competitor_contract.ts';
+import type { BracketReadiness } from '../src/components/utils/f3_contract.ts';
 import {
-  BracketReadiness,
   classificationBlockedCategories,
   classificationBlockedCount,
   isClassificationReadinessBlocker,
@@ -212,7 +212,11 @@ test('solo los códigos de clasificación se reconocen como tales (§17)', () =>
     'NO_COMPATIBLE_CATEGORY',
     'INVALID_CATEGORY_BELT_RANGE',
   ]) {
-    assert.equal(isClassificationReadinessBlocker(code), true, `${code} debería ser de clasificación`);
+    assert.equal(
+      isClassificationReadinessBlocker(code),
+      true,
+      `${code} debería ser de clasificación`
+    );
   }
   assert.equal(isClassificationReadinessBlocker('CATEGORY_NOT_ENOUGH_COMPETITORS'), false);
   assert.equal(isClassificationReadinessBlocker('REGISTRATION_WINDOW_OPEN'), false);
@@ -221,8 +225,8 @@ test('solo los códigos de clasificación se reconocen como tales (§17)', () =>
 test('los blockers de clasificación se agrupan por categoría y con su motivo (§17)', () => {
   const rows = classificationBlockedCategories(readiness);
 
-  // Una fila a nivel torneo (sin categoría) y otra por la categoría afectada.
-  assert.equal(rows.length, 2);
+  // Una fila a nivel torneo, una para la categoría sin clasificar y otra por la categoría afectada.
+  assert.equal(rows.length, 3);
 
   const tournamentLevel = rows[0];
   assert.equal(tournamentLevel.category_key, null);
@@ -231,7 +235,14 @@ test('los blockers de clasificación se agrupan por categoría y con su motivo (
     ['MISSING_MODALITY']
   );
 
-  const categoryRow = rows[1];
+  const unclassified = rows[1];
+  assert.equal(unclassified.category_key, null);
+  assert.deepEqual(
+    unclassified.issues.map((issue) => issue.code),
+    ['MISSING_WEIGHT']
+  );
+
+  const categoryRow = rows[2];
   assert.equal(categoryRow.category_key, 'gi-76');
   assert.equal(categoryRow.category_label, 'Gi -76 kg');
   // El bloqueo no-clasificatorio (faltan competidores) NO entra aquí.
@@ -240,8 +251,8 @@ test('los blockers de clasificación se agrupan por categoría y con su motivo (
     ['CATEGORY_INCOMPATIBLE']
   );
 
-  // 2 (falta modalidad) + 1 (categoría incompatible).
-  assert.equal(classificationBlockedCount(rows), 3);
+  // 2 (falta modalidad) + 1 (falta peso) + 1 (categoría incompatible).
+  assert.equal(classificationBlockedCount(rows), 4);
 });
 
 test('sin bloqueos de clasificación la sección queda vacía', () => {

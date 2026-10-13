@@ -40,7 +40,17 @@ export type BracketReadinessBlocker =
   | 'COMPETITOR_INACTIVE'
   | 'REGISTRATION_INCONSISTENT'
   | 'INVALID_CATEGORY'
-  | 'BRACKET_ALREADY_EXISTS';
+  | 'BRACKET_ALREADY_EXISTS'
+  // S4.8a-4 §17: bloqueos de clasificación (a-3 §9), el mismo vocabulario cerrado del backend.
+  | 'MISSING_DATE_OF_BIRTH'
+  | 'MISSING_SEX'
+  | 'MISSING_BELT'
+  | 'MISSING_WEIGHT'
+  | 'MISSING_MODALITY'
+  | 'CATEGORY_NOT_RESOLVED'
+  | 'CATEGORY_INCOMPATIBLE'
+  | 'NO_COMPATIBLE_CATEGORY'
+  | 'INVALID_CATEGORY_BELT_RANGE';
 
 export interface Competitor {
   id: number;
@@ -408,6 +418,84 @@ export function sortCategories<
       String(left.category_key).localeCompare(String(right.category_key))
     );
   });
+}
+
+/* -------------------------------------------------------------------------------------------- */
+/* S4.8a-4 §17 — bloqueos de CLASIFICACIÓN dentro de la revisión de readiness.                   */
+/* -------------------------------------------------------------------------------------------- */
+
+/**
+ * Códigos de `bracket-readiness` que describen un problema de **clasificación** de una inscripción
+ * (a-3 §9). Salen del mismo `BracketReadinessBlocker` que la revisión publica: son el prefijo de
+ * clasificación del vocabulario cerrado. La UI los aparta del resto para pintarlos con nombre y
+ * motivo (§17), en vez de dejar solo un `ready=false`.
+ */
+export const CLASSIFICATION_READINESS_BLOCKERS: BracketReadinessBlocker[] = [
+  'MISSING_DATE_OF_BIRTH',
+  'MISSING_SEX',
+  'MISSING_BELT',
+  'MISSING_WEIGHT',
+  'MISSING_MODALITY',
+  'CATEGORY_NOT_RESOLVED',
+  'CATEGORY_INCOMPATIBLE',
+  'NO_COMPATIBLE_CATEGORY',
+  'INVALID_CATEGORY_BELT_RANGE',
+];
+
+/** ¿El código es un bloqueo de **clasificación** y no otro tipo de bloqueo de la revisión? */
+export function isClassificationReadinessBlocker(code: string): boolean {
+  return (CLASSIFICATION_READINESS_BLOCKERS as string[]).includes(code);
+}
+
+/** Bloqueos de clasificación agrupados por categoría, para pintarlos con nombre y motivo (§17). */
+export interface ClassificationBlockedCategory {
+  category_key: string | null;
+  category_label: string | null;
+  issues: ReadinessIssue[];
+}
+
+/**
+ * Proyección de la revisión: los bloqueos de clasificación, agrupados por categoría (las
+ * inscripciones sin clasificar viajan con `category_key` nulo). No inventa nombres: usa la etiqueta
+ * que publica el backend. Devuelve `[]` cuando ninguna inscripción está bloqueada por clasificación.
+ */
+export function classificationBlockedCategories(
+  readiness: Pick<BracketReadiness, 'blocking_issues' | 'categories'>
+): ClassificationBlockedCategory[] {
+  const rows: ClassificationBlockedCategory[] = [];
+
+  const atTournamentLevel = readiness.blocking_issues.filter((issue) =>
+    isClassificationReadinessBlocker(issue.code)
+  );
+  if (atTournamentLevel.length > 0) {
+    rows.push({ category_key: null, category_label: null, issues: atTournamentLevel });
+  }
+
+  for (const category of sortCategories(readiness.categories)) {
+    const issues = category.blocking_issues.filter((issue) =>
+      isClassificationReadinessBlocker(issue.code)
+    );
+    if (issues.length > 0) {
+      rows.push({
+        category_key: category.category_key,
+        category_label: category.category_label,
+        issues,
+      });
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Nº de inscripciones afectadas por los bloqueos de clasificación: la suma de los `count` que
+ * publica cada bloqueo (1 cuando el bloqueo no cuenta inscripciones).
+ */
+export function classificationBlockedCount(rows: ClassificationBlockedCategory[]): number {
+  return rows.reduce(
+    (total, row) => total + row.issues.reduce((sum, issue) => sum + (issue.count ?? 1), 0),
+    0
+  );
 }
 
 /* -------------------------------------------------------------------------------------------- */

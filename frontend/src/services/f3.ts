@@ -8,6 +8,8 @@ import {
   competitorIndependenceUrl,
   CompetitorProfileBody,
   competitorProfileUrl,
+  RegistrationCategoryBody,
+  registrationCategoryUrl,
   RegistrationClassification,
   registrationClassificationUrl,
   SportsClub,
@@ -359,5 +361,25 @@ export async function setSportsClubLogo(
   }
   return write(() =>
     createAxios().post(sportsClubLogoUrl(club_id, sports_club_id), form, idempotentHeaders(key))
+  );
+}
+
+/**
+ * Asigna la categoría de una inscripción (S4.8a-4 §15-§16). El cuerpo es
+ * `RegistrationCategoryBody`: sin `override` la categoría debe ser **compatible**; con `override`
+ * (solo organizador) el motivo es obligatorio. Escritura F3 con `Idempotency-Key`.
+ */
+export async function assignRegistrationCategory(
+  tournament_id: number,
+  registration_id: number,
+  body: RegistrationCategoryBody,
+  key: string
+): Promise<F3WriteOutcome<Registration>> {
+  return write(() =>
+    createAxios().post(
+      registrationCategoryUrl(tournament_id, registration_id),
+      body,
+      idempotentHeaders(key)
+    )
   );
 }

@@ -7,15 +7,26 @@ import {
   Group,
   List,
   Radio,
+  Select,
   Stack,
   Text,
   Title,
 } from '@mantine/core';
+import { showNotification } from '@mantine/notifications';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import F3ErrorAlert from '@components/f3/f3_error_alert';
+import OrganizerOnly from '@components/f3/organizer_only';
+import ReasonModal from '@components/f3/reason_modal';
+import {
+  CATEGORY_ASSIGNMENT_REASON_CODES,
+  CategoryAssignmentBody,
+  buildCategoryAssignment,
+  compatibleCategoryKeys,
+  isCompatibleChoice,
+} from '@components/utils/f3_category_assignment';
 import {
   classificationBlockerKeys,
   classificationState,
@@ -27,37 +38,52 @@ import type { RegistrationClassification } from '@components/utils/f3_competitor
 import { categoryDisplayName } from '@components/utils/f3_contract';
 import { F3Failure, describeF3Failure } from '@components/utils/f3_errors';
 import { beltLabel, sexLabelKey } from '@components/utils/f3_sports_profile';
+import { actionScope } from '@components/utils/f3_write';
+import useF3Write from '@components/utils/f3_write_hook';
 import {
+  assignRegistrationCategory,
   getBelts,
   getCompetitorSportsProfile,
   getRegistration,
   getRegistrationClassification,
 } from '@services/f3';
 
+/** Opción de categoría del torneo para el override (clave real + etiqueta visible). */
+export interface CategoryOption {
+  value: string;
+  label: string;
+}
+
 /**
- * Clasificación mostrada al organizador (S4.8a-4 §10-§14, §18).
+ * Clasificación y asignación de categoría mostradas al organizador (S4.8a-4 §10-§16, §18, §22).
  *
  * Reúne las tres piezas que exige la revisión de una inscripción: la **ficha del competidor**
  * (nombre, cinturón, sexo, club), los **datos declarados** de la inscripción (peso, modalidad) y la
- * **clasificación** que devuelve el motor del backend.
+ * **clasificación** que devuelve el motor del backend, más la **asignación** por el endpoint real.
  *
  * El motor es la única autoridad: este panel **no** reproduce reglas de categoría. Solo traduce los
  * códigos cerrados a texto humano con `classificationBlockerKey`/`classificationWarningKey`
  * (§12/§13) y proyecta el veredicto a tres estados. Una única compatible se preselecciona; con
- * varias compatibles no se elige la primera (§14) y la asignación de categoría (con su override)
- * llega en el flujo del organizador: aquí la superficie queda preparada pero **sin** llamar al
- * endpoint de asignación.
+ * varias compatibles no se elige la primera (§14). La asignación normal (§15) usa las categorías
+ * compatibles del motor; el **override** (§16) es un flujo explícito reservado al organizador que
+ * exige confirmación y motivo, y nunca se dispara solo: el endpoint no se llama sin una acción del
+ * usuario.
  */
 export default function RegistrationClassificationPanel({
   tournament_id,
   registration_id,
   club_id,
+  overrideCategoryOptions = [],
 }: {
   tournament_id: number;
   registration_id: number;
   club_id: number | null;
+  /** Categorías reales del torneo, para ofrecer el override (§16). Sin ellas, no se ofrece. */
+  overrideCategoryOptions?: CategoryOption[];
 }) {
   const { t, i18n } = useTranslation();
+  const { run, inflight } = useF3Write();
+  const [failure, setFailure] = useState<F3Failure | null>(null);
 
   const swrRegistration = getRegistration(tournament_id, registration_id);
   const swrClassification = getRegistrationClassification(tournament_id, registration_id);
@@ -67,18 +93,48 @@ export default function RegistrationClassificationPanel({
 
   const registration = swrRegistration.data;
   const classification = swrClassification.data;
-  const failure: F3Failure | null =
+  const swrFailure: F3Failure | null =
     swrRegistration.error != null
       ? describeF3Failure(swrRegistration.error)
       : swrClassification.error != null
         ? describeF3Failure(swrClassification.error)
         : null;
 
+  /**
+   * Envía la asignación por el endpoint real. Solo se invoca desde un manejador de acción del
+   * usuario (§22): el panel no llama al endpoint al montarse ni por efecto. Revalida la
+   * clasificación y la inscripción después (§15). Devuelve `true` si la escritura fue aceptada.
+   */
+  async function assignCategory(body: CategoryAssignmentBody): Promise<boolean> {
+    setFailure(null);
+    const outcome = await run(
+      actionScope([
+        'registration-category',
+        tournament_id,
+        registration_id,
+        body.category_key ?? '',
+        body.override ? 'override' : 'normal',
+      ]),
+      (key) => assignRegistrationCategory(tournament_id, registration_id, body, key)
+    );
+    if (outcome.status === 'ignored') {
+      return false;
+    }
+    if (outcome.value != null && outcome.value.ok) {
+      showNotification({ color: 'green', message: t('classification_assign_success') });
+      await swrClassification.mutate();
+      await swrRegistration.mutate();
+      return true;
+    }
+    setFailure(outcome.value != null && !outcome.value.ok ? outcome.value.failure : null);
+    return false;
+  }
+
   if (registration == null) {
     return (
       <Stack gap="sm">
-        <F3ErrorAlert failure={failure} />
-        {failure == null ? (
+        <F3ErrorAlert failure={swrFailure} />
+        {swrFailure == null ? (
           <Text size="sm" c="dimmed">
             {t('classification_loading')}
           </Text>
@@ -98,7 +154,7 @@ export default function RegistrationClassificationPanel({
 
   return (
     <Stack gap="md">
-      <F3ErrorAlert failure={failure} />
+      <F3ErrorAlert failure={swrFailure} />
 
       <Card withBorder radius="md" padding="md">
         <Title order={5}>{t('classification_competitor_title')}</Title>
@@ -168,7 +224,13 @@ export default function RegistrationClassificationPanel({
             {t('classification_loading')}
           </Text>
         ) : (
-          <ClassificationBody classification={classification} />
+          <ClassificationBody
+            classification={classification}
+            onAssign={assignCategory}
+            inflight={inflight}
+            failure={failure}
+            overrideCategoryOptions={overrideCategoryOptions}
+          />
         )}
       </Card>
     </Stack>
@@ -177,17 +239,76 @@ export default function RegistrationClassificationPanel({
 
 /**
  * Cuerpo de la clasificación: los tres estados que puede devolver el motor (`unclassifiable`,
- * `single`, `multiple`) más los avisos. Los códigos crudos jamás se pintan: se traducen siempre con
- * las claves humanas (§12) y un aviso nunca se pinta como error bloqueante (§13).
+ * `single`, `multiple`), los avisos y la superficie de asignación. Los códigos crudos jamás se
+ * pintan: se traducen siempre con las claves humanas (§12). La asignación normal solo se ofrece
+ * para una categoría **compatible**; el override (§16) va tras el desplegable del organizador y
+ * exige confirmación y motivo, así que nunca se fuerza en silencio.
  */
-function ClassificationBody({ classification }: { classification: RegistrationClassification }) {
+function ClassificationBody({
+  classification,
+  onAssign,
+  inflight,
+  failure,
+  overrideCategoryOptions,
+}: {
+  classification: RegistrationClassification;
+  onAssign: (body: CategoryAssignmentBody) => Promise<boolean>;
+  inflight: boolean;
+  failure: F3Failure | null;
+  overrideCategoryOptions: CategoryOption[];
+}) {
   const { t } = useTranslation();
   const [choice, setChoice] = useState<string | null>(null);
+  const [overrideChoice, setOverrideChoice] = useState<string | null>(null);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [validationKey, setValidationKey] = useState<string | null>(null);
+
   const state = classificationState(classification);
   const blockerKeys = classificationBlockerKeys(classification.blockers);
   const warningKeys = classificationWarningKeys(classification.warnings);
   // Con una única compatible se preselecciona; con varias, nada marcado por defecto (§14).
   const selected = choice ?? preselectedCategoryKey(classification);
+  const selectedCompatible = isCompatibleChoice(classification, selected);
+  // Candidatas al override: categorías reales del torneo que el motor NO da por compatibles.
+  const compatible = compatibleCategoryKeys(classification);
+  const overrideOptions = overrideCategoryOptions.filter(
+    (option) => !compatible.includes(option.value)
+  );
+
+  async function submitNormal() {
+    const built = buildCategoryAssignment({
+      classification,
+      category_key: selected,
+      override: false,
+    });
+    if (!built.ok) {
+      setValidationKey(built.errorKey);
+      return;
+    }
+    setValidationKey(null);
+    await onAssign(built.body);
+  }
+
+  async function submitOverride(reasonCode: string, reasonNote: string | null) {
+    const built = buildCategoryAssignment({
+      classification,
+      category_key: overrideChoice,
+      override: true,
+      reason_code: reasonCode,
+      reason_note: reasonNote,
+    });
+    if (!built.ok) {
+      setValidationKey(built.errorKey);
+      return;
+    }
+    setValidationKey(null);
+    const accepted = await onAssign(built.body);
+    if (accepted) {
+      setOverrideOpen(false);
+      setOverrideChoice(null);
+      setChoice(null);
+    }
+  }
 
   return (
     <Stack gap="sm" mt="xs">
@@ -256,15 +377,81 @@ function ClassificationBody({ classification }: { classification: RegistrationCl
         <Text size="sm" fw={600}>
           {t('classification_actions_title')}
         </Text>
-        <Group gap="sm">
-          <Button disabled title={t('classification_actions_pending')}>
+
+        <Group gap="sm" align="center">
+          <Button
+            disabled={!selectedCompatible || inflight}
+            loading={inflight && selectedCompatible}
+            onClick={() => {
+              void submitNormal();
+            }}
+          >
             {t('classification_assign_button')}
           </Button>
-          <Text size="xs" c="dimmed">
-            {t('classification_actions_pending')}
-          </Text>
+          {selected != null && !selectedCompatible ? (
+            <Text size="xs" c="dimmed">
+              {t('classification_override_required')}
+            </Text>
+          ) : null}
         </Group>
+
+        {validationKey != null ? (
+          <Text size="xs" c="red">
+            {t(validationKey)}
+          </Text>
+        ) : null}
+
+        <OrganizerOnly>
+          <Stack gap={6} w="100%">
+            <Text size="xs" c="dimmed">
+              {t('classification_override_disabled_hint')}
+            </Text>
+            {overrideOptions.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                {t('classification_override_no_categories')}
+              </Text>
+            ) : (
+              <Group gap="sm" align="flex-end" wrap="wrap">
+                <Select
+                  label={t('classification_override_category_label')}
+                  data={overrideOptions}
+                  value={overrideChoice}
+                  onChange={setOverrideChoice}
+                  allowDeselect
+                  w={240}
+                />
+                <Button
+                  color="orange"
+                  variant="light"
+                  disabled={overrideChoice == null}
+                  onClick={() => setOverrideOpen(true)}
+                >
+                  {t('classification_override_button')}
+                </Button>
+              </Group>
+            )}
+            <Text size="xs" c="dimmed">
+              {t('classification_override_notice')}
+            </Text>
+          </Stack>
+        </OrganizerOnly>
       </Stack>
+
+      <F3ErrorAlert failure={failure} />
+
+      <ReasonModal
+        opened={overrideOpen}
+        onClose={() => setOverrideOpen(false)}
+        title={t('classification_override_title')}
+        description={t('classification_override_description')}
+        confirmLabel={t('classification_override_confirm_label')}
+        reasonCodes={CATEGORY_ASSIGNMENT_REASON_CODES}
+        color="orange"
+        inflight={inflight}
+        onSubmit={(reasonCode: string, reasonNote: string | null) => {
+          void submitOverride(reasonCode, reasonNote);
+        }}
+      />
     </Stack>
   );
 }

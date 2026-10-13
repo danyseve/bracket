@@ -119,6 +119,17 @@ export default function RegistrationsPage() {
           }))
       : [];
 
+  // Categorías reales del torneo con su **clave** como valor: candidatas al override (§16).
+  const classificationCategoryOptions: SelectOption[] =
+    swrReadiness.data != null
+      ? swrReadiness.data.categories
+          .filter((category) => category.category_key != null)
+          .map((category) => ({
+            value: category.category_key as string,
+            label: categoryDisplayName(category.category_key, category.category_label),
+          }))
+      : [];
+
   async function refreshAll() {
     await Promise.all([
       swrRegistrations.mutate(),
@@ -393,6 +404,7 @@ export default function RegistrationsPage() {
             tournament_id={tournamentData.id}
             registration_id={classificationTarget.id}
             club_id={club_id}
+            overrideCategoryOptions={classificationCategoryOptions}
           />
         ) : null}
       </Modal>
