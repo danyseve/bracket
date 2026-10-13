@@ -1,6 +1,57 @@
 {
   "components": {
     "schemas": {
+      "BeltResponse": {
+        "description": "Proyeccion publica de un cinturon del catalogo de plataforma (``belts``).",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/BeltScope"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "label",
+          "rank",
+          "scope",
+          "active",
+          "created"
+        ],
+        "title": "BeltResponse",
+        "type": "object"
+      },
+      "BeltScope": {
+        "enum": [
+          "JUVENILE",
+          "ADULT"
+        ],
+        "type": "string"
+      },
       "Body_login_for_access_token_token_post": {
         "properties": {
           "client_id": {
@@ -5199,7 +5250,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Sports Clubs](#tag/Sports-Clubs)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Sports Clubs](#tag/Sports-Clubs)\n\n- [Catalog](#tag/Catalog)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -5379,6 +5430,70 @@
         "summary": "Update Club",
         "tags": [
           "Clubs"
+        ]
+      }
+    },
+    "/clubs/{club_id}/belts": {
+      "get": {
+        "description": "Catalogo de cinturones de la tabla ``belts`` (S4.8a-1).\n\nEs un catalogo de **plataforma**: no se acota al tenant (lo comparten todos), pero la ruta\nexige pertenecer al club, igual que el resto de lecturas bajo ``/clubs/...``. El orden es el\ndel lector (escala y rango). Leer no exige ``Idempotency-Key``: no hay nada que repetir.",
+        "operationId": "list_belts_endpoint_clubs__club_id__belts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Incluir tambien los cinturones retirados del catalogo.",
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Incluir tambien los cinturones retirados del catalogo.",
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BeltResponse"
+                  },
+                  "title": "Response List Belts Endpoint Clubs  Club Id  Belts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Belts Endpoint",
+        "tags": [
+          "Catalog"
         ]
       }
     },
@@ -5675,6 +5790,73 @@
       }
     },
     "/clubs/{club_id}/competitors/{competitor_id}/affiliations": {
+      "get": {
+        "description": "Afiliaciones del competidor (S4.8a-3 \u00a73), de solo lectura.\n\nPor defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la\nacademia actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se\nbusca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant\nresponde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni\noperacion de dominio que repetir.\n\nLa proyeccion es la **existente** ``CompetitorAffiliationsResponse``, la misma que devuelve el\npaso a independiente: aqui solo se publica. No se toca la proyeccion certificada S3.7a\n(``CompetitorResponse``).",
+        "operationId": "list_competitor_affiliations_endpoint_clubs__club_id__competitors__competitor_id__affiliations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Incluir tambien las afiliaciones ya cerradas (historial completo).",
+            "in": "query",
+            "name": "include_history",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Incluir tambien las afiliaciones ya cerradas (historial completo).",
+              "title": "Include History",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorAffiliationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Competitor Affiliations Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      },
       "post": {
         "description": "Abre una afiliacion vigente con una academia del tenant (OWNER-only).",
         "operationId": "assign_affiliation_endpoint_clubs__club_id__competitors__competitor_id__affiliations_post",
@@ -6135,6 +6317,70 @@
         "summary": "Rename Competitor Endpoint",
         "tags": [
           "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/sports-clubs": {
+      "get": {
+        "description": "Academias del club del tenant de la ruta, con su logo ya persistido.\n\nLa consulta se acota al tenant **dentro** del SQL (``tenant_club_id``) y no incluye las de\nplataforma (``tenant_club_id`` NULL): una academia de otro tenant no existe para esta ruta. Por\ndefecto solo las activas; con ``include_inactive=True`` se anaden las dadas de baja.",
+        "operationId": "list_sports_clubs_endpoint_clubs__club_id__sports_clubs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Incluir tambien las academias dadas de baja.",
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Incluir tambien las academias dadas de baja.",
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SportsClubResponse"
+                  },
+                  "title": "Response List Sports Clubs Endpoint Clubs  Club Id  Sports Clubs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Sports Clubs Endpoint",
+        "tags": [
+          "Catalog"
         ]
       }
     },

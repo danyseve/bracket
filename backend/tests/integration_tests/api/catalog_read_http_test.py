@@ -1,8 +1,8 @@
 # pylint: disable=redefined-outer-name
 """Contrato HTTP de lectura de los catalogos de club (S4.8a-4a, LAB ONLY).
 
-TDD: este modulo se escribe **antes** de la implementacion y falla en rojo (las tres rutas no
-existen). Fija el contrato de solo lectura que el frontend de a-4 necesita para cargar el catalogo
+TDD: este modulo se escribio **antes** de la implementacion y fallo en rojo (las tres rutas no
+existian). Fija el contrato de solo lectura que el frontend de a-4 necesita para cargar el catalogo
 real de cinturones, listar las academias (sports clubs) y leer la afiliacion vigente de un
 competidor:
 
@@ -19,6 +19,10 @@ puerta de escritura F3 apagada. La autorizacion es la de los GET ya existentes b
 el tenant de la ruta sale de la sesion (``actor_context_for_club``) y cualquier relacion con el club
 puede leer (OWNER y COLLABORATOR -> 200; anonimo -> 401; actor de otro club -> 401, indistinguible
 de "club inexistente"). El ambito se aplica **dentro** del SQL, nunca despues de leer.
+
+Nota sobre los datos: el arnes de CI construye el esquema con ``metadata.create_all`` (no corre la
+migracion S4.8a-1), asi que la tabla ``belts`` llega **vacia**. Este modulo siembra su propio
+catalogo de prueba (codigos ``T-*``) para poder fijar forma y orden, y lo retira al terminar.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ import pytest
 from heliclockter import datetime_utc
 from starlette import status
 
+from bracket.database import database
 from bracket.utils.id_types import CompetitorId, CompetitorXSportsClubId, SportsClubId
 from tests.integration_tests.api.competitor_http_support import (
     CompetitorLab,
@@ -60,14 +65,55 @@ AFFILIATION_FIELDS: Final = {
     "valid_from",
     "valid_to",
 }
-#: Cinturones del seed de la migracion S4.8a-1 (``BELT_SEED``): dos escalas, cinco colores cada una.
-EXPECTED_SCOPES: Final = {"JUVENILE", "ADULT"}
-EXPECTED_CODES: Final = {"WHITE", "GREY", "YELLOW", "ORANGE", "GREEN", "BLUE", "PURPLE", "BROWN", "BLACK"}
+
+#: (scope, code, rank, active) del catalogo de prueba. Los ``rank`` altos y los codigos ``T-`` no
+#: chocan con el seed de la migracion; la escala enum se castea en el SQL.
+_TEST_BELTS: Final[tuple[tuple[str, str, int, bool], ...]] = (
+    ("ADULT", "T-ADULT-WHITE", 101, True),
+    ("ADULT", "T-ADULT-BLUE", 102, True),
+    ("ADULT", "T-ADULT-RETIRED", 103, False),
+    ("JUVENILE", "T-JUV-WHITE", 101, True),
+)
+#: Los vigentes de prueba, en el orden total que debe publicar la ruta. ``ORDER BY scope`` usa el
+#: orden de declaracion del enum ``belt_scope`` (``JUVENILE`` antes que ``ADULT``), no alfabetico.
+_ACTIVE_BELTS_ORDERED: Final = (
+    ("JUVENILE", 101, "T-JUV-WHITE"),
+    ("ADULT", 101, "T-ADULT-WHITE"),
+    ("ADULT", 102, "T-ADULT-BLUE"),
+)
+
+_INSERT_BELT = """
+    INSERT INTO belts (code, label, rank, scope, active, created)
+    VALUES (:code, :label, :rank, CAST(:scope AS belt_scope), :active, :created)
+    RETURNING id
+"""
+
+
+async def _insert_belt(code: str, rank: int, scope: str, *, active: bool, created: Any) -> int:
+    """Siembra un cinturon de prueba: la tabla del arnes de CI no trae el catalogo de plataforma."""
+    belt_id: int = await database.fetch_val(
+        query=_INSERT_BELT,
+        values={
+            "code": code,
+            "label": code,
+            "rank": rank,
+            "scope": scope,
+            "active": active,
+            "created": created,
+        },
+    )
+    return belt_id
+
+
+async def _delete_belt(belt_id: int) -> None:
+    await database.execute(
+        query="DELETE FROM belts WHERE id = :belt_id", values={"belt_id": belt_id}
+    )
 
 
 @dataclass
 class CatalogLab:
-    """Tenant del laboratorio de competidores mas una academia activa, una inactiva y una ajena."""
+    """Tenant del laboratorio de competidores mas academias propias/ajenas y cinturones."""
 
     lab: CompetitorLab
     active_club: SportsClubId
@@ -75,11 +121,12 @@ class CatalogLab:
     foreign_club: SportsClubId
     primary_affiliation: CompetitorXSportsClubId
     affiliated_competitor: CompetitorId
+    belt_ids: tuple[int, ...]
 
 
 @asynccontextmanager
 async def catalog_lab() -> AsyncIterator[CatalogLab]:
-    """Laboratorio de lecturas de catalogo: academias del tenant y una afiliacion vigente."""
+    """Laboratorio de lecturas de catalogo: academias del tenant, afiliacion y cinturones."""
     async with competitor_lab_context() as lab:
         now = datetime_utc.now()
         suffix = uuid4().hex[:8]
@@ -99,6 +146,12 @@ async def catalog_lab() -> AsyncIterator[CatalogLab]:
             is_primary=True,
             created=now,
         )
+        # Una comprension con ``await`` como generador seria un generador asincrono (no vale para
+        # ``tuple()``): altas seguidas, una a una, como el resto del arnes.
+        belt_ids_list: list[int] = []
+        for scope, code, rank, active in _TEST_BELTS:
+            belt_ids_list.append(await _insert_belt(code, rank, scope, active=active, created=now))
+        belt_ids = tuple(belt_ids_list)
         try:
             yield CatalogLab(
                 lab=lab,
@@ -107,9 +160,12 @@ async def catalog_lab() -> AsyncIterator[CatalogLab]:
                 foreign_club=foreign_club,
                 primary_affiliation=primary,
                 affiliated_competitor=affiliated,
+                belt_ids=belt_ids,
             )
         finally:
-            # De hojas a raices: afiliaciones -> academias -> (competidores y clubes del arnes).
+            # De hojas a raices: cinturones/afiliaciones -> academias -> competidores y clubes.
+            for belt_id in belt_ids:
+                await _delete_belt(belt_id)
             for competitor_id in lab.active_competitors:
                 await delete_affiliations(competitor_id)
             for sports_club_id in (active_club, inactive_club, foreign_club):
@@ -129,27 +185,41 @@ def affiliations_url(lab: CompetitorLab, competitor_id: int) -> str:
     return f"{get_root_uvicorn_url()}clubs/{club}/competitors/{competitor_id}/affiliations"
 
 
+def _my_belt_sequence(body: list[Any]) -> list[tuple[Any, Any, Any]]:
+    """El subconjunto de cinturones de prueba, en el orden en que la ruta los publico."""
+    return [
+        (row["scope"], row["rank"], row["code"]) for row in body if row["code"].startswith("T-")
+    ]
+
+
 # --- 1. catalogo de cinturones -----------------------------------------------------------------
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_belts_publica_el_catalogo_de_plataforma() -> None:
+async def test_belts_publica_el_catalogo_de_la_tabla_belts() -> None:
     """El catalogo real de ``belts``: solo los campos publicos y ordenado por escala y rango."""
     async with catalog_lab() as catalog:
         status_code, body = await call("GET", belts_url(catalog.lab), token=catalog.lab.owner_token)
 
         assert status_code == status.HTTP_200_OK, body
         assert isinstance(body, list), body
-        assert body, body
         assert all(set(row) == BELT_FIELDS for row in body), body
-        # El catalogo del seed: dos escalas con los mismos cinco colores, todos activos.
-        assert {row["scope"] for row in body} == EXPECTED_SCOPES
-        assert EXPECTED_CODES <= {row["code"] for row in body}
-        assert all(row["active"] is True for row in body), body
-        # Orden total: por escala y, dentro de ella, por ``rank`` ascendente.
-        for scope in EXPECTED_SCOPES:
-            ranks = [row["rank"] for row in body if row["scope"] == scope]
-            assert ranks == sorted(ranks), body
+        # Solo los vigentes, en el orden total (escala y, dentro de ella, ``rank`` ascendente).
+        assert _my_belt_sequence(body) == list(_ACTIVE_BELTS_ORDERED), body
+        assert all(row["active"] is True for row in body if row["code"].startswith("T-")), body
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_belts_incluye_los_retirados_si_se_pide() -> None:
+    """``include_inactive=true`` anade los retirados (``active = false``), omitidos por defecto."""
+    async with catalog_lab() as catalog:
+        url = f"{belts_url(catalog.lab)}?include_inactive=true"
+        status_code, body = await call("GET", url, token=catalog.lab.owner_token)
+
+        assert status_code == status.HTTP_200_OK, body
+        retired = {row["code"]: row for row in body if row["code"] == "T-ADULT-RETIRED"}
+        assert retired, body
+        assert retired["T-ADULT-RETIRED"]["active"] is False
 
 
 @pytest.mark.asyncio(loop_scope="session")

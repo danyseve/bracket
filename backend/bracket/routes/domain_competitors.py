@@ -331,6 +331,46 @@ async def get_competitor_endpoint(
     return CompetitorResponse.from_competitor(competitor)
 
 
+@router.get(
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations",
+    response_model=CompetitorAffiliationsResponse,
+)
+async def list_competitor_affiliations_endpoint(
+    club_id: ClubId,
+    competitor_id: CompetitorId,
+    include_history: bool = Query(
+        False, description="Incluir tambien las afiliaciones ya cerradas (historial completo)."
+    ),
+    context: ActorContext = Depends(actor_context_for_club),
+) -> CompetitorAffiliationsResponse:
+    """Afiliaciones del competidor (S4.8a-3 §3), de solo lectura.
+
+    Por defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la
+    academia actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se
+    busca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant
+    responde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni
+    operacion de dominio que repetir.
+
+    La proyeccion es la **existente** ``CompetitorAffiliationsResponse``, la misma que devuelve el
+    paso a independiente: aqui solo se publica. No se toca la proyeccion certificada S3.7a
+    (``CompetitorResponse``).
+    """
+    _assert_context_matches_route(context, club_id)
+    await _load_competitor(context, competitor_id)
+    affiliations = await get_competitor_affiliations(
+        competitor_id,
+        tenant_club_id=context.tenant_club_id,
+        include_history=include_history,
+    )
+    return CompetitorAffiliationsResponse(
+        competitor_id=competitor_id,
+        affiliations=[
+            CompetitorAffiliationResponse.from_affiliation(affiliation)
+            for affiliation in affiliations
+        ],
+    )
+
+
 @router.post(
     "/clubs/{club_id}/competitors/{competitor_id}/rename",
     dependencies=[Depends(require_f3_write_enabled)],

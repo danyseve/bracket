@@ -84,6 +84,23 @@ async def get_belt(belt_id: BeltId) -> Belt | None:
     return Belt.model_validate(dict(record._mapping)) if record is not None else None
 
 
+async def list_belts(*, include_inactive: bool = False) -> list[Belt]:
+    """Catalogo de cinturones de plataforma (S4.8a-1).
+
+    Es una tabla **de plataforma**: no pertenece a ninguna academia y la comparten todos los
+    tenants, asi que esta lectura no lleva ambito de tenant. El orden es total y estable (escala y
+    rango) y por defecto solo devuelve los vigentes; con ``include_inactive=True`` incluye tambien
+    los retirados, que quien valida decide si el estado inhabilita.
+    """
+    query = f"SELECT {_BELT_COLUMNS} FROM belts b"
+    if not include_inactive:
+        query += " WHERE b.active IS TRUE"
+    query += " ORDER BY b.scope, b.rank, b.id"
+
+    records = await database.fetch_all(query=query)
+    return [Belt.model_validate(dict(record._mapping)) for record in records]
+
+
 _REGISTRATION_COLUMNS = """
     tr.id, tr.tournament_id, tr.competitor_id, tr.identity_status, tr.representation,
     tr.sports_club_id, tr.affiliation_id, tr.category_key, tr.category_label,

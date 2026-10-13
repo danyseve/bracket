@@ -35,11 +35,13 @@ from bracket.routes import domain_competitors
 from bracket.routes.f3_write_gate import require_f3_write_enabled
 from bracket.utils.id_types import ClubId, CompetitorId
 
-#: Las once rutas de la fase, con su metodo. El ambito es el club, no el torneo.
+#: Las doce rutas de la fase, con su metodo. El ambito es el club, no el torneo.
 EXPECTED_ROUTES: Final = {
     ("POST", "/clubs/{club_id}/competitors"),
     ("GET", "/clubs/{club_id}/competitors"),
     ("GET", "/clubs/{club_id}/competitors/{competitor_id}"),
+    # Lectura de afiliaciones (S4.8a-4a): la UI precarga la academia vigente sin escribir.
+    ("GET", "/clubs/{club_id}/competitors/{competitor_id}/affiliations"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/rename"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/deactivate"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/activate"),
