@@ -101,6 +101,11 @@ function MatchModalForm({
             court_id: match.court_id || null,
             custom_duration_minutes: customDurationEnabled ? values.custom_duration_minutes : null,
             custom_margin_minutes: customMarginEnabled ? values.custom_margin_minutes : null,
+            // Resultado ya declarado del combate (S4.4b): el modal solo edita marcador/pista/
+            // duraciones, pero MatchBody exige ganador y metodo y el backend los guarda juntos.
+            // Se reenvian tal cual para no borrar un resultado durable al guardar.
+            winner_stage_item_input_id: match.winner_stage_item_input_id,
+            result_method: match.result_method,
           };
           await updateMatch(tournamentData.id, match.id, updatedMatch);
           await swrStagesResponse.mutate();

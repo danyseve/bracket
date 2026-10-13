@@ -15,12 +15,21 @@ import type {
   ActivateNextStageTournamentsTournamentIdStagesActivatePostData,
   ActivateNextStageTournamentsTournamentIdStagesActivatePostErrors,
   ActivateNextStageTournamentsTournamentIdStagesActivatePostResponses,
+  AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostData,
+  AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostErrors,
+  AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostResponses,
+  AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostData,
+  AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostErrors,
+  AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostResponses,
   AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutData,
   AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutErrors,
   AssignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPutResponses,
   ChangeStatusTournamentsTournamentIdChangeStatusPostData,
   ChangeStatusTournamentsTournamentIdChangeStatusPostErrors,
   ChangeStatusTournamentsTournamentIdChangeStatusPostResponses,
+  CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostData,
+  CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostErrors,
+  CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostResponses,
   CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostData,
   CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostErrors,
   CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostResponses,
@@ -114,6 +123,9 @@ import type {
   GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostData,
   GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostErrors,
   GenerateBracketTournamentsTournamentIdStageItemsStageItemIdGenerateBracketPostResponses,
+  GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostData,
+  GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostErrors,
+  GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostResponses,
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetData,
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetErrors,
   GetAvailableInputsTournamentsTournamentIdAvailableInputsGetResponses,
@@ -125,6 +137,9 @@ import type {
   GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetData,
   GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetErrors,
   GetCompetitorEndpointClubsClubIdCompetitorsCompetitorIdGetResponses,
+  GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetData,
+  GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetErrors,
+  GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetResponses,
   GetCourtsTournamentsTournamentIdCourtsGetData,
   GetCourtsTournamentsTournamentIdCourtsGetErrors,
   GetCourtsTournamentsTournamentIdCourtsGetResponses,
@@ -142,9 +157,15 @@ import type {
   GetPlayersTournamentsTournamentIdPlayersGetData,
   GetPlayersTournamentsTournamentIdPlayersGetErrors,
   GetPlayersTournamentsTournamentIdPlayersGetResponses,
+  GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetData,
+  GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetErrors,
+  GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetResponses,
   GetRankingsTournamentsTournamentIdRankingsGetData,
   GetRankingsTournamentsTournamentIdRankingsGetErrors,
   GetRankingsTournamentsTournamentIdRankingsGetResponses,
+  GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetData,
+  GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetErrors,
+  GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetResponses,
   GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetData,
   GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetErrors,
   GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses,
@@ -157,6 +178,9 @@ import type {
   GetTeamsTournamentsTournamentIdTeamsGetData,
   GetTeamsTournamentsTournamentIdTeamsGetErrors,
   GetTeamsTournamentsTournamentIdTeamsGetResponses,
+  GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetData,
+  GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetErrors,
+  GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetResponses,
   GetTournamentsTournamentsGetData,
   GetTournamentsTournamentsGetErrors,
   GetTournamentsTournamentsGetResponses,
@@ -167,17 +191,32 @@ import type {
   GetUsersAdminUsersAdminGetResponses,
   GetUserUsersMeGetData,
   GetUserUsersMeGetResponses,
+  GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostData,
+  GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostErrors,
+  GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostResponses,
+  ListBeltsEndpointClubsClubIdBeltsGetData,
+  ListBeltsEndpointClubsClubIdBeltsGetErrors,
+  ListBeltsEndpointClubsClubIdBeltsGetResponses,
+  ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetData,
+  ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetErrors,
+  ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetResponses,
   ListCompetitorsEndpointClubsClubIdCompetitorsGetData,
   ListCompetitorsEndpointClubsClubIdCompetitorsGetErrors,
   ListCompetitorsEndpointClubsClubIdCompetitorsGetResponses,
   ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetData,
   ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetErrors,
   ListRegistrationsEndpointTournamentsTournamentIdRegistrationsGetResponses,
+  ListSportsClubsEndpointClubsClubIdSportsClubsGetData,
+  ListSportsClubsEndpointClubsClubIdSportsClubsGetErrors,
+  ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses,
   LoginForAccessTokenTokenPostData,
   LoginForAccessTokenTokenPostErrors,
   LoginForAccessTokenTokenPostResponses,
   PingPingGetData,
   PingPingGetResponses,
+  PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostData,
+  PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostErrors,
+  PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponses,
   PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutData,
   PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutErrors,
   PutUserAccountTypeAdminUsersAdminUserIdAccountTypePutResponses,
@@ -190,6 +229,9 @@ import type {
   PutUserPasswordUsersUserIdPasswordPutData,
   PutUserPasswordUsersUserIdPasswordPutErrors,
   PutUserPasswordUsersUserIdPasswordPutResponses,
+  RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostData,
+  RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostErrors,
+  RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostResponses,
   RegisterDemoUserUsersRegisterDemoPostData,
   RegisterDemoUserUsersRegisterDemoPostErrors,
   RegisterDemoUserUsersRegisterDemoPostResponses,
@@ -211,12 +253,18 @@ import type {
   SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostData,
   SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostErrors,
   SetRegistrationWindowEndpointTournamentsTournamentIdRegistrationWindowPostResponses,
+  SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostData,
+  SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostErrors,
+  SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostResponses,
   StartNextRoundTournamentsTournamentIdStageItemsStageItemIdStartNextRoundPostData,
   StartNextRoundTournamentsTournamentIdStageItemsStageItemIdStartNextRoundPostErrors,
   StartNextRoundTournamentsTournamentIdStageItemsStageItemIdStartNextRoundPostResponses,
   UpdateClubClubsClubIdPutData,
   UpdateClubClubsClubIdPutErrors,
   UpdateClubClubsClubIdPutResponses,
+  UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostData,
+  UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostErrors,
+  UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostResponses,
   UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutData,
   UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutErrors,
   UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses,
@@ -352,6 +400,29 @@ export const updateClubClubsClubIdPut = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * List Belts Endpoint
+ *
+ * Catalogo de cinturones de la tabla ``belts`` (S4.8a-1).
+ *
+ * Es un catalogo de **plataforma**: no se acota al tenant (lo comparten todos), pero la ruta
+ * exige pertenecer al club, igual que el resto de lecturas bajo ``/clubs/...``. El orden es el
+ * del lector (escala y rango). Leer no exige ``Idempotency-Key``: no hay nada que repetir.
+ */
+export const listBeltsEndpointClubsClubIdBeltsGet = <ThrowOnError extends boolean = false>(
+  options: Options<ListBeltsEndpointClubsClubIdBeltsGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListBeltsEndpointClubsClubIdBeltsGetResponses,
+    ListBeltsEndpointClubsClubIdBeltsGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/belts',
+    ...options,
+  });
+
+/**
  * List Competitors Endpoint
  *
  * Competidores del club de la ruta, con filtros, paginacion y el total del filtro.
@@ -461,6 +532,114 @@ export const activateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivat
   });
 
 /**
+ * List Competitor Affiliations Endpoint
+ *
+ * Afiliaciones del competidor (S4.8a-3 §3), de solo lectura.
+ *
+ * Por defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la
+ * academia actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se
+ * busca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant
+ * responde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni
+ * operacion de dominio que repetir.
+ *
+ * La proyeccion es la **existente** ``CompetitorAffiliationsResponse``, la misma que devuelve el
+ * paso a independiente: aqui solo se publica. No se toca la proyeccion certificada S3.7a
+ * (``CompetitorResponse``).
+ */
+export const listCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetResponses,
+    ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations',
+    ...options,
+  });
+
+/**
+ * Assign Affiliation Endpoint
+ *
+ * Abre una afiliacion vigente con una academia del tenant (OWNER-only).
+ */
+export const assignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostResponses,
+    AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Close Affiliation Endpoint
+ *
+ * Cierra una afiliacion vigente escribiendo ``valid_to`` (OWNER-only).
+ */
+export const closeAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostResponses,
+      CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close',
+      ...options,
+    });
+
+/**
+ * Promote Affiliation Endpoint
+ *
+ * Convierte en primaria una afiliacion vigente, cerrando la anterior (OWNER-only).
+ */
+export const promoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponses,
+      PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary',
+      ...options,
+    });
+
+/**
  * Deactivate Competitor Endpoint
  *
  * Baja logica del competidor. Exige relacion ``OWNER`` con el club.
@@ -484,6 +663,63 @@ export const deactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeact
     responseType: 'json',
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/clubs/{club_id}/competitors/{competitor_id}/deactivate',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Go Independent Endpoint
+ *
+ * Cierra todas las afiliaciones vigentes del competidor (OWNER-only).
+ */
+export const goIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostResponses,
+    GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/independence',
+    ...options,
+  });
+
+/**
+ * Update Competitor Profile Endpoint
+ *
+ * Reemplaza el perfil deportivo del competidor (S4.8a-3 §2).
+ *
+ * La politica de permisos es la de los datos basicos del contrato certificado (OWNER y
+ * COLLABORATOR): este endpoint no introduce ninguna regla de autorizacion nueva, y la puerta de
+ * escritura de S3.6b sigue siendo el unico interruptor. Sin cambios reales no hay evento de
+ * auditoria y la respuesta es la identidad tal cual estaba.
+ */
+export const updateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostResponses,
+    UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/competitors/{competitor_id}/profile',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -523,6 +759,60 @@ export const renameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePos
   });
 
 /**
+ * List Sports Clubs Endpoint
+ *
+ * Academias del club del tenant de la ruta, con su logo ya persistido.
+ *
+ * La consulta se acota al tenant **dentro** del SQL (``tenant_club_id``) y no incluye las de
+ * plataforma (``tenant_club_id`` NULL): una academia de otro tenant no existe para esta ruta. Por
+ * defecto solo las activas; con ``include_inactive=True`` se anaden las dadas de baja.
+ */
+export const listSportsClubsEndpointClubsClubIdSportsClubsGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ListSportsClubsEndpointClubsClubIdSportsClubsGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses,
+    ListSportsClubsEndpointClubsClubIdSportsClubsGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/sports-clubs',
+    ...options,
+  });
+
+/**
+ * Set Sports Club Logo Endpoint
+ *
+ * Sube, reemplaza o quita (sin fichero) el logo de la academia del tenant.
+ */
+export const setSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostResponses,
+    SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostErrors,
+    ThrowOnError
+  >({
+    ...formDataBodySerializer,
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/sports-clubs/{sports_club_id}/logo',
+    ...options,
+    headers: {
+      'Content-Type': null,
+      ...options.headers,
+    },
+  });
+
+/**
  * Get Metrics
  */
 export const getMetricsMetricsGet = <ThrowOnError extends boolean = false>(
@@ -543,6 +833,29 @@ export const pingPingGet = <ThrowOnError extends boolean = false>(
   (options?.client ?? client).get<PingPingGetResponses, unknown, ThrowOnError>({
     responseType: 'json',
     url: '/ping',
+    ...options,
+  });
+
+/**
+ * Get Public Tournament Schedule Endpoint
+ *
+ * Calendario publico del torneo: por tatami, AHORA, SIGUIENTE y los siguientes (§12).
+ */
+export const getPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetResponses,
+    GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    url: '/public/tournaments/{tournament_id}/schedule',
     ...options,
   });
 
@@ -821,6 +1134,26 @@ export const updateCourtByIdTournamentsTournamentIdCourtsCourtIdPut = <
       'Content-Type': 'application/json',
       ...options.headers,
     },
+  });
+
+/**
+ * Get Court Queue
+ *
+ * Cola del tatami: cuadros asignados, sus combates y el siguiente jugable.
+ */
+export const getCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetData, ThrowOnError>
+) =>
+  (options.client ?? client).get<
+    GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetResponses,
+    GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    url: '/tournaments/{tournament_id}/courts/{court_id}/queue',
+    ...options,
   });
 
 /**
@@ -1375,6 +1708,67 @@ export const getRegistrationEndpointTournamentsTournamentIdRegistrationsRegistra
   });
 
 /**
+ * Assign Registration Category Endpoint
+ *
+ * Asigna la categoria de una inscripcion vigente (§7) y audita el cambio (§8).
+ *
+ * Escritura F3 con ``Idempotency-Key``. Sin ``category_key`` usa la **recomendada**, que solo
+ * existe cuando hay **exactamente una** categoria compatible; con varias se rechaza sin elegir por
+ * el cliente. ``override=true`` permite fijar una categoria no compatible, es **OWNER-only**
+ * (COLLABORATOR ``403``, anonimo ``401``) y exige motivo; el RBAC general del resto de operaciones
+ * no cambia.
+ */
+export const assignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostResponses,
+      AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/{registration_id}/category',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+/**
+ * Get Registration Classification Endpoint
+ *
+ * Clasificacion de una inscripcion contra las categorias de su torneo (§6, solo lectura).
+ *
+ * Reutiliza **exactamente** el motor ya validado de a-2 (``bracket/logic/classification``) y su
+ * cargador SQL: no reimplementa reglas. No escribe, no audita, no reserva idempotencia y no exige
+ * ``Idempotency-Key``. La inscripcion se acota al torneo de la ruta y al tenant del contexto: un
+ * torneo o una inscripcion de otro tenant responden el mismo 404 que uno inexistente.
+ */
+export const getRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGet =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).get<
+      GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetResponses,
+      GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/{registration_id}/classification',
+      ...options,
+    });
+
+/**
  * Confirm Registration Endpoint
  *
  * ``DRAFT -> CONFIRMED``. Motivo opcional (``READY`` o ``DATA_VERIFIED``).
@@ -1546,6 +1940,86 @@ export const updateRoundByIdTournamentsTournamentIdRoundsRoundIdPut = <
   });
 
 /**
+ * Get Tournament Schedule Endpoint
+ *
+ * Vista de calendario del organizador: por tatami, AHORA, SIGUIENTE y los siguientes (§12).
+ */
+export const getTournamentScheduleEndpointTournamentsTournamentIdScheduleGet = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).get<
+    GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetResponses,
+    GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/schedule',
+    ...options,
+  });
+
+/**
+ * Generate Schedule Endpoint
+ *
+ * Planifica lo que todavia no tiene tatami ni hora, sin tocar lo ya asignado (§7).
+ */
+export const generateScheduleEndpointTournamentsTournamentIdScheduleGeneratePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostResponses,
+    GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/schedule/generate',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Recalculate Schedule Endpoint
+ *
+ * Vuelve a planificar el torneo; una asignacion explicita solo se mueve si se pide (§9).
+ */
+export const recalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).post<
+    RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostResponses,
+    RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/tournaments/{tournament_id}/schedule/recalculate',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
  * Schedule Matches
  */
 export const scheduleMatchesTournamentsTournamentIdScheduleMatchesPost = <
@@ -1570,10 +2044,10 @@ export const scheduleMatchesTournamentsTournamentIdScheduleMatchesPost = <
  * Fija (o quita) el tatami de un cuadro entero y lo propaga a sus combates.
  *
  * La operacion de dominio hace todo el trabajo en una transaccion; esta ruta solo la ejecuta bajo
- * el protocolo de idempotencia y publica el estado resultante. La respuesta se construye con el
- * efecto de la operacion **si se ha ejecutado ahora**; si lo que llega es la repeticion de una
- * operacion ya confirmada, no se re-ejecuta nada y se publica el estado vigente (con efecto 0,
- * porque no se ha movido ningun combate en esta peticion).
+ * el protocolo de idempotencia y publica el contrato de la operacion. La respuesta lleva el efecto
+ * de la ejecucion (cuantos combates movio) y se guarda con el resultado confirmado: repetir la
+ * misma clave devuelve **esa misma respuesta**, no una recalculada sobre el estado actual. Con una
+ * clave nueva sobre el mismo tatami, la operacion si se ejecuta y confirma un no-op con efecto 0.
  */
 export const assignStageItemCourtEndpointTournamentsTournamentIdStageItemsStageItemIdCourtPut = <
   ThrowOnError extends boolean = false,

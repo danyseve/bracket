@@ -5,6 +5,41 @@ export type ClientOptions = {
 };
 
 /**
+ * BeltResponse
+ *
+ * Proyeccion publica de un cinturon del catalogo de plataforma (``belts``).
+ */
+export type BeltResponse = {
+  /**
+   * Active
+   */
+  active: boolean;
+  /**
+   * Code
+   */
+  code: string;
+  /**
+   * Created
+   */
+  created: string;
+  /**
+   * Id
+   */
+  id: number;
+  /**
+   * Label
+   */
+  label: string;
+  /**
+   * Rank
+   */
+  rank: number;
+  scope: BeltScope;
+};
+
+export type BeltScope = 'JUVENILE' | 'ADULT';
+
+/**
  * Body_login_for_access_token_token_post
  */
 export type BodyLoginForAccessTokenTokenPost = {
@@ -32,6 +67,16 @@ export type BodyLoginForAccessTokenTokenPost = {
    * Username
    */
   username: string;
+};
+
+/**
+ * Body_set_sports_club_logo_endpoint_clubs__club_id__sports_clubs__sports_club_id__logo_post
+ */
+export type BodySetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPost = {
+  /**
+   * File
+   */
+  file: Blob | File | null;
 };
 
 /**
@@ -70,7 +115,16 @@ export type BracketReadinessBlocker =
   | 'COMPETITOR_INACTIVE'
   | 'INVALID_CATEGORY'
   | 'REGISTRATION_INCONSISTENT'
-  | 'BRACKET_ALREADY_EXISTS';
+  | 'BRACKET_ALREADY_EXISTS'
+  | 'MISSING_DATE_OF_BIRTH'
+  | 'MISSING_SEX'
+  | 'MISSING_BELT'
+  | 'MISSING_WEIGHT'
+  | 'MISSING_MODALITY'
+  | 'NO_COMPATIBLE_CATEGORY'
+  | 'CATEGORY_NOT_RESOLVED'
+  | 'CATEGORY_INCOMPATIBLE'
+  | 'INVALID_CATEGORY_BELT_RANGE';
 
 /**
  * BracketReadinessCategory
@@ -194,6 +248,60 @@ export type BracketReadinessSummary = {
 };
 
 /**
+ * ClassificationBlocker
+ *
+ * Motivos por los que una inscripcion no tiene categoria resoluble.
+ */
+export type ClassificationBlocker =
+  | 'MISSING_DATE_OF_BIRTH'
+  | 'MISSING_SEX'
+  | 'MISSING_BELT'
+  | 'MISSING_WEIGHT'
+  | 'MISSING_MODALITY'
+  | 'CATEGORY_NOT_RESOLVED'
+  | 'CATEGORY_INCOMPATIBLE'
+  | 'NO_COMPATIBLE_CATEGORY'
+  | 'INVALID_CATEGORY_BELT_RANGE';
+
+/**
+ * ClassificationCategoryVerdict
+ *
+ * Una categoria del torneo juzgada para **una** inscripcion (§6).
+ *
+ * Es la proyeccion publica del veredicto del motor: la clave y la etiqueta que el cliente ya ve en
+ * la inscripcion, ``compatible`` y los motivos. Ni reglas internas ni filas de ``stage_items``.
+ */
+export type ClassificationCategoryVerdict = {
+  /**
+   * Blockers
+   */
+  blockers: Array<ClassificationBlocker>;
+  /**
+   * Category Key
+   */
+  category_key: string;
+  /**
+   * Category Label
+   */
+  category_label: string | null;
+  /**
+   * Compatible
+   */
+  compatible: boolean;
+  /**
+   * Warnings
+   */
+  warnings: Array<ClassificationWarning>;
+};
+
+/**
+ * ClassificationWarning
+ *
+ * Situaciones **no** bloqueantes que el organizador deberia conocer.
+ */
+export type ClassificationWarning = 'CATEGORY_RULES_PARTIAL' | 'MULTIPLE_COMPATIBLE_CATEGORIES';
+
+/**
  * Club
  */
 export type Club = {
@@ -249,14 +357,89 @@ export type ClubsResponse = {
 };
 
 /**
+ * CompetitorAffiliationBody
+ *
+ * Cuerpo de la asignacion de afiliacion: **solo** la academia destino.
+ *
+ * No hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion
+ * vigente del competidor) y cambiar la primaria es una ruta de accion propia.
+ */
+export type CompetitorAffiliationBody = {
+  /**
+   * Sports Club Id
+   */
+  sports_club_id: number;
+};
+
+/**
+ * CompetitorAffiliationResponse
+ *
+ * Proyeccion publica y estable de una afiliacion del competidor (lista blanca explicita).
+ */
+export type CompetitorAffiliationResponse = {
+  /**
+   * Competitor Id
+   */
+  competitor_id: number;
+  /**
+   * Id
+   */
+  id: number;
+  /**
+   * Is Primary
+   */
+  is_primary: boolean;
+  /**
+   * Sports Club Id
+   */
+  sports_club_id: number;
+  /**
+   * Valid From
+   */
+  valid_from: string;
+  /**
+   * Valid To
+   */
+  valid_to: string | null;
+};
+
+/**
+ * CompetitorAffiliationsResponse
+ *
+ * Historial de afiliaciones de un competidor tras pasar a independiente.
+ */
+export type CompetitorAffiliationsResponse = {
+  /**
+   * Affiliations
+   */
+  affiliations: Array<CompetitorAffiliationResponse>;
+  /**
+   * Competitor Id
+   */
+  competitor_id: number;
+};
+
+/**
  * CompetitorCreateBody
  *
- * Alta de identidad: el nombre y, opcionalmente, el motivo del alta.
+ * Alta de identidad: nombre, perfil deportivo opcional y motivo del alta.
  *
  * No hay campo de academia: en el dominio certificado (S2) un competidor puede existir
  * sin academia y la afiliacion no es un dato de entrada del alta.
+ *
+ * El perfil deportivo (S4.8a-3 §2) es **opcional**: un cliente anterior a S4.8a sigue dando de
+ * alta identidades sin enviarlo y los tres campos quedan en ``NULL``. No hay valor por defecto
+ * deportivo: no se inventa cinturon, sexo ni fecha.
  */
 export type CompetitorCreateBody = {
+  /**
+   * Belt Id
+   */
+  belt_id: number | null;
+  /**
+   * Date Of Birth
+   */
+  date_of_birth: string | null;
   /**
    * Display Name
    */
@@ -269,6 +452,7 @@ export type CompetitorCreateBody = {
    * Reason Note
    */
   reason_note: string | null;
+  sex: CompetitorSex | null;
 };
 
 /**
@@ -307,6 +491,35 @@ export type CompetitorListResponse = {
 };
 
 /**
+ * CompetitorProfileBody
+ *
+ * Perfil deportivo de un competidor: reemplazo explicito de los tres campos.
+ *
+ * Los tres viajan **siempre**, aunque sean ``NULL``: es la misma politica que la inscripcion en
+ * borrador, donde una edicion describe el estado completo y no puede dejar campos a medias.
+ * ``NULL`` es un valor legitimo (dato no declarado) y no un campo sin mencionar.
+ */
+export type CompetitorProfileBody = {
+  /**
+   * Belt Id
+   */
+  belt_id: number | null;
+  /**
+   * Date Of Birth
+   */
+  date_of_birth: string | null;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+  sex: CompetitorSex | null;
+};
+
+/**
  * CompetitorRenameBody
  *
  * Renombrado controlado: el nombre nuevo y el motivo del cambio de datos basicos.
@@ -341,9 +554,17 @@ export type CompetitorResponse = {
    */
   active: boolean;
   /**
+   * Belt Id
+   */
+  belt_id: number | null;
+  /**
    * Created
    */
   created: string;
+  /**
+   * Date Of Birth
+   */
+  date_of_birth: string | null;
   /**
    * Display Name
    */
@@ -352,11 +573,14 @@ export type CompetitorResponse = {
    * Id
    */
   id: number;
+  sex: CompetitorSex | null;
   /**
    * Updated At
    */
   updated_at: string | null;
 };
+
+export type CompetitorSex = 'MALE' | 'FEMALE';
 
 /**
  * Court
@@ -388,6 +612,45 @@ export type CourtBody = {
    * Name
    */
   name: string;
+};
+
+/**
+ * CourtQueueResponse
+ *
+ * Cola de un tatami: la lectura unica que el marcador necesita para arrancar.
+ *
+ * ``next_match_id`` es el primer combate **jugable** en el orden publicado, o ``null`` si no hay
+ * ninguno. No es el combate vivo: nadie lo ha empezado todavia.
+ */
+export type CourtQueueResponse = {
+  /**
+   * Court Id
+   */
+  court_id: number;
+  /**
+   * Court Name
+   */
+  court_name: string;
+  /**
+   * Current Match Id
+   */
+  current_match_id: number | null;
+  /**
+   * Next Match Id
+   */
+  next_match_id: number | null;
+  /**
+   * Stage Items
+   */
+  stage_items: Array<QueueStageItem>;
+  /**
+   * Tournament Id
+   */
+  tournament_id: number;
+  /**
+   * Tournament Name
+   */
+  tournament_name: string;
 };
 
 /**
@@ -608,6 +871,10 @@ export type Match = {
    */
   duration_minutes: number;
   /**
+   * Finished At
+   */
+  finished_at: string | null;
+  /**
    * Id
    */
   id: number;
@@ -619,6 +886,18 @@ export type Match = {
    * Position In Schedule
    */
   position_in_schedule: number | null;
+  /**
+   * Result Method
+   */
+  result_method:
+    | 'points'
+    | 'submission'
+    | 'decision'
+    | 'disqualification'
+    | 'walkover'
+    | 'referee_stoppage'
+    | 'other'
+    | null;
   /**
    * Round Id
    */
@@ -667,6 +946,10 @@ export type Match = {
    * Start Time
    */
   start_time: string | null;
+  /**
+   * Winner Stage Item Input Id
+   */
+  winner_stage_item_input_id: number | null;
 };
 
 /**
@@ -686,6 +969,18 @@ export type MatchBody = {
    */
   custom_margin_minutes: number | null;
   /**
+   * Result Method
+   */
+  result_method:
+    | 'points'
+    | 'submission'
+    | 'decision'
+    | 'disqualification'
+    | 'walkover'
+    | 'referee_stoppage'
+    | 'other'
+    | null;
+  /**
    * Round Id
    */
   round_id: number;
@@ -697,6 +992,10 @@ export type MatchBody = {
    * Stage Item Input2 Score
    */
   stage_item_input2_score: number;
+  /**
+   * Winner Stage Item Input Id
+   */
+  winner_stage_item_input_id: number | null;
 };
 
 /**
@@ -779,6 +1078,10 @@ export type MatchWithDetails = {
    */
   duration_minutes: number;
   /**
+   * Finished At
+   */
+  finished_at: string | null;
+  /**
    * Id
    */
   id: number;
@@ -790,6 +1093,18 @@ export type MatchWithDetails = {
    * Position In Schedule
    */
   position_in_schedule: number | null;
+  /**
+   * Result Method
+   */
+  result_method:
+    | 'points'
+    | 'submission'
+    | 'decision'
+    | 'disqualification'
+    | 'walkover'
+    | 'referee_stoppage'
+    | 'other'
+    | null;
   /**
    * Round Id
    */
@@ -838,6 +1153,10 @@ export type MatchWithDetails = {
    * Start Time
    */
   start_time: string | null;
+  /**
+   * Winner Stage Item Input Id
+   */
+  winner_stage_item_input_id: number | null;
 };
 
 /**
@@ -866,6 +1185,10 @@ export type MatchWithDetailsDefinitive = {
    */
   duration_minutes: number;
   /**
+   * Finished At
+   */
+  finished_at: string | null;
+  /**
    * Id
    */
   id: number;
@@ -877,6 +1200,18 @@ export type MatchWithDetailsDefinitive = {
    * Position In Schedule
    */
   position_in_schedule: number | null;
+  /**
+   * Result Method
+   */
+  result_method:
+    | 'points'
+    | 'submission'
+    | 'decision'
+    | 'disqualification'
+    | 'walkover'
+    | 'referee_stoppage'
+    | 'other'
+    | null;
   /**
    * Round Id
    */
@@ -925,7 +1260,13 @@ export type MatchWithDetailsDefinitive = {
    * Start Time
    */
   start_time: string | null;
+  /**
+   * Winner Stage Item Input Id
+   */
+  winner_stage_item_input_id: number | null;
 };
+
+export type Modality = 'GI' | 'NO_GI';
 
 /**
  * PaginatedPlayers
@@ -1037,6 +1378,152 @@ export type PlayersResponse = {
 };
 
 /**
+ * QueueFighter
+ *
+ * Luchador de un combate, en la misma forma que el contrato normalizado del Bridge.
+ */
+export type QueueFighter = {
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Stage Item Input Id
+   */
+  stage_item_input_id: number;
+  /**
+   * Team Id
+   */
+  team_id: number;
+};
+
+/**
+ * QueueMatch
+ *
+ * Combate de la cola del tatami, con lo necesario para pintarlo y nada mas.
+ */
+export type QueueMatch = {
+  /**
+   * Court Id
+   */
+  court_id: number | null;
+  /**
+   * Duration Seconds
+   */
+  duration_seconds: number | null;
+  fighter_a: QueueFighter | null;
+  fighter_b: QueueFighter | null;
+  /**
+   * Match Id
+   */
+  match_id: number;
+  /**
+   * Position In Schedule
+   */
+  position_in_schedule: number | null;
+  /**
+   * Result Method
+   */
+  result_method:
+    | 'points'
+    | 'submission'
+    | 'decision'
+    | 'disqualification'
+    | 'walkover'
+    | 'referee_stoppage'
+    | 'other'
+    | null;
+  /**
+   * Round Id
+   */
+  round_id: number;
+  /**
+   * Round Is Draft
+   */
+  round_is_draft: boolean;
+  /**
+   * Round Name
+   */
+  round_name: string;
+  /**
+   * Score A
+   */
+  score_a: number;
+  /**
+   * Score B
+   */
+  score_b: number;
+  /**
+   * Start Time
+   */
+  start_time: string | null;
+  /**
+   * State
+   */
+  state: 'playable' | 'waiting_on_winners' | 'completed';
+  /**
+   * Waiting For
+   */
+  waiting_for: Array<QueueWaiting>;
+  /**
+   * Winner Stage Item Input Id
+   */
+  winner_stage_item_input_id: number | null;
+};
+
+/**
+ * QueueStageItem
+ *
+ * Cuadro asignado al tatami, con sus combates en el orden del contrato de lectura.
+ */
+export type QueueStageItem = {
+  /**
+   * Matches
+   */
+  matches: Array<QueueMatch>;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Stage Item Id
+   */
+  stage_item_id: number;
+  /**
+   * Type Name
+   */
+  type_name: string;
+};
+
+/**
+ * QueueWaiting
+ *
+ * Pase que todavia no se puede jugar, con su procedencia.
+ *
+ * ``from_stage_item_id``/``winner_position`` apunta al ganador de otro cuadro; ``from_match_id``
+ * enlaza con el combate del mismo cuadro que lo alimenta. Los tres pueden venir a ``null``: un
+ * pase puede estar simplemente vacio, y eso tambien es un hecho del dato, no un error.
+ */
+export type QueueWaiting = {
+  /**
+   * From Match Id
+   */
+  from_match_id: number | null;
+  /**
+   * From Stage Item Id
+   */
+  from_stage_item_id: number | null;
+  /**
+   * Side
+   */
+  side: 'a' | 'b';
+  /**
+   * Winner Position
+   */
+  winner_position: number | null;
+};
+
+/**
  * Ranking
  */
 export type Ranking = {
@@ -1133,6 +1620,59 @@ export type RankingsResponse = {
 };
 
 /**
+ * RegistrationCategoryBody
+ *
+ * Cuerpo de la asignacion de categoria (§7/§8).
+ *
+ * ``category_key`` es opcional: sin el, la operacion usa la **recomendada** (solo cuando hay
+ * exactamente una compatible). ``override`` es una operacion **explicita** y OWNER-only: permite
+ * fijar una categoria incompatible, pero entonces ``reason_code`` es obligatorio.
+ */
+export type RegistrationCategoryBody = {
+  /**
+   * Category Key
+   */
+  category_key: string | null;
+  /**
+   * Override
+   */
+  override: boolean;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+};
+
+/**
+ * RegistrationClassificationResponse
+ *
+ * Clasificacion de una inscripcion contra las categorias de su torneo (§6, solo lectura).
+ *
+ * El contrato son cuatro campos: las categorias compatibles, la recomendada (solo si es
+ * **unica**),
+ * los bloqueos y los avisos. Ninguna categoria se elige sola con varias compatibles.
+ */
+export type RegistrationClassificationResponse = {
+  /**
+   * Blockers
+   */
+  blockers: Array<ClassificationBlocker>;
+  /**
+   * Compatible Categories
+   */
+  compatible_categories: Array<ClassificationCategoryVerdict>;
+  recommended_category: ClassificationCategoryVerdict | null;
+  /**
+   * Warnings
+   */
+  warnings: Array<ClassificationWarning>;
+};
+
+/**
  * RegistrationCreateBody
  *
  * Estado deseado de una inscripcion en borrador, mas el motivo opcional del alta.
@@ -1162,7 +1702,12 @@ export type RegistrationCreateBody = {
    * Competitor Name Snapshot
    */
   competitor_name_snapshot: string | null;
+  /**
+   * Declared Weight Kg
+   */
+  declared_weight_kg: number | string | null;
   identity_status: RegistrationUnknownIdentityStatus | null;
+  modality: Modality | null;
   /**
    * Reason Code
    */
@@ -1253,10 +1798,15 @@ export type RegistrationResponse = {
    */
   created: string;
   /**
+   * Declared Weight Kg
+   */
+  declared_weight_kg: string | null;
+  /**
    * Id
    */
   id: number;
   identity_status: RegistrationIdentityStatus;
+  modality: Modality | null;
   representation: RegistrationRepresentation;
   /**
    * Revision
@@ -1405,6 +1955,68 @@ export type RoundWithMatches = {
 };
 
 /**
+ * ScheduleGenerateBody
+ *
+ * Lo que el organizador decide: cuando empieza, cuanto descansa y en que tatamis se juega.
+ */
+export type ScheduleGenerateBody = {
+  /**
+   * Court Ids
+   */
+  court_ids: Array<number> | null;
+  /**
+   * Minimum Rest Minutes
+   */
+  minimum_rest_minutes: number;
+  /**
+   * Preserve Assigned
+   *
+   * true: conserva todas las asignaciones ya existentes, asi que sobre un plan completo puede resultar en moved=0. false: permite replanificarlas segun el contrato del planificador.
+   */
+  preserve_assigned: boolean;
+  /**
+   * Start Time
+   */
+  start_time: string | null;
+};
+
+/**
+ * ScheduleSummaryResponse
+ *
+ * Efecto de la operacion: cuantos combates se planificaron y cuantos se movieron.
+ */
+export type ScheduleSummaryResponse = {
+  /**
+   * Court Count
+   */
+  court_count: number;
+  /**
+   * Manual Match Count
+   */
+  manual_match_count: number;
+  /**
+   * Moved Match Count
+   */
+  moved_match_count: number;
+  /**
+   * Scheduled Match Count
+   */
+  scheduled_match_count: number;
+  /**
+   * Start Time
+   */
+  start_time: string;
+  /**
+   * Tournament Id
+   */
+  tournament_id: number;
+  /**
+   * Unscheduled Match Count
+   */
+  unscheduled_match_count: number;
+};
+
+/**
  * SingleCourtResponse
  */
 export type SingleCourtResponse = {
@@ -1430,6 +2042,30 @@ export type SinglePlayerResponse = {
  */
 export type SingleTeamResponse = {
   data: Team;
+};
+
+/**
+ * SportsClubResponse
+ *
+ * Proyeccion publica de una academia: identidad minima y logo opcional.
+ */
+export type SportsClubResponse = {
+  /**
+   * Active
+   */
+  active: boolean;
+  /**
+   * Id
+   */
+  id: number;
+  /**
+   * Logo Path
+   */
+  logo_path: string | null;
+  /**
+   * Name
+   */
+  name: string;
 };
 
 /**
@@ -2165,6 +2801,30 @@ export type TournamentResponse = {
 };
 
 /**
+ * TournamentScheduleResponse
+ *
+ * Vista de calendario del torneo: por tatami, AHORA, SIGUIENTE y los siguientes (§12).
+ */
+export type TournamentScheduleResponse = {
+  /**
+   * Courts
+   */
+  courts: Array<{
+    [key: string]: unknown;
+  }>;
+  /**
+   * Generated At
+   */
+  generated_at: string;
+  /**
+   * Tournament
+   */
+  tournament: {
+    [key: string]: unknown;
+  };
+};
+
+/**
  * TournamentStatus
  */
 export type TournamentStatus = 'OPEN' | 'ARCHIVED';
@@ -2495,6 +3155,47 @@ export type UpdateClubClubsClubIdPutResponses = {
 export type UpdateClubClubsClubIdPutResponse =
   UpdateClubClubsClubIdPutResponses[keyof UpdateClubClubsClubIdPutResponses];
 
+export type ListBeltsEndpointClubsClubIdBeltsGetData = {
+  body?: never;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+  };
+  query?: {
+    /**
+     * Include Inactive
+     *
+     * Incluir tambien los cinturones retirados del catalogo.
+     */
+    include_inactive?: boolean;
+  };
+  url: '/clubs/{club_id}/belts';
+};
+
+export type ListBeltsEndpointClubsClubIdBeltsGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListBeltsEndpointClubsClubIdBeltsGetError =
+  ListBeltsEndpointClubsClubIdBeltsGetErrors[keyof ListBeltsEndpointClubsClubIdBeltsGetErrors];
+
+export type ListBeltsEndpointClubsClubIdBeltsGetResponses = {
+  /**
+   * Response List Belts Endpoint Clubs  Club Id  Belts Get
+   *
+   * Successful Response
+   */
+  200: Array<BeltResponse>;
+};
+
+export type ListBeltsEndpointClubsClubIdBeltsGetResponse =
+  ListBeltsEndpointClubsClubIdBeltsGetResponses[keyof ListBeltsEndpointClubsClubIdBeltsGetResponses];
+
 export type ListCompetitorsEndpointClubsClubIdCompetitorsGetData = {
   body?: never;
   path: {
@@ -2659,6 +3360,174 @@ export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivate
 export type ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponse =
   ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses[keyof ActivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivatePostResponses];
 
+export type ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetData =
+  {
+    body?: never;
+    path: {
+      /**
+       * Club Id
+       */
+      club_id: number;
+      /**
+       * Competitor Id
+       */
+      competitor_id: number;
+    };
+    query?: {
+      /**
+       * Include History
+       *
+       * Incluir tambien las afiliaciones ya cerradas (historial completo).
+       */
+      include_history?: boolean;
+    };
+    url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations';
+  };
+
+export type ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetError =
+  ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetErrors[keyof ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetErrors];
+
+export type ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: CompetitorAffiliationsResponse;
+  };
+
+export type ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetResponse =
+  ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetResponses[keyof ListCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsGetResponses];
+
+export type AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostData = {
+  body: CompetitorAffiliationBody;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations';
+};
+
+export type AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostError =
+  AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostErrors[keyof AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostErrors];
+
+export type AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostResponses = {
+  /**
+   * Successful Response
+   */
+  201: CompetitorAffiliationResponse;
+};
+
+export type AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostResponse =
+  AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostResponses[keyof AssignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPostResponses];
+
+export type CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostData =
+  {
+    body?: never;
+    path: {
+      /**
+       * Club Id
+       */
+      club_id: number;
+      /**
+       * Competitor Id
+       */
+      competitor_id: number;
+      /**
+       * Affiliation Id
+       */
+      affiliation_id: number;
+    };
+    query?: never;
+    url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close';
+  };
+
+export type CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostError =
+  CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostErrors[keyof CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostErrors];
+
+export type CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: CompetitorAffiliationResponse;
+  };
+
+export type CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostResponse =
+  CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostResponses[keyof CloseAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdClosePostResponses];
+
+export type PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostData =
+  {
+    body?: never;
+    path: {
+      /**
+       * Club Id
+       */
+      club_id: number;
+      /**
+       * Competitor Id
+       */
+      competitor_id: number;
+      /**
+       * Affiliation Id
+       */
+      affiliation_id: number;
+    };
+    query?: never;
+    url: '/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary';
+  };
+
+export type PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostError =
+  PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostErrors[keyof PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostErrors];
+
+export type PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: CompetitorAffiliationResponse;
+  };
+
+export type PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponse =
+  PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponses[keyof PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponses];
+
 export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostData = {
   /**
    * Body
@@ -2699,6 +3568,79 @@ export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeacti
 export type DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponse =
   DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses[keyof DeactivateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdDeactivatePostResponses];
 
+export type GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostData = {
+  body?: never;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}/independence';
+};
+
+export type GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostError =
+  GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostErrors[keyof GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostErrors];
+
+export type GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: CompetitorAffiliationsResponse;
+};
+
+export type GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostResponse =
+  GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostResponses[keyof GoIndependentEndpointClubsClubIdCompetitorsCompetitorIdIndependencePostResponses];
+
+export type UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostData = {
+  body: CompetitorProfileBody;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Competitor Id
+     */
+    competitor_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/competitors/{competitor_id}/profile';
+};
+
+export type UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostError =
+  UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostErrors[keyof UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostErrors];
+
+export type UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: CompetitorResponse;
+  };
+
+export type UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostResponse =
+  UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostResponses[keyof UpdateCompetitorProfileEndpointClubsClubIdCompetitorsCompetitorIdProfilePostResponses];
+
 export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostData = {
   body: CompetitorRenameBody;
   path: {
@@ -2735,6 +3677,83 @@ export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePost
 export type RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponse =
   RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses[keyof RenameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePostResponses];
 
+export type ListSportsClubsEndpointClubsClubIdSportsClubsGetData = {
+  body?: never;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+  };
+  query?: {
+    /**
+     * Include Inactive
+     *
+     * Incluir tambien las academias dadas de baja.
+     */
+    include_inactive?: boolean;
+  };
+  url: '/clubs/{club_id}/sports-clubs';
+};
+
+export type ListSportsClubsEndpointClubsClubIdSportsClubsGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListSportsClubsEndpointClubsClubIdSportsClubsGetError =
+  ListSportsClubsEndpointClubsClubIdSportsClubsGetErrors[keyof ListSportsClubsEndpointClubsClubIdSportsClubsGetErrors];
+
+export type ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses = {
+  /**
+   * Response List Sports Clubs Endpoint Clubs  Club Id  Sports Clubs Get
+   *
+   * Successful Response
+   */
+  200: Array<SportsClubResponse>;
+};
+
+export type ListSportsClubsEndpointClubsClubIdSportsClubsGetResponse =
+  ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses[keyof ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses];
+
+export type SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostData = {
+  body?: BodySetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPost;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Sports Club Id
+     */
+    sports_club_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/sports-clubs/{sports_club_id}/logo';
+};
+
+export type SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostError =
+  SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostErrors[keyof SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostErrors];
+
+export type SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: SportsClubResponse;
+};
+
+export type SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostResponse =
+  SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostResponses[keyof SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostResponses];
+
 export type GetMetricsMetricsGetData = {
   body?: never;
   path?: never;
@@ -2769,6 +3788,38 @@ export type PingPingGetResponses = {
 };
 
 export type PingPingGetResponse = PingPingGetResponses[keyof PingPingGetResponses];
+
+export type GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/public/tournaments/{tournament_id}/schedule';
+};
+
+export type GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetError =
+  GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetErrors[keyof GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetErrors];
+
+export type GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: TournamentScheduleResponse;
+};
+
+export type GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetResponse =
+  GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetResponses[keyof GetPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGetResponses];
 
 export type LoginForAccessTokenTokenPostData = {
   body: BodyLoginForAccessTokenTokenPost;
@@ -3187,6 +4238,47 @@ export type UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses = {
 
 export type UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponse =
   UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses[keyof UpdateCourtByIdTournamentsTournamentIdCourtsCourtIdPutResponses];
+
+export type GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+    /**
+     * Court Id
+     */
+    court_id: number;
+  };
+  query?: {
+    /**
+     * No Draft Rounds
+     */
+    no_draft_rounds?: boolean;
+  };
+  url: '/tournaments/{tournament_id}/courts/{court_id}/queue';
+};
+
+export type GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetError =
+  GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetErrors[keyof GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetErrors];
+
+export type GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: CourtQueueResponse;
+};
+
+export type GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetResponse =
+  GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetResponses[keyof GetCourtQueueTournamentsTournamentIdCourtsCourtIdQueueGetResponses];
 
 export type GenerateBracketEndpointTournamentsTournamentIdGenerateBracketPostData = {
   /**
@@ -3989,6 +5081,84 @@ export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrat
 export type GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponse =
   GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses[keyof GetRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdGetResponses];
 
+export type AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostData =
+  {
+    body: RegistrationCategoryBody;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+      /**
+       * Registration Id
+       */
+      registration_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}/category';
+  };
+
+export type AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostError =
+  AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostErrors[keyof AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostErrors];
+
+export type AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationResponse;
+  };
+
+export type AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostResponse =
+  AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostResponses[keyof AssignRegistrationCategoryEndpointTournamentsTournamentIdRegistrationsRegistrationIdCategoryPostResponses];
+
+export type GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetData =
+  {
+    body?: never;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+      /**
+       * Registration Id
+       */
+      registration_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/{registration_id}/classification';
+  };
+
+export type GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetError =
+  GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetErrors[keyof GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetErrors];
+
+export type GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationClassificationResponse;
+  };
+
+export type GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetResponse =
+  GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetResponses[keyof GetRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsRegistrationIdClassificationGetResponses];
+
 export type ConfirmRegistrationEndpointTournamentsTournamentIdRegistrationsRegistrationIdConfirmPostData =
   {
     /**
@@ -4260,6 +5430,102 @@ export type UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutResponses = {
 
 export type UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutResponse =
   UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutResponses[keyof UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutResponses];
+
+export type GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetData = {
+  body?: never;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/schedule';
+};
+
+export type GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetError =
+  GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetErrors[keyof GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetErrors];
+
+export type GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: TournamentScheduleResponse;
+};
+
+export type GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetResponse =
+  GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetResponses[keyof GetTournamentScheduleEndpointTournamentsTournamentIdScheduleGetResponses];
+
+export type GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostData = {
+  body: ScheduleGenerateBody;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/schedule/generate';
+};
+
+export type GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostError =
+  GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostErrors[keyof GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostErrors];
+
+export type GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: ScheduleSummaryResponse;
+};
+
+export type GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostResponse =
+  GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostResponses[keyof GenerateScheduleEndpointTournamentsTournamentIdScheduleGeneratePostResponses];
+
+export type RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostData = {
+  body: ScheduleGenerateBody;
+  path: {
+    /**
+     * Tournament Id
+     */
+    tournament_id: number;
+  };
+  query?: never;
+  url: '/tournaments/{tournament_id}/schedule/recalculate';
+};
+
+export type RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostError =
+  RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostErrors[keyof RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostErrors];
+
+export type RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: ScheduleSummaryResponse;
+};
+
+export type RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostResponse =
+  RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostResponses[keyof RecalculateScheduleEndpointTournamentsTournamentIdScheduleRecalculatePostResponses];
 
 export type ScheduleMatchesTournamentsTournamentIdScheduleMatchesPostData = {
   body?: never;
