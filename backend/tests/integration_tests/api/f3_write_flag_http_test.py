@@ -57,6 +57,7 @@ EXPECTED_GUARDED: Final = (
     "POST /clubs/{club_id}/competitors/{competitor_id}/activate",
     "POST /clubs/{club_id}/competitors/{competitor_id}/deactivate",
     "POST /clubs/{club_id}/competitors/{competitor_id}/rename",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/profile",
 )
 
 #: Campos publicados de la ventana, del listado, del readiness y del detalle (lista blanca).
