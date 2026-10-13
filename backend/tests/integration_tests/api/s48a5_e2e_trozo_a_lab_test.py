@@ -347,7 +347,8 @@ async def test_e2e_competitors_vary_their_profile_and_include_deliberate_gaps(
         "§5.profiles",
         True,
         {
-            "sexes": sorted(sexes),
+            "sexes": sorted(sex for sex in sexes if sex is not None),
+            "profiles_without_sex": sum(1 for profile in profiles.values() if profile["sex"] is None),
             "distinct_belts": len(belts),
             "gaps": {"a7": "no_dob", "b6": "no_belt", "b7": "no_sex", "c7": "no_profile"},
         },
@@ -432,7 +433,10 @@ async def test_e2e_affiliation_change_close_and_independence_preserve_history(
     previous = next(row for row in history if int(row["id"]) == int(first["id"]))
     assert previous["valid_to"] is not None  # historico conservado
     assert previous["valid_from"] is not None
-    assert previous["is_primary"] is False  # ya no es la primaria
+    # La primaria vigente es unica y es la promovida: el historico cerrado no compite por el indice.
+    open_rows = [row for row in history if row["valid_to"] is None]
+    assert len(open_rows) == 1
+    assert int(open_rows[0]["id"]) == int(second["id"]) and open_rows[0]["is_primary"] is True
 
     # D) cierre de la afiliacion vigente.
     status_code, closed = await call(
