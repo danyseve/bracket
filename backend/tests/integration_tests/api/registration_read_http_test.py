@@ -90,6 +90,8 @@ PUBLIC_REGISTRATION_FIELDS = frozenset(
         "revision",
         "created",
         "updated_at",
+        "declared_weight_kg",
+        "modality",
     }
 )
 

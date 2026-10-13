@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines  # S4.8a-3 §5-§8: alta, clasificacion y override del mismo
+# agregado de inscripcion: partirlos en modulos distintos separaria reglas que cambian juntas.
 """Logica de dominio del nucleo de inscripciones (S3.1 de F3B).
 
 Seis operaciones internas del ciclo de vida (S3.1 y S3.2), **sin HTTP ni UI todavia**:
@@ -281,7 +283,9 @@ def _resolve_weight(value: object) -> Decimal | None:
     try:
         weight = value if isinstance(value, Decimal) else Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as error:
-        raise InvalidRegistrationDataError("declared_weight_kg debe ser un numero decimal") from error
+        raise InvalidRegistrationDataError(
+            "declared_weight_kg debe ser un numero decimal"
+        ) from error
     if not weight.is_finite() or weight <= 0 or weight > MAX_DECLARED_WEIGHT_KG:
         raise InvalidRegistrationDataError(
             "declared_weight_kg debe ser mayor que 0 y como mucho 300"
@@ -603,7 +607,8 @@ async def update_registration_draft(
     return updated
 
 
-async def assign_registration_category(
+# Cada rama de la asignacion es una negativa distinta del contrato §7/§8.
+async def assign_registration_category(  #  # pylint: disable=too-many-branches
     context: ActorContext,
     registration_id: TournamentRegistrationId,
     *,

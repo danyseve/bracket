@@ -338,8 +338,9 @@ class ClassificationCategoryVerdict(BaseModel):
 class RegistrationClassificationResponse(BaseModel):
     """Clasificacion de una inscripcion contra las categorias de su torneo (§6, solo lectura).
 
-    El contrato son cuatro campos: las categorias compatibles, la recomendada (solo si es **unica**),
-    los bloqueos y los avisos. Ninguna categoria se elige sola con varias compatibles.
+        El contrato son cuatro campos: las categorias compatibles, la recomendada (solo si es
+    **unica**),
+        los bloqueos y los avisos. Ninguna categoria se elige sola con varias compatibles.
     """
 
     compatible_categories: list[ClassificationCategoryVerdict]

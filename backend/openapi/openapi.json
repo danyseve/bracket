@@ -136,7 +136,16 @@
           "COMPETITOR_INACTIVE",
           "INVALID_CATEGORY",
           "REGISTRATION_INCONSISTENT",
-          "BRACKET_ALREADY_EXISTS"
+          "BRACKET_ALREADY_EXISTS",
+          "MISSING_DATE_OF_BIRTH",
+          "MISSING_SEX",
+          "MISSING_BELT",
+          "MISSING_WEIGHT",
+          "MISSING_MODALITY",
+          "NO_COMPATIBLE_CATEGORY",
+          "CATEGORY_NOT_RESOLVED",
+          "CATEGORY_INCOMPATIBLE",
+          "INVALID_CATEGORY_BELT_RANGE"
         ],
         "title": "BracketReadinessBlocker",
         "type": "string"
@@ -322,6 +331,78 @@
         ],
         "title": "BracketReadinessSummary",
         "type": "object"
+      },
+      "ClassificationBlocker": {
+        "description": "Motivos por los que una inscripcion no tiene categoria resoluble.",
+        "enum": [
+          "MISSING_DATE_OF_BIRTH",
+          "MISSING_SEX",
+          "MISSING_BELT",
+          "MISSING_WEIGHT",
+          "MISSING_MODALITY",
+          "CATEGORY_NOT_RESOLVED",
+          "CATEGORY_INCOMPATIBLE",
+          "NO_COMPATIBLE_CATEGORY",
+          "INVALID_CATEGORY_BELT_RANGE"
+        ],
+        "title": "ClassificationBlocker",
+        "type": "string"
+      },
+      "ClassificationCategoryVerdict": {
+        "description": "Una categoria del torneo juzgada para **una** inscripcion (\u00a76).\n\nEs la proyeccion publica del veredicto del motor: la clave y la etiqueta que el cliente ya ve en\nla inscripcion, ``compatible`` y los motivos. Ni reglas internas ni filas de ``stage_items``.",
+        "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/ClassificationBlocker"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "category_key": {
+            "title": "Category Key",
+            "type": "string"
+          },
+          "category_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Label"
+          },
+          "compatible": {
+            "title": "Compatible",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ClassificationWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "category_key",
+          "category_label",
+          "compatible",
+          "blockers",
+          "warnings"
+        ],
+        "title": "ClassificationCategoryVerdict",
+        "type": "object"
+      },
+      "ClassificationWarning": {
+        "description": "Situaciones **no** bloqueantes que el organizador deberia conocer.",
+        "enum": [
+          "CATEGORY_RULES_PARTIAL",
+          "MULTIPLE_COMPATIBLE_CATEGORIES"
+        ],
+        "title": "ClassificationWarning",
+        "type": "string"
       },
       "Club": {
         "properties": {
@@ -2109,6 +2190,13 @@
         "title": "MatchWithDetailsDefinitive",
         "type": "object"
       },
+      "Modality": {
+        "enum": [
+          "GI",
+          "NO_GI"
+        ],
+        "type": "string"
+      },
       "PaginatedPlayers": {
         "properties": {
           "count": {
@@ -2720,6 +2808,102 @@
         "title": "RankingsResponse",
         "type": "object"
       },
+      "RegistrationCategoryBody": {
+        "additionalProperties": false,
+        "description": "Cuerpo de la asignacion de categoria (\u00a77/\u00a78).\n\n``category_key`` es opcional: sin el, la operacion usa la **recomendada** (solo cuando hay\nexactamente una compatible). ``override`` es una operacion **explicita** y OWNER-only: permite\nfijar una categoria incompatible, pero entonces ``reason_code`` es obligatorio.",
+        "properties": {
+          "category_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Key"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "category_key",
+          "override",
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "RegistrationCategoryBody",
+        "type": "object"
+      },
+      "RegistrationClassificationResponse": {
+        "description": "Clasificacion de una inscripcion contra las categorias de su torneo (\u00a76, solo lectura).\n\n    El contrato son cuatro campos: las categorias compatibles, la recomendada (solo si es\n**unica**),\n    los bloqueos y los avisos. Ninguna categoria se elige sola con varias compatibles.",
+        "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/ClassificationBlocker"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "compatible_categories": {
+            "items": {
+              "$ref": "#/components/schemas/ClassificationCategoryVerdict"
+            },
+            "title": "Compatible Categories",
+            "type": "array"
+          },
+          "recommended_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClassificationCategoryVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ClassificationWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "compatible_categories",
+          "recommended_category",
+          "blockers",
+          "warnings"
+        ],
+        "title": "RegistrationClassificationResponse",
+        "type": "object"
+      },
       "RegistrationCreateBody": {
         "additionalProperties": false,
         "description": "Estado deseado de una inscripcion en borrador, mas el motivo opcional del alta.\n\nLos campos de borrador son los de :class:`RegistrationDraftData` en su forma de transporte:\n``identity_status`` no admite ``VERIFIED`` (se deriva de ``competitor_id``) y ni ``status`` ni\n``revision`` ni los enlaces de correccion son datos de entrada.",
@@ -2779,10 +2963,35 @@
             ],
             "title": "Competitor Name Snapshot"
           },
+          "declared_weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Weight Kg"
+          },
           "identity_status": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/RegistrationUnknownIdentityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Modality"
               },
               {
                 "type": "null"
@@ -2835,6 +3044,8 @@
           "category_key",
           "category_label",
           "competitor_name_snapshot",
+          "declared_weight_kg",
+          "modality",
           "reason_code",
           "reason_note"
         ],
@@ -2957,12 +3168,34 @@
             "title": "Created",
             "type": "string"
           },
+          "declared_weight_kg": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Weight Kg"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
           },
           "identity_status": {
             "$ref": "#/components/schemas/RegistrationIdentityStatus"
+          },
+          "modality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Modality"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "representation": {
             "$ref": "#/components/schemas/RegistrationRepresentation"
@@ -3026,6 +3259,8 @@
           "sports_club_name_snapshot",
           "status",
           "revision",
+          "declared_weight_kg",
+          "modality",
           "created",
           "updated_at"
         ],
@@ -8157,6 +8392,130 @@
           }
         ],
         "summary": "Get Registration Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}/category": {
+      "post": {
+        "description": "Asigna la categoria de una inscripcion vigente (\u00a77) y audita el cambio (\u00a78).\n\nEscritura F3 con ``Idempotency-Key``. Sin ``category_key`` usa la **recomendada**, que solo\nexiste cuando hay **exactamente una** categoria compatible; con varias se rechaza sin elegir por\nel cliente. ``override=true`` permite fijar una categoria no compatible, es **OWNER-only**\n(COLLABORATOR ``403``, anonimo ``401``) y exige motivo; el RBAC general del resto de operaciones\nno cambia.",
+        "operationId": "assign_registration_category_endpoint_tournaments__tournament_id__registrations__registration_id__category_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationCategoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Assign Registration Category Endpoint",
+        "tags": [
+          "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/{registration_id}/classification": {
+      "get": {
+        "description": "Clasificacion de una inscripcion contra las categorias de su torneo (\u00a76, solo lectura).\n\nReutiliza **exactamente** el motor ya validado de a-2 (``bracket/logic/classification``) y su\ncargador SQL: no reimplementa reglas. No escribe, no audita, no reserva idempotencia y no exige\n``Idempotency-Key``. La inscripcion se acota al torneo de la ruta y al tenant del contexto: un\ntorneo o una inscripcion de otro tenant responden el mismo 404 que uno inexistente.",
+        "operationId": "get_registration_classification_endpoint_tournaments__tournament_id__registrations__registration_id__classification_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationClassificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Registration Classification Endpoint",
         "tags": [
           "Tournament Registrations"
         ]

@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines  # el alta/edicion de inscripcion se prueba entero por contrato.
 # pylint: disable=redefined-outer-name
 """Contrato HTTP de las rutas F3 de inscripciones (S3.4a, LAB ONLY).
 
@@ -1045,5 +1046,6 @@ async def test_an_invalid_modality_is_rejected_by_the_contract(lab: HttpLab, mod
 
 def test_the_declared_weight_is_not_a_competitor_attribute() -> None:
     """El peso es dato de la inscripcion, no atributo permanente del competidor."""
-    assert "declared_weight_kg" not in CompetitorResponse.model_fields
-    assert "modality" not in CompetitorResponse.model_fields
+    competitor_fields = tuple(CompetitorResponse.model_fields)
+    assert "declared_weight_kg" not in competitor_fields
+    assert "modality" not in competitor_fields

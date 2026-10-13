@@ -168,7 +168,7 @@ async def _belt_id(scope: str, code: str, label: str, rank: int) -> int:
     )
 
 
-async def _add_category(  # noqa: PLR0913 - las reglas son el objeto del test
+async def _add_category(
     lab: CategoryLab,
     name: str,
     *,
@@ -300,12 +300,8 @@ async def _lab_context() -> AsyncIterator[CategoryLab]:
         try:
             yield lab
         finally:
-            await database.execute(
-                query=_DELETE_REGISTRATIONS, values={"ids": [lab.registration]}
-            )
-            await database.execute(
-                query=_DELETE_COMPETITORS, values={"ids": [lab.competitor]}
-            )
+            await database.execute(query=_DELETE_REGISTRATIONS, values={"ids": [lab.registration]})
+            await database.execute(query=_DELETE_COMPETITORS, values={"ids": [lab.competitor]})
             await database.execute(
                 query=_DELETE_STAGE_ITEMS, values={"ids": list(lab.categories.values())}
             )
@@ -433,7 +429,7 @@ async def _reservations(lab: CategoryLab) -> int:
     )
 
 
-# --- §6: lectura de clasificacion ------------------------------------------------------------------
+# --- §6: lectura de clasificacion ----------------------------------------------------
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -520,12 +516,12 @@ async def test_the_reading_does_not_write_nor_audit_nor_reserve(lab: CategoryLab
     assert await _registration_row(lab) == before
 
 
-# --- §7/§8: asignacion y override ------------------------------------------------------------------
+# --- §7/§8: asignacion y override ----------------------------------------------------
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_the_unique_recommendation_is_assigned_and_audited(lab: CategoryLab) -> None:
-    """Sin ``category_key`` se asigna la unica compatible y el cambio se audita ``CATEGORY_CHANGE``."""
+    """Sin ``category_key`` se asigna la unica compatible y el cambio se audita."""
     await _clear_category(lab)
     status_code, body = await _assign(lab, body={})
 
@@ -611,7 +607,10 @@ async def test_collaborator_override_is_forbidden(lab: CategoryLab) -> None:
 
     assert status_code == 403, body
     assert body == ROLE_NOT_ALLOWED
-    assert await _registration_row(lab) == {"category_key": lab.key("solo"), "category_label": "solo"}
+    assert await _registration_row(lab) == {
+        "category_key": lab.key("solo"),
+        "category_label": "solo",
+    }
     assert await _reservations(lab) == 0
 
 
@@ -632,9 +631,7 @@ async def test_anonymous_override_is_unauthenticated(lab: CategoryLab) -> None:
 async def test_an_override_without_a_reason_is_rejected(lab: CategoryLab) -> None:
     """El motivo es obligatorio: un override sin ``reason_code`` no es un override."""
     await _add_incompatible_sex_category(lab)
-    status_code, body = await _assign(
-        lab, body={"category_key": lab.key("otra"), "override": True}
-    )
+    status_code, body = await _assign(lab, body={"category_key": lab.key("otra"), "override": True})
 
     assert status_code == 400, body
     assert body == REQUEST_INVALID
@@ -730,9 +727,7 @@ def _readiness_url(lab: CategoryLab) -> str:
 
 
 async def _readiness(lab: CategoryLab) -> dict[str, Any]:
-    status_code, body = await _call_json(
-        HTTPMethod.GET, _readiness_url(lab), token=lab.owner_token
-    )
+    status_code, body = await _call_json(HTTPMethod.GET, _readiness_url(lab), token=lab.owner_token)
     assert status_code == 200, body
     return body
 
@@ -758,7 +753,7 @@ async def test_readiness_does_not_block_a_classifiable_registration(lab: Categor
     """Con la categoria resuelta y compatible ningun codigo del motor aparece como bloqueo."""
     body = await _readiness(lab)
 
-    assert not (_blocking_codes(body) & ENGINE_BLOCKERS)
+    assert not _blocking_codes(body) & ENGINE_BLOCKERS
     [category] = [item for item in body["categories"] if item["category_key"] == lab.key("solo")]
     assert category["confirmed_count"] == 1
 

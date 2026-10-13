@@ -85,7 +85,7 @@ def row(  # un constructor por palabra clave, sin posicionales
         affiliation_sports_club_id=(
             None if affiliation_sports_club_id is None else SportsClubId(affiliation_sports_club_id)
         ),
-           classification_blockers=classification_blockers,
+        classification_blockers=classification_blockers,
         overridden=overridden,
     )
 
@@ -508,7 +508,11 @@ def test_a_classification_blocker_does_not_count_toward_the_minimum() -> None:
     """Una confirmada cuya clasificacion no resuelve no es un participante del cuadro."""
     rows = [
         row(1, classification_blockers=(BracketReadinessBlocker.CATEGORY_NOT_RESOLVED,)),
-        row(2, competitor_id=101, classification_blockers=(BracketReadinessBlocker.CATEGORY_NOT_RESOLVED,)),
+        row(
+            2,
+            competitor_id=101,
+            classification_blockers=(BracketReadinessBlocker.CATEGORY_NOT_RESOLVED,),
+        ),
     ]
 
     result = review(rows, window="CLOSED")
@@ -557,7 +561,9 @@ def test_a_missing_datum_blocks_the_count_with_its_own_code() -> None:
     """Sin peso declarado la categoria con restriccion de peso no admite la inscripcion."""
     rows = [
         row(1, classification_blockers=(BracketReadinessBlocker.MISSING_WEIGHT,)),
-        row(2, competitor_id=101, classification_blockers=(BracketReadinessBlocker.MISSING_WEIGHT,)),
+        row(
+            2, competitor_id=101, classification_blockers=(BracketReadinessBlocker.MISSING_WEIGHT,)
+        ),
     ]
 
     result = review(rows, window="CLOSED")

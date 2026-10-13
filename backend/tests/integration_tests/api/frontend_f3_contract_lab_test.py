@@ -79,6 +79,8 @@ REGISTRATION_FIELDS: Final = {
     "revision",
     "created",
     "updated_at",
+    "declared_weight_kg",
+    "modality",
 }
 WINDOW_FIELDS: Final = {
     "tournament_id",
