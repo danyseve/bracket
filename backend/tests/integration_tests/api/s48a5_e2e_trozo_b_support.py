@@ -10,18 +10,20 @@ No contiene pruebas (el nombre no termina en ``_test``).
 
 Superficie de clasificacion
 ---------------------------
-El escenario del trozo A trae cuatro categorias estructuradas con reglas reales **mas una categoria
+El escenario del trozo A trae cinco categorias estructuradas con reglas reales **mas una categoria
 legacy sin ninguna regla**. La categoria legacy es, por definicion del motor, compatible con
 **cualquier** inscripcion (aviso ``CATEGORY_RULES_PARTIAL``), de modo que en el torneo A toda
 inscripcion tiene **al menos una** compatible y los casos deterministas de §9 ("exactamente una" /
 "ninguna" compatible) no pueden observarse. Por eso el trozo B construye una **superficie de
-clasificacion limpia**: un torneo hermano del mismo tenant con las **mismas cuatro categorias
+clasificacion limpia**: un torneo hermano del mismo tenant con las **mismas cinco categorias
 estructuradas** (mismos rangos de sexo/edad/peso/modalidad/cinturon) y **sin** el cuadro legacy.
 
 * Los casos deterministas (a, c, d, e, f, g, h) clasifican contra esa superficie limpia.
-* El caso "multiples compatibles" (b) se comprueba contra el **torneo del escenario A**, donde las
-  cuatro categorias estructuradas son mutuamente excluyentes por diseno y es el cuadro legacy el que
-  produce la segunda compatible.
+* El caso "multiples compatibles" (b) clasifica tambien contra esa superficie limpia: el titular
+  ``b3`` cae a la vez en ``cat-male-gi-heavy`` y en ``cat-male-gi-master``, dos categorias
+  **estructuradas** con reglas reales (el solape solo existe para el).
+* La compatibilidad con la categoria legacy **sin reglas** (§20) se mide aparte, contra el torneo del
+  escenario A, y no sostiene el caso obligatorio (b).
 """
 
 from __future__ import annotations
@@ -160,11 +162,11 @@ async def _insert_surface_category(
 
 @asynccontextmanager
 async def classification_surface_context(dataset: E2EDataset) -> AsyncIterator[ClassificationSurface]:
-    """Superficie de clasificacion limpia: torneo hermano con las cuatro categorias estructuradas.
+    """Superficie de clasificacion limpia: torneo hermano con las cinco categorias estructuradas.
 
     Es un torneo propio del mismo tenant, sin cuadro legacy, para que las categorias estructuradas
-    (mutuamente excluyentes por diseno) produzcan resultados deterministas. Se deshace de hojas a
-    raices: inscripciones -> stage_items -> ranking -> stage -> torneo.
+    produzcan resultados deterministas (salvo el solape deliberado heavy/master del caso (b)). Se
+    deshace de hojas a raices: inscripciones -> stage_items -> ranking -> stage -> torneo.
     """
     async with AsyncExitStack() as stack:
         suffix = uuid4().hex[:8]
@@ -412,5 +414,5 @@ EXPECTED_STRUCTURED: Final = tuple(spec["name"] for spec in CATEGORY_SPECS)
 
 
 def surface_names() -> tuple[str, ...]:
-    """Nombres de las cuatro categorias estructuradas del escenario A."""
+    """Nombres de las cinco categorias estructuradas del escenario A."""
     return EXPECTED_STRUCTURED

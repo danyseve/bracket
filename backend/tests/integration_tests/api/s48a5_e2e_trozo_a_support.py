@@ -13,7 +13,7 @@ Que monta (§3-§7 de la especificacion S4.8a-5):
   repartidos 7/7/7 afiliados a A/B/C y **3 independientes**, con DOB, sexo y cinturon del
   catalogo real ``belts``, y varios deliberadamente **incompletos** (sin DOB, sin cinturon,
   sin sexo) para ejercitar blockers en los trozos B/C/D;
-* **cuatro categorias estructuradas** con reglas reales en columnas de ``stage_items``
+* **cinco categorias estructuradas** con reglas reales en columnas de ``stage_items``
   (sexo / rango de cinturon / rango de edad / rango de peso / modalidad) y **una legacy** sin
   ninguna regla (para §20);
 * la **afiliacion primaria** de cada competidor afiliado y una **inscripcion historica
@@ -225,7 +225,7 @@ COMPETITOR_SPECS: Final[tuple[CompetitorSpec, ...]] = (
 #: Nombre de la categoria legacy del escenario (sin reglas, solo para §20).
 LEGACY_CATEGORY: Final = "legacy-open"
 
-#: Las cuatro categorias estructuradas (§7), con reglas reales. Los cinturones se resuelven por
+#: Las cinco categorias estructuradas (§7), con reglas reales. Los cinturones se resuelven por
 #: codigo despues de sembrar el catalogo. ``None`` = sin restriccion en ese criterio.
 CATEGORY_SPECS: Final[tuple[dict[str, Any], ...]] = (
     {
@@ -271,6 +271,27 @@ CATEGORY_SPECS: Final[tuple[dict[str, Any], ...]] = (
         "modality": "NO_GI",
         "belt_min": None,
         "belt_max": None,
+    },
+    # Categoria estructurada anadida para demostrar, con reglas REALES, el caso obligatorio
+    # "multiples categorias compatibles" (§8): la especificacion (§3) prohibe apoyarlo en una
+    # categoria legacy sin reglas. Es la clase master masculina de GI. El solape con
+    # ``cat-male-gi-heavy`` esta disenado para que exista SOLO para el titular del caso (b), ``b3``:
+    #   * ``age_min=40`` deja fuera a ``a2`` (38 anios, caso a) y a ``a6`` (33 anios, caso h);
+    #   * ``belt_max=BROWN`` deja fuera a ``i3`` (negro, caso c) y ``belt_min=WHITE`` mantiene el
+    #     cinturon azul de ``b3`` dentro del rango;
+    #   * ``weight 77.01-120.00`` coincide con ``cat-male-gi-heavy``, de modo que ``b3`` (85.00 kg)
+    #     cae a la vez en heavy y en esta master, y en ninguna otra (light corta en 39 anios).
+    # Ningun competidor que usen los casos (a), (c)-(i) entra aqui: su resultado no cambia.
+    {
+        "name": "cat-male-gi-master",
+        "sex_constraint": "MALE",
+        "age_min": 40,
+        "age_max": None,
+        "weight_min_kg": Decimal("77.01"),
+        "weight_max_kg": Decimal("120.00"),
+        "modality": "GI",
+        "belt_min": "WHITE",
+        "belt_max": "BROWN",
     },
 )
 
@@ -650,7 +671,7 @@ async def e2e_dataset_context() -> AsyncIterator[E2EDataset]:
             )
             dataset.affiliations[spec.key] = int(body["id"])
 
-        # Categorias: cuatro estructuradas con reglas reales + una legacy sin ninguna regla.
+        # Categorias: cinco estructuradas con reglas reales + una legacy sin ninguna regla.
         for spec in CATEGORY_SPECS:
             dataset.categories[spec["name"]] = await insert_category(dataset, spec)
         dataset.categories[LEGACY_CATEGORY] = await insert_category(

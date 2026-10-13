@@ -9,7 +9,7 @@ mismo constructor (``e2e_dataset_context``) o seguir este patron.
 
 Que fija este modulo (§3-§7 de la especificacion S4.8a-5):
 
-* §3  torneo LAB **aislado** con 3 academias, 24 competidores y 4 categorias estructuradas + 1 legacy;
+* §3  torneo LAB **aislado** con 3 academias, 24 competidores y 5 categorias estructuradas + 1 legacy;
 * §4  catalogo/listado de academias, ``logo_path`` por academia, **fallback** sin logo y ciclo
       upload/replace/remove del logo;
 * §5  24 competidores F3 repartidos 7/7/7 + 3 independientes, con DOB/sexo/cinturon variados y
@@ -17,7 +17,7 @@ Que fija este modulo (§3-§7 de la especificacion S4.8a-5):
 * §6  afiliacion real: A) con club, B) independiente, C) cambio de club, D) cierre, E) vuelta a
       independiente, con **una sola primaria abierta** por competidor, historico conservado
       (``valid_from``/``valid_to``) y la **inscripcion historica congelada** al cambiar de club;
-* §7  cuatro categorias **estructuradas** con reglas reales (sexo / rango de cinturon / rango de
+* §7  cinco categorias **estructuradas** con reglas reales (sexo / rango de cinturon / rango de
       edad / rango de peso / modalidad) y una **legacy** sin reglas.
 
 §25: al cerrar el modulo se vuelca un resumen con los ids reales y el resultado de cada validacion
@@ -263,10 +263,10 @@ async def test_e2e_logo_upload_replace_and_remove_cycle(dataset: E2EDataset) -> 
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_e2e_four_structured_categories_and_one_legacy_without_rules(
+async def test_e2e_five_structured_categories_and_one_legacy_without_rules(
     dataset: E2EDataset,
 ) -> None:
-    """§7: cuatro categorias con reglas reales y una legacy sin ninguna regla."""
+    """§7: cinco categorias con reglas reales y una legacy sin ninguna regla."""
     total = await database.fetch_val(
         query="SELECT count(*) FROM stage_items WHERE stage_id = :id", values={"id": dataset.stage}
     )
