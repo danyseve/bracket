@@ -149,6 +149,7 @@ def migration_lab() -> Iterator[Engine]:
     # c1a4f7e92b08, posterior a la que prueba este modulo); se retiran para dejar el estado fisico
     # previo de verdad, o el ``upgrade head`` del test chocaria al crearlos otra vez.
     for table, column in (
+        ("sports_clubs", "logo_path"),
         ("clubs", "logo_path"),
         ("stage_items", "sex_constraint"),
         ("stage_items", "belt_min_id"),

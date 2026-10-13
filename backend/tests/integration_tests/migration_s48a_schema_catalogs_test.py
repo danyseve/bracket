@@ -288,6 +288,10 @@ def _remove_everything_this_revision_adds(engine: Engine) -> None:
             continue
         for column in columns:
             _execute(engine, f"ALTER TABLE {table} DROP COLUMN IF EXISTS {column}")
+    # S4.8a-3: el metadata vivo declara ademas el logo de la academia (revision f4b8d2a91c05,
+    # posterior a la que prueba este modulo); se retira para dejar el estado fisico previo de
+    # verdad, o el ``upgrade head`` del test chocaria al anadirlo otra vez.
+    _execute(engine, "ALTER TABLE sports_clubs DROP COLUMN IF EXISTS logo_path")
     _execute(engine, "DROP TABLE IF EXISTS belts")
     for enum_name in EXPECTED_ENUMS:
         _execute(engine, f"DROP TYPE IF EXISTS {enum_name}")
