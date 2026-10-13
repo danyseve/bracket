@@ -15,17 +15,17 @@ import { test } from 'node:test';
 import {
   BELT_SCOPES,
   CLASSIFICATION_BLOCKER_FALLBACK_KEY,
-  CLASSIFICATION_BLOCKERS,
   CLASSIFICATION_BLOCKER_KEYS,
+  CLASSIFICATION_BLOCKERS,
   CLASSIFICATION_WARNING_FALLBACK_KEY,
-  CLASSIFICATION_WARNINGS,
   CLASSIFICATION_WARNING_KEYS,
+  CLASSIFICATION_WARNINGS,
+  classificationBlockerKey,
+  classificationWarningKey,
   CLUB_LOGO_EXTENSIONS,
   CLUB_LOGO_MAX_BYTES,
   CLUB_LOGO_MIME_TYPES,
   COMPETITOR_SEXES,
-  classificationBlockerKey,
-  classificationWarningKey,
   competitorAffiliationCloseUrl,
   competitorAffiliationPrimaryUrl,
   competitorAffiliationsUrl,
@@ -101,7 +101,10 @@ test('un codigo desconocido cae en el fallback tecnico, nunca en una clave inexi
   );
   // El fallback no es la clave del codigo crudo: esa clave no existe en los locales y se veria
   // en crudo en pantalla.
-  assert.notEqual(classificationBlockerKey('CODIGO_QUE_NO_EXISTE'), 'classification_blocker_codigo_que_no_existe');
+  assert.notEqual(
+    classificationBlockerKey('CODIGO_QUE_NO_EXISTE'),
+    'classification_blocker_codigo_que_no_existe'
+  );
 });
 
 /* --------------------------------------------------------------------- vocabularios cerrados */
@@ -133,10 +136,7 @@ test('las rutas del contrato son las del OpenAPI de a-3', () => {
   );
   assert.equal(competitorIndependenceUrl(4, 9), 'clubs/4/competitors/9/independence');
 
-  assert.equal(
-    registrationClassificationUrl(7, 3),
-    'tournaments/7/registrations/3/classification'
-  );
+  assert.equal(registrationClassificationUrl(7, 3), 'tournaments/7/registrations/3/classification');
   assert.equal(registrationCategoryUrl(7, 3), 'tournaments/7/registrations/3/category');
 
   assert.equal(sportsClubLogoUrl(4, 5), 'clubs/4/sports-clubs/5/logo');
