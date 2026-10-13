@@ -151,10 +151,13 @@ async def test_caso_a_exactamente_una_compatible_es_la_recomendada(
     )
 
     # §8: la inscripcion es CLUB con su academia y su afiliacion historica, y nace sin categoria.
+    # La proyeccion publica no expone la afiliacion: se comprueba en la fila real.
     assert created["representation"] == "CLUB"
     assert int(created["sports_club_id"]) == int(dataset.clubs["A"])
-    assert created["affiliation_id"] == int(dataset.affiliations["a2"])
     assert created["category_key"] is None and created["category_label"] is None
+    row = await registration_row(registration_id)
+    assert row["sports_club_id"] == int(dataset.clubs["A"])
+    assert row["affiliation_id"] == int(dataset.affiliations["a2"])
 
     body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
 
@@ -232,13 +235,16 @@ async def test_caso_c_ninguna_compatible_bloquea(scenario: ClassificationScenari
     )
     # §8: representacion real del competidor sin academia.
     assert created["representation"] == "INDEPENDENT"
-    assert created["sports_club_id"] is None and created["affiliation_id"] is None
+    assert created["sports_club_id"] is None
+    row = await registration_row(registration_id)
+    assert row["affiliation_id"] is None and row["sports_club_id"] is None
 
     body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
 
     assert body["compatible_categories"] == []
     assert recommended_key(body) is None
-    assert body["blockers"] == [CATEGORY_NOT_RESOLVED, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY]
+    # Motivos del resultado (orden canonico) y, detras, el de la categoria elegida sin resolver.
+    assert body["blockers"] == [CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
     assert body["warnings"] == []
 
     record_case(
@@ -271,7 +277,7 @@ async def test_caso_d_sin_peso_bloquea(scenario: ClassificationScenario) -> None
     body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
-    assert body["blockers"] == [MISSING_WEIGHT, CATEGORY_NOT_RESOLVED, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY]
+    assert body["blockers"] == [MISSING_WEIGHT, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
     record_case(
         case="d", label="sin peso -> MISSING_WEIGHT", competitor_key="b2",
         registration_id=registration_id, tournament_id=tournament, declared_weight_kg=None,
@@ -292,7 +298,7 @@ async def test_caso_e_sin_cinturon_bloquea(scenario: ClassificationScenario) -> 
     body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
-    assert body["blockers"] == [MISSING_BELT, CATEGORY_NOT_RESOLVED, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY]
+    assert body["blockers"] == [MISSING_BELT, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
     record_case(
         case="e", label="sin cinturon -> MISSING_BELT", competitor_key="b6",
         registration_id=registration_id, tournament_id=tournament, declared_weight_kg="74.50",
@@ -314,7 +320,7 @@ async def test_caso_f_sin_fecha_de_nacimiento_bloquea(scenario: ClassificationSc
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
     assert body["blockers"] == [
-        MISSING_DATE_OF_BIRTH, CATEGORY_NOT_RESOLVED, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY
+        MISSING_DATE_OF_BIRTH, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED
     ]
     record_case(
         case="f", label="sin DOB -> MISSING_DATE_OF_BIRTH", competitor_key="a7",
@@ -337,7 +343,7 @@ async def test_caso_g_sin_modalidad_bloquea(scenario: ClassificationScenario) ->
     body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
-    assert body["blockers"] == [MISSING_MODALITY, CATEGORY_NOT_RESOLVED, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY]
+    assert body["blockers"] == [MISSING_MODALITY, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
     record_case(
         case="g", label="sin modalidad -> MISSING_MODALITY", competitor_key="c3",
         registration_id=registration_id, tournament_id=tournament, declared_weight_kg="74.50",
