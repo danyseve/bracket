@@ -64,6 +64,27 @@
         "title": "Body_login_for_access_token_token_post",
         "type": "object"
       },
+      "Body_set_sports_club_logo_endpoint_clubs__club_id__sports_clubs__sports_club_id__logo_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_set_sports_club_logo_endpoint_clubs__club_id__sports_clubs__sports_club_id__logo_post",
+        "type": "object"
+      },
       "Body_update_team_logo_tournaments__tournament_id__teams__team_id__logo_post": {
         "properties": {
           "file": {
@@ -385,6 +406,91 @@
           "data"
         ],
         "title": "ClubsResponse",
+        "type": "object"
+      },
+      "CompetitorAffiliationBody": {
+        "additionalProperties": false,
+        "description": "Cuerpo de la asignacion de afiliacion: **solo** la academia destino.\n\nNo hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion\nvigente del competidor) y cambiar la primaria es una ruta de accion propia.",
+        "properties": {
+          "sports_club_id": {
+            "title": "Sports Club Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sports_club_id"
+        ],
+        "title": "CompetitorAffiliationBody",
+        "type": "object"
+      },
+      "CompetitorAffiliationResponse": {
+        "description": "Proyeccion publica y estable de una afiliacion del competidor (lista blanca explicita).",
+        "properties": {
+          "competitor_id": {
+            "title": "Competitor Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "sports_club_id": {
+            "title": "Sports Club Id",
+            "type": "integer"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "id",
+          "competitor_id",
+          "sports_club_id",
+          "is_primary",
+          "valid_from",
+          "valid_to"
+        ],
+        "title": "CompetitorAffiliationResponse",
+        "type": "object"
+      },
+      "CompetitorAffiliationsResponse": {
+        "description": "Historial de afiliaciones de un competidor tras pasar a independiente.",
+        "properties": {
+          "affiliations": {
+            "items": {
+              "$ref": "#/components/schemas/CompetitorAffiliationResponse"
+            },
+            "title": "Affiliations",
+            "type": "array"
+          },
+          "competitor_id": {
+            "title": "Competitor Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "competitor_id",
+          "affiliations"
+        ],
+        "title": "CompetitorAffiliationsResponse",
         "type": "object"
       },
       "CompetitorCreateBody": {
@@ -3266,6 +3372,42 @@
         "title": "SingleTeamResponse",
         "type": "object"
       },
+      "SportsClubResponse": {
+        "description": "Proyeccion publica de una academia: identidad minima y logo opcional.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "logo_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Path"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active",
+          "logo_path"
+        ],
+        "title": "SportsClubResponse",
+        "type": "object"
+      },
       "StageActivateBody": {
         "properties": {
           "direction": {
@@ -4822,7 +4964,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Sports Clubs](#tag/Sports-Clubs)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -5297,6 +5439,205 @@
         ]
       }
     },
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations": {
+      "post": {
+        "description": "Abre una afiliacion vigente con una academia del tenant (OWNER-only).",
+        "operationId": "assign_affiliation_endpoint_clubs__club_id__competitors__competitor_id__affiliations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompetitorAffiliationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorAffiliationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Assign Affiliation Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close": {
+      "post": {
+        "description": "Cierra una afiliacion vigente escribiendo ``valid_to`` (OWNER-only).",
+        "operationId": "close_affiliation_endpoint_clubs__club_id__competitors__competitor_id__affiliations__affiliation_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "affiliation_id",
+            "required": true,
+            "schema": {
+              "title": "Affiliation Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorAffiliationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Close Affiliation Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary": {
+      "post": {
+        "description": "Convierte en primaria una afiliacion vigente, cerrando la anterior (OWNER-only).",
+        "operationId": "promote_affiliation_endpoint_clubs__club_id__competitors__competitor_id__affiliations__affiliation_id__primary_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "affiliation_id",
+            "required": true,
+            "schema": {
+              "title": "Affiliation Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorAffiliationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Promote Affiliation Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
     "/clubs/{club_id}/competitors/{competitor_id}/deactivate": {
       "post": {
         "description": "Baja logica del competidor. Exige relacion ``OWNER`` con el club.\n\nIdempotente: una segunda baja no audita de nuevo. No borra la identidad ni su historial, y no\ntoca inscripciones ni snapshots (RS-9).",
@@ -5366,6 +5707,63 @@
           }
         ],
         "summary": "Deactivate Competitor Endpoint",
+        "tags": [
+          "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/competitors/{competitor_id}/independence": {
+      "post": {
+        "description": "Cierra todas las afiliaciones vigentes del competidor (OWNER-only).",
+        "operationId": "go_independent_endpoint_clubs__club_id__competitors__competitor_id__independence_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "competitor_id",
+            "required": true,
+            "schema": {
+              "title": "Competitor Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorAffiliationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Go Independent Endpoint",
         "tags": [
           "Competitors"
         ]
@@ -5502,6 +5900,72 @@
         "summary": "Rename Competitor Endpoint",
         "tags": [
           "Competitors"
+        ]
+      }
+    },
+    "/clubs/{club_id}/sports-clubs/{sports_club_id}/logo": {
+      "post": {
+        "description": "Sube, reemplaza o quita (sin fichero) el logo de la academia del tenant.",
+        "operationId": "set_sports_club_logo_endpoint_clubs__club_id__sports_clubs__sports_club_id__logo_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sports_club_id",
+            "required": true,
+            "schema": {
+              "title": "Sports Club Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_sports_club_logo_endpoint_clubs__club_id__sports_clubs__sports_club_id__logo_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SportsClubResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Set Sports Club Logo Endpoint",
+        "tags": [
+          "Sports Clubs"
         ]
       }
     },

@@ -20,6 +20,7 @@ existen). Fija el contrato, siguiendo el patron del logo de torneo pero endureci
 
 from __future__ import annotations
 
+import io
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -91,10 +92,15 @@ async def post_logo(
     content: bytes | None = None,
     content_type: str = "image/png",
 ) -> tuple[int, Any]:
-    """Sube (o quita, sin fichero) el logo; el cuerpo es multipart/form-data."""
+    """Sube (o quita, sin fichero) el logo; el cuerpo es multipart/form-data.
+
+    El fichero se envia como objeto de fichero (``io.BytesIO``): ``aiohttp.FormData`` no serializa
+    ``bytes`` crudos y lanza ``TypeError`` en ``add_field``; un flujo de bytes conserva el contenido
+    exacto, que es lo que el contrato valida por firma.
+    """
     form = aiohttp.FormData()
     if filename is not None and content is not None:
-        form.add_field("file", content, filename=filename, content_type=content_type)
+        form.add_field("file", io.BytesIO(content), filename=filename, content_type=content_type)
     headers: dict[str, str] = {}
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
@@ -106,7 +112,7 @@ async def post_logo(
 
 def track(created_files: list[str], body: dict[str, Any]) -> str:
     """Registra el fichero recien creado para retirarlo al cerrar el laboratorio."""
-    relative = body["logo_path"]
+    relative = str(body["logo_path"])
     created_files.append(relative)
     return relative
 

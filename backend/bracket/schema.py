@@ -398,6 +398,10 @@ sports_clubs = Table(
     Column("id", BigInteger, primary_key=True, index=True),
     Column("name", String, nullable=False),
     Column("active", Boolean, nullable=False, server_default="t", index=True),
+    # Logo opcional de la academia (S4.8a-3 §4). Mismo patron que tournaments/teams: en
+    # la base solo vive la ruta relativa; el fichero, en disco. Nulable: una academia sin
+    # logo es valida.
+    Column("logo_path", String, nullable=True),
     # Tenant/organizacion que administra el registro. NULL = academia sin cuenta
     # administrativa (solo mantenible por un administrador de plataforma).
     Column(
@@ -707,7 +711,9 @@ tournament_registrations = Table(
 # catalogo para que no puedan divergir en silencio.
 _REASON_CODES: tuple[str, ...] = (
     "ADMINISTRATIVE",
+    "AFFILIATION_CHANGE",
     "CATEGORY_CHANGE",
+    "CLUB_LOGO_CHANGE",
     "DATA_CORRECTION",
     "DATA_ERROR",
     "DATA_VERIFIED",
@@ -729,6 +735,7 @@ _REASON_NOTE_MAX_LENGTH = 200
 _REASON_CODE_ACTION_PAIRS: tuple[tuple[str, str, str], ...] = (
     ("competitor", "CREATE", "PLANNED_ENTRY"),
     ("competitor", "UPDATE", "DATA_CORRECTION"),
+    ("competitor", "UPDATE", "AFFILIATION_CHANGE"),
     ("competitor", "DEACTIVATE", "REQUESTED_BY_ATHLETE"),
     ("competitor", "DEACTIVATE", "DUPLICATE"),
     ("competitor", "DEACTIVATE", "DATA_ERROR"),
@@ -754,6 +761,7 @@ _REASON_CODE_ACTION_PAIRS: tuple[tuple[str, str, str], ...] = (
     ("tournament_registration", "DISQUALIFY", "RULE_VIOLATION"),
     ("tournament_registration", "DISQUALIFY", "ELIGIBILITY"),
     ("tournament_registration", "DISQUALIFY", "ADMINISTRATIVE"),
+    ("sports_club", "UPDATE", "CLUB_LOGO_CHANGE"),
 )
 _REASON_CODE_CATALOG_CHECK = (
     "reason_code IS NULL OR reason_code IN ("

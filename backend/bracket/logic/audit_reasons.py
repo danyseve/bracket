@@ -57,6 +57,7 @@ from typing import NamedTuple
 __all__ = [
     "SCOPE_COMPETITOR",
     "SCOPE_REGISTRATION",
+    "SCOPE_SPORTS_CLUB",
     "MAX_REASON_NOTE_LENGTH",
     "REASON_CODES",
     "CATALOG",
@@ -85,13 +86,16 @@ __all__ = [
 SCOPE_COMPETITOR = "competitor"
 #: Entidad de auditoria de la inscripcion (``domain_change_log.entity``).
 SCOPE_REGISTRATION = "tournament_registration"
+#: Entidad de auditoria de la academia deportiva (``domain_change_log.entity``).
+#: Es una entidad de plataforma; su logo se audita desde S4.8a-3 §4.
+SCOPE_SPORTS_CLUB = "sports_club"
 
 #: Longitud maxima de la nota opcional, medida despues de normalizar a NFC.
 MAX_REASON_NOTE_LENGTH = 200
 
 _CATALOG: dict[tuple[str, str], tuple[str, ...]] = {
     (SCOPE_COMPETITOR, "CREATE"): ("PLANNED_ENTRY",),
-    (SCOPE_COMPETITOR, "UPDATE"): ("DATA_CORRECTION",),
+    (SCOPE_COMPETITOR, "UPDATE"): ("DATA_CORRECTION", "AFFILIATION_CHANGE"),
     (SCOPE_COMPETITOR, "DEACTIVATE"): (
         "REQUESTED_BY_ATHLETE",
         "DUPLICATE",
@@ -128,6 +132,7 @@ _CATALOG: dict[tuple[str, str], tuple[str, ...]] = {
         "ELIGIBILITY",
         "ADMINISTRATIVE",
     ),
+    (SCOPE_SPORTS_CLUB, "UPDATE"): ("CLUB_LOGO_CHANGE",),
 }
 
 #: Codigos admitidos por par (entidad, accion). Solo lectura.
@@ -141,6 +146,7 @@ CANONICAL_TEXTS: MappingProxyType[tuple[str, str, str], str] = MappingProxyType(
     {
         (SCOPE_COMPETITOR, "CREATE", "PLANNED_ENTRY"): "alta de competidor",
         (SCOPE_COMPETITOR, "UPDATE", "DATA_CORRECTION"): "actualizacion de datos basicos",
+        (SCOPE_COMPETITOR, "UPDATE", "AFFILIATION_CHANGE"): "cambio de afiliacion del competidor",
         (SCOPE_COMPETITOR, "DEACTIVATE", "REQUESTED_BY_ATHLETE"): (
             "baja solicitada por el competidor"
         ),
@@ -182,6 +188,7 @@ CANONICAL_TEXTS: MappingProxyType[tuple[str, str, str], str] = MappingProxyType(
         ),
         (SCOPE_REGISTRATION, "DISQUALIFY", "ELIGIBILITY"): ("descalificacion por inelegibilidad"),
         (SCOPE_REGISTRATION, "DISQUALIFY", "ADMINISTRATIVE"): ("descalificacion administrativa"),
+        (SCOPE_SPORTS_CLUB, "UPDATE", "CLUB_LOGO_CHANGE"): "cambio de logo de la academia",
     }
 )
 

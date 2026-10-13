@@ -48,6 +48,7 @@ from bracket.utils.id_types import (
     BeltId,
     ClubId,
     CompetitorId,
+    CompetitorXSportsClubId,
     SportsClubId,
     TournamentId,
     TournamentRegistrationId,
@@ -56,7 +57,9 @@ from bracket.utils.id_types import (
 # Una inscripcion esta "vigente" si no ha sido sustituida por una correccion.
 _CURRENT_REGISTRATION = "tr.status <> 'CORRECTED' AND tr.superseded_by_registration_id IS NULL"
 
-_SPORTS_CLUB_COLUMNS = "s.id, s.name, s.active, s.tenant_club_id, s.created, s.updated_at"
+_SPORTS_CLUB_COLUMNS = (
+    "s.id, s.name, s.active, s.tenant_club_id, s.created, s.updated_at, s.logo_path"
+)
 
 _COMPETITOR_COLUMNS = (
     "c.id, c.display_name, c.active, c.managed_by_club_id, c.created, c.updated_at,"
@@ -529,3 +532,24 @@ async def get_registration_revision_chain(
                 chain[successor.id] = successor
 
     return sorted(chain.values(), key=lambda row: (row.revision, row.id))
+
+
+async def get_affiliation(
+    affiliation_id: CompetitorXSportsClubId, *, tenant_club_id: ClubId
+) -> CompetitorXSportsClub | None:
+    """Afiliacion por id, acotada al tenant del competidor.
+
+    Una afiliacion de otro tenant no existe para esta consulta: el filtro de tenant va **dentro**
+    del SQL, nunca despues de leer.
+    """
+    query = """
+        SELECT a.id, a.competitor_id, a.sports_club_id, a.valid_from, a.valid_to,
+               a.is_primary, a.created
+        FROM competitors_x_sports_clubs a
+        JOIN competitors c ON c.id = a.competitor_id
+        WHERE a.id = :affiliation_id AND c.managed_by_club_id = :tenant_club_id
+        """
+    record = await database.fetch_one(
+        query=query, values={"affiliation_id": affiliation_id, "tenant_club_id": tenant_club_id}
+    )
+    return CompetitorXSportsClub.model_validate(dict(record._mapping)) if record else None

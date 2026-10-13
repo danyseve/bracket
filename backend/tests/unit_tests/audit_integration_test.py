@@ -120,9 +120,7 @@ def test_catalog_covers_exactly_the_audited_operations() -> None:
     written = {(scope, action) for _, _, scope, action, _ in AUDIT_OPERATIONS}
 
     assert len(AUDIT_OPERATIONS) == 11
-    assert set(audit_reasons.CATALOG) == written, (
-        "el catalogo no cubre exactamente esas parejas"
-    )
+    assert set(audit_reasons.CATALOG) == written, "el catalogo no cubre exactamente esas parejas"
     for _, _, scope, action, _ in AUDIT_OPERATIONS:
         assert audit_reasons.allowed_codes(scope=scope, action=action)
 

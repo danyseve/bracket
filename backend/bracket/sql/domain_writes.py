@@ -21,10 +21,19 @@ from bracket.database import database
 from bracket.models.db.domain import (
     Competitor,
     CompetitorSex,
+    CompetitorXSportsClub,
     DomainChangeLogAction,
     DomainWriteScopeError,
+    SportsClub,
 )
-from bracket.utils.id_types import BeltId, ClubId, CompetitorId, UserId
+from bracket.utils.id_types import (
+    BeltId,
+    ClubId,
+    CompetitorId,
+    CompetitorXSportsClubId,
+    SportsClubId,
+    UserId,
+)
 from bracket.utils.types import assert_some
 
 _COMPETITOR_COLUMNS = (
@@ -355,3 +364,226 @@ async def sql_insert_domain_change_log(
     )
     if inserted != 1:
         raise DomainWriteScopeError("el evento no corresponde al tenant de su entidad")
+
+
+# --- S4.8a-3 §3: afiliaciones del competidor ---------------------------------------------------
+
+_AFFILIATION_COLUMNS = (
+    "id, competitor_id, sports_club_id, valid_from, valid_to, is_primary, created"
+)
+
+
+async def sql_insert_affiliation(
+    *,
+    competitor_id: CompetitorId,
+    tenant_club_id: ClubId,
+    sports_club_id: SportsClubId,
+    is_primary: bool,
+) -> CompetitorXSportsClub:
+    """Abre una afiliacion vigente del competidor con la academia.
+
+    El competidor tiene que pertenecer al tenant (lo cierra el propio SQL); si no, se levanta
+    :class:`DomainWriteScopeError` y la operacion revierte entera. ``valid_from`` usa
+    ``clock_timestamp()``, no ``NOW()``: la afiliacion abre en el instante real de la escritura.
+    """
+    query = f"""
+        INSERT INTO competitors_x_sports_clubs
+            (competitor_id, sports_club_id, valid_from, valid_to, is_primary, created)
+        SELECT :competitor_id, :sports_club_id, clock_timestamp(), NULL, :is_primary, NOW()
+        WHERE EXISTS (
+            SELECT 1 FROM competitors
+            WHERE competitors.id = :competitor_id
+              AND competitors.managed_by_club_id = :tenant_club_id
+        )
+        RETURNING {_AFFILIATION_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "competitor_id": competitor_id,
+            "tenant_club_id": tenant_club_id,
+            "sports_club_id": sports_club_id,
+            "is_primary": is_primary,
+        },
+    )
+    if result is None:
+        raise DomainWriteScopeError("la afiliacion no corresponde al tenant de su competidor")
+    return CompetitorXSportsClub.model_validate(dict(result._mapping))
+
+
+async def sql_close_open_primary_affiliation(
+    *, competitor_id: CompetitorId, tenant_club_id: ClubId, except_id: int | None
+) -> int:
+    """Cierra la afiliacion primaria vigente (``valid_to IS NULL AND is_primary``).
+
+    ``except_id`` permite excluir la fila que se va a promover en el mismo paso, de modo que el
+    indice unico parcial ``uq_competitors_x_sports_clubs_primary`` nunca vea dos primarias abiertas.
+    Devuelve cuantas cerro; el cierre solo alcanza al competidor de ese tenant.
+    """
+    query = """
+        WITH closed AS (
+            UPDATE competitors_x_sports_clubs
+            SET valid_to = GREATEST(clock_timestamp(), valid_from + interval '1 microsecond')
+            WHERE competitor_id = :competitor_id
+              AND valid_to IS NULL
+              AND is_primary
+              AND (
+                  CAST(:except_id AS bigint) IS NULL
+                  OR id <> CAST(:except_id AS bigint)
+              )
+              AND EXISTS (
+                  SELECT 1 FROM competitors
+                  WHERE competitors.id = competitors_x_sports_clubs.competitor_id
+                    AND competitors.managed_by_club_id = :tenant_club_id
+              )
+            RETURNING 1
+        )
+        SELECT count(*) FROM closed
+        """
+    return int(
+        await database.execute(
+            query=query,
+            values={
+                "competitor_id": competitor_id,
+                "tenant_club_id": tenant_club_id,
+                "except_id": except_id,
+            },
+        )
+        or 0
+    )
+
+
+async def sql_set_primary_affiliation(
+    *,
+    affiliation_id: CompetitorXSportsClubId,
+    competitor_id: CompetitorId,
+    tenant_club_id: ClubId,
+) -> CompetitorXSportsClub | None:
+    """Marca como primaria una afiliacion vigente del competidor del tenant.
+
+    ``None`` si la afiliacion no existe, no es de ese competidor o ya esta cerrada.
+    """
+    query = f"""
+        UPDATE competitors_x_sports_clubs
+        SET is_primary = true
+        WHERE id = :affiliation_id
+          AND competitor_id = :competitor_id
+          AND valid_to IS NULL
+          AND EXISTS (
+              SELECT 1 FROM competitors
+              WHERE competitors.id = competitors_x_sports_clubs.competitor_id
+                AND competitors.managed_by_club_id = :tenant_club_id
+          )
+        RETURNING {_AFFILIATION_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "affiliation_id": affiliation_id,
+            "competitor_id": competitor_id,
+            "tenant_club_id": tenant_club_id,
+        },
+    )
+    return (
+        CompetitorXSportsClub.model_validate(dict(result._mapping)) if result is not None else None
+    )
+
+
+async def sql_close_affiliation(
+    *,
+    affiliation_id: CompetitorXSportsClubId,
+    competitor_id: CompetitorId,
+    tenant_club_id: ClubId,
+) -> CompetitorXSportsClub | None:
+    """Cierra una afiliacion vigente poniendo ``valid_to`` (nunca reescribe el pasado).
+
+    ``None`` si la afiliacion no existe, no es de ese competidor o ya estaba cerrada.
+    """
+    query = f"""
+        UPDATE competitors_x_sports_clubs
+        SET valid_to = GREATEST(clock_timestamp(), valid_from + interval '1 microsecond')
+        WHERE id = :affiliation_id
+          AND competitor_id = :competitor_id
+          AND valid_to IS NULL
+          AND EXISTS (
+              SELECT 1 FROM competitors
+              WHERE competitors.id = competitors_x_sports_clubs.competitor_id
+                AND competitors.managed_by_club_id = :tenant_club_id
+          )
+        RETURNING {_AFFILIATION_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "affiliation_id": affiliation_id,
+            "competitor_id": competitor_id,
+            "tenant_club_id": tenant_club_id,
+        },
+    )
+    return (
+        CompetitorXSportsClub.model_validate(dict(result._mapping)) if result is not None else None
+    )
+
+
+async def sql_close_all_open_affiliations(
+    *, competitor_id: CompetitorId, tenant_club_id: ClubId
+) -> int:
+    """Cierra todas las afiliaciones vigentes del competidor (pasar a independiente).
+
+    Devuelve cuantas cerro. Solo alcanza al competidor de ese tenant.
+    """
+    query = """
+        WITH closed AS (
+            UPDATE competitors_x_sports_clubs
+            SET valid_to = GREATEST(clock_timestamp(), valid_from + interval '1 microsecond')
+            WHERE competitor_id = :competitor_id
+              AND valid_to IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM competitors
+                  WHERE competitors.id = competitors_x_sports_clubs.competitor_id
+                    AND competitors.managed_by_club_id = :tenant_club_id
+              )
+            RETURNING 1
+        )
+        SELECT count(*) FROM closed
+        """
+    return int(
+        await database.execute(
+            query=query,
+            values={"competitor_id": competitor_id, "tenant_club_id": tenant_club_id},
+        )
+        or 0
+    )
+
+
+# --- S4.8a-3 §4: logo de la academia -----------------------------------------------------------
+
+_SPORTS_CLUB_WRITE_COLUMNS = "id, name, active, tenant_club_id, created, updated_at, logo_path"
+
+
+async def sql_update_sports_club_logo(
+    *,
+    sports_club_id: SportsClubId,
+    tenant_club_id: ClubId,
+    logo_path: str | None,
+) -> SportsClub | None:
+    """Fija o limpia la ruta relativa del logo de una academia del tenant.
+
+    ``None`` si la academia no existe o no pertenece a ese tenant. ``logo_path=None`` borra la
+    referencia (quitar el logo); el fichero en disco lo retira la capa de rutas despues.
+    """
+    query = f"""
+        UPDATE sports_clubs
+        SET logo_path = :logo_path, updated_at = NOW()
+        WHERE id = :sports_club_id AND tenant_club_id = :tenant_club_id
+        RETURNING {_SPORTS_CLUB_WRITE_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "sports_club_id": sports_club_id,
+            "tenant_club_id": tenant_club_id,
+            "logo_path": logo_path,
+        },
+    )
+    return SportsClub.model_validate(dict(result._mapping)) if result is not None else None

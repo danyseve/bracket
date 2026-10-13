@@ -29,8 +29,8 @@ from datetime import date
 from heliclockter import datetime_utc
 from pydantic import BaseModel, ConfigDict
 
-from bracket.models.db.domain import Competitor, CompetitorSex
-from bracket.utils.id_types import BeltId, CompetitorId
+from bracket.models.db.domain import Competitor, CompetitorSex, CompetitorXSportsClub
+from bracket.utils.id_types import BeltId, CompetitorId, SportsClubId
 
 
 class CompetitorRequestModel(BaseModel):
@@ -134,3 +134,43 @@ class CompetitorListResponse(BaseModel):
 
     count: int
     competitors: list[CompetitorResponse]
+
+
+class CompetitorAffiliationBody(CompetitorRequestModel):
+    """Cuerpo de la asignacion de afiliacion: **solo** la academia destino.
+
+    No hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion
+    vigente del competidor) y cambiar la primaria es una ruta de accion propia.
+    """
+
+    sports_club_id: SportsClubId
+
+
+class CompetitorAffiliationResponse(BaseModel):
+    """Proyeccion publica y estable de una afiliacion del competidor (lista blanca explicita)."""
+
+    id: int
+    competitor_id: CompetitorId
+    sports_club_id: SportsClubId
+    is_primary: bool
+    valid_from: datetime_utc
+    valid_to: datetime_utc | None
+
+    @classmethod
+    def from_affiliation(cls, affiliation: CompetitorXSportsClub) -> CompetitorAffiliationResponse:
+        """Proyecta la fila del dominio a la respuesta publica."""
+        return cls(
+            id=affiliation.id,
+            competitor_id=affiliation.competitor_id,
+            sports_club_id=affiliation.sports_club_id,
+            is_primary=affiliation.is_primary,
+            valid_from=affiliation.valid_from,
+            valid_to=affiliation.valid_to,
+        )
+
+
+class CompetitorAffiliationsResponse(BaseModel):
+    """Historial de afiliaciones de un competidor tras pasar a independiente."""
+
+    competitor_id: CompetitorId
+    affiliations: list[CompetitorAffiliationResponse]

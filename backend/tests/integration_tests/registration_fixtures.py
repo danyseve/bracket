@@ -16,6 +16,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from databases import Database
 from heliclockter import datetime_utc
@@ -474,8 +475,12 @@ WAITING_TIMEOUT_SECONDS = 5.0
 POLL_INTERVAL_SECONDS = 0.01
 
 
-async def competitor_audit_rows(competitor_id: CompetitorId) -> list[dict[str, object]]:
-    """Eventos de auditoria de una identidad, en orden de insercion."""
+async def competitor_audit_rows(competitor_id: CompetitorId) -> list[dict[str, Any]]:
+    """Eventos de auditoria de una identidad, en orden de insercion.
+
+    Los valores de cada fila son heterogeneos (texto, listas, instantes), por eso se tipan como
+    ``Any``: con ``object`` el consumidor no puede, por ejemplo, construir un ``set`` de un campo.
+    """
     records = await database.fetch_all(
         query=SELECT_COMPETITOR_AUDIT, values={"competitor_id": competitor_id}
     )

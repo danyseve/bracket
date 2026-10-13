@@ -140,6 +140,7 @@ class SportsClub(BaseModelORM):
     tenant_club_id: ClubId | None = None
     created: datetime_utc
     updated_at: datetime_utc | None = None
+    logo_path: str | None = None
 
 
 class SportsClubNameHistory(BaseModelORM):

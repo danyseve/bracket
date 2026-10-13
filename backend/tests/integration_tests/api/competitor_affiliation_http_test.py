@@ -7,8 +7,8 @@ reglas no existen). Fija el contrato:
 * **Asignar** una afiliacion vigente con una academia del tenant; la primera es primaria;
 * **Cambiar la primaria**: promover una afiliacion cierra la primaria vigente anterior, en la misma
   transaccion; nunca hay **dos** primarias abiertas;
-* **Cerrar** es poner ``valid_to``: el pasado no se reescribe (ni una afiliacion ya cerrada se vuelve
-  a cerrar con otro instante);
+* **Cerrar** es poner ``valid_to``: el pasado no se reescribe (ni una afiliacion ya cerrada se
+  vuelve a cerrar con otro instante);
 * **Pasar a independiente**: cierra todas las afiliaciones vigentes del competidor;
 * las **inscripciones historicas** (``affiliation_id`` y ``sports_club_name_snapshot``) quedan
   congeladas: ninguna de las cuatro operaciones las toca;
@@ -28,7 +28,6 @@ from typing import Any, Final
 from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from heliclockter import datetime_utc
 from starlette import status
 
@@ -48,6 +47,17 @@ from tests.integration_tests.registration_fixtures import (
     delete_sports_club,
     insert_sports_club,
 )
+
+
+#: Clave de idempotencia valida del laboratorio. El protocolo de S3.3c-4 exige un minimo de
+#: ``IDEMPOTENCY_KEY_MIN_LENGTH`` (8) caracteres *antes* de ejecutar la operacion: este modulo nacio
+#: en rojo usando claves cortas como ``"k-1"``, que el endpoint rechaza con 400
+#: ``IDEMPOTENCY_REQUEST_INVALID`` sin llegar a la regla de negocio. Cada peticion usa una clave
+#: unica y con formato valido, como el resto de contratos F3 del repositorio.
+def fresh_key() -> str:
+    """Clave de idempotencia valida (>= 8 caracteres) y distinta por llamada."""
+    return f"k-{uuid4().hex}"
+
 
 #: Proyeccion publica de una afiliacion: un campo de mas cierra el contrato.
 AFFILIATION_FIELDS: Final = {
@@ -95,9 +105,7 @@ _SELECT_FROZEN_REGISTRATION = """
     SELECT affiliation_id, sports_club_name_snapshot
     FROM tournament_registrations WHERE id = :registration_id
 """
-_RESERVATION_COUNT = (
-    "SELECT count(*) FROM domain_idempotency_keys WHERE request_path = ANY(:paths)"
-)
+_RESERVATION_COUNT = "SELECT count(*) FROM domain_idempotency_keys WHERE request_path = ANY(:paths)"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -133,7 +141,9 @@ async def affiliation_lab() -> AsyncIterator[AffiliationLab]:
         async with AsyncExitStack() as stack:
             now = datetime_utc.now()
             suffix = uuid4().hex[:8]
-            club_a = await insert_sports_club(f"acad-a-{suffix}", lab.club, active=True, created=now)
+            club_a = await insert_sports_club(
+                f"acad-a-{suffix}", lab.club, active=True, created=now
+            )
             club_inactive = await insert_sports_club(
                 f"acad-old-{suffix}", lab.club, active=False, created=now
             )
@@ -148,7 +158,8 @@ async def affiliation_lab() -> AsyncIterator[AffiliationLab]:
                 tenants = [lab.club, lab.other_club]
                 await database.execute(
                     query="DELETE FROM domain_change_log WHERE entity = 'competitor' AND "
-                    "entity_id IN (SELECT id FROM competitors WHERE managed_by_club_id = ANY(:ids))",
+                    "entity_id IN (SELECT id FROM competitors "
+                    "WHERE managed_by_club_id = ANY(:ids))",
                     values={"ids": tenants},
                 )
                 await database.execute(
@@ -210,16 +221,12 @@ async def affiliation_row(affiliation_id: int) -> dict[str, Any]:
 
 async def open_primary_count(competitor_id: int) -> int:
     return int(
-        await database.fetch_val(
-            query=_COUNT_OPEN_PRIMARY, values={"competitor_id": competitor_id}
-        )
+        await database.fetch_val(query=_COUNT_OPEN_PRIMARY, values={"competitor_id": competitor_id})
     )
 
 
 async def open_count(competitor_id: int) -> int:
-    return int(
-        await database.fetch_val(query=_COUNT_OPEN, values={"competitor_id": competitor_id})
-    )
+    return int(await database.fetch_val(query=_COUNT_OPEN, values={"competitor_id": competitor_id}))
 
 
 def first_competitor(lab: CompetitorLab) -> CompetitorId:
@@ -259,9 +266,9 @@ async def test_second_affiliation_is_not_primary(flag_on: None) -> None:
     """Con una primaria vigente, la siguiente afiliacion entra como no primaria."""
     async with affiliation_lab() as fixture:
         lab, competitor_id = fixture.lab, first_competitor(fixture.lab)
-        await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-1")
+        await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key())
         status_code, body = await assign(
-            lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-2"
+            lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key()
         )
 
         assert status_code == status.HTTP_201_CREATED, body
@@ -277,9 +284,11 @@ async def test_promoting_an_affiliation_closes_the_previous_primary(flag_on: Non
     """Promover cierra la primaria anterior y deja una sola primaria abierta."""
     async with affiliation_lab() as fixture:
         lab, competitor_id = fixture.lab, first_competitor(fixture.lab)
-        _, first = await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-1")
+        _, first = await assign(
+            lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key()
+        )
         _, second = await assign(
-            lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-2"
+            lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key()
         )
         assert second["is_primary"] is False
 
@@ -287,7 +296,7 @@ async def test_promoting_an_affiliation_closes_the_previous_primary(flag_on: Non
             "POST",
             affiliation_action_url(lab, competitor_id, second["id"], "primary"),
             token=lab.owner_token,
-            key="k-3",
+            key=fresh_key(),
         )
 
         assert status_code == status.HTTP_200_OK, promoted
@@ -306,13 +315,13 @@ async def test_closing_sets_valid_to_and_never_rewrites_it(flag_on: None) -> Non
     async with affiliation_lab() as fixture:
         lab, competitor_id = fixture.lab, first_competitor(fixture.lab)
         _, created = await assign(
-            lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-1"
+            lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key()
         )
         status_code, closed = await call(
             "POST",
             affiliation_action_url(lab, competitor_id, created["id"], "close"),
             token=lab.owner_token,
-            key="k-2",
+            key=fresh_key(),
         )
         assert status_code == status.HTTP_200_OK, closed
         assert closed["valid_to"] is not None
@@ -322,7 +331,7 @@ async def test_closing_sets_valid_to_and_never_rewrites_it(flag_on: None) -> Non
             "POST",
             affiliation_action_url(lab, competitor_id, created["id"], "close"),
             token=lab.owner_token,
-            key="k-3",
+            key=fresh_key(),
         )
 
         assert closed_again["valid_to"] == first_instant
@@ -337,15 +346,15 @@ async def test_independence_closes_every_open_affiliation(flag_on: None) -> None
     """Ir a independiente cierra todas las afiliaciones vigentes del competidor."""
     async with affiliation_lab() as fixture:
         lab, competitor_id = fixture.lab, first_competitor(fixture.lab)
-        await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-1")
-        await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-2")
+        await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key())
+        await assign(lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key())
         assert await open_count(competitor_id) == 2
 
         status_code, body = await call(
             "POST",
             independence_url(lab, competitor_id),
             token=lab.owner_token,
-            key="k-3",
+            key=fresh_key(),
         )
 
         assert status_code == status.HTTP_200_OK, body
@@ -363,7 +372,7 @@ async def test_historical_registration_is_frozen_by_affiliation_changes(flag_on:
     async with affiliation_lab() as fixture:
         lab, competitor_id = fixture.lab, first_competitor(fixture.lab)
         _, created = await assign(
-            lab, competitor_id, fixture.club_a, token=lab.owner_token, key="k-1"
+            lab, competitor_id, fixture.club_a, token=lab.owner_token, key=fresh_key()
         )
         registration_id = await database.fetch_val(
             query=_INSERT_FROZEN_REGISTRATION,
@@ -380,10 +389,10 @@ async def test_historical_registration_is_frozen_by_affiliation_changes(flag_on:
             "POST",
             affiliation_action_url(lab, competitor_id, created["id"], "close"),
             token=lab.owner_token,
-            key="k-2",
+            key=fresh_key(),
         )
         await call(
-            "POST", independence_url(lab, competitor_id), token=lab.owner_token, key="k-3"
+            "POST", independence_url(lab, competitor_id), token=lab.owner_token, key=fresh_key()
         )
 
         frozen = await database.fetch_one(
@@ -425,10 +434,10 @@ async def test_affiliation_is_owner_only(flag_on: None) -> None:
         lab, competitor_id = fixture.lab, first_competitor(fixture.lab)
 
         collaborator_status, collaborator_body = await assign(
-            lab, competitor_id, fixture.club_a, token=lab.collaborator_token, key="k-collab"
+            lab, competitor_id, fixture.club_a, token=lab.collaborator_token, key=fresh_key()
         )
         anonymous_status, _ = await assign(
-            lab, competitor_id, fixture.club_a, token=None, key="k-anon"
+            lab, competitor_id, fixture.club_a, token=None, key=fresh_key()
         )
 
         assert collaborator_status == status.HTTP_403_FORBIDDEN
@@ -489,8 +498,6 @@ async def test_write_gate_disabled_is_503_before_reserving(flag_on: None) -> Non
 
         assert status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert body == {"detail": F3_WRITE_DISABLED}
-        reserved = int(
-            await database.fetch_val(query=_RESERVATION_COUNT, values={"paths": [path]})
-        )
+        reserved = int(await database.fetch_val(query=_RESERVATION_COUNT, values={"paths": [path]}))
         assert reserved == 0
         assert await open_count(competitor_id) == 0

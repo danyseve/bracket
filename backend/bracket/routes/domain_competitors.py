@@ -40,6 +40,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette import status
 
 from bracket.config import config
+from bracket.logic.competitor_affiliations import (
+    assign_affiliation,
+    close_affiliation,
+    go_independent,
+    promote_affiliation,
+)
 from bracket.logic.competitors import (
     CompetitorDomainError,
     CompetitorNotFoundError,
@@ -54,6 +60,9 @@ from bracket.logic.competitors import (
 )
 from bracket.logic.idempotency_protocol import OperationOutcome, ProtocolResult
 from bracket.models.db.competitor_api import (
+    CompetitorAffiliationBody,
+    CompetitorAffiliationResponse,
+    CompetitorAffiliationsResponse,
     CompetitorCreateBody,
     CompetitorLifecycleBody,
     CompetitorListResponse,
@@ -66,12 +75,19 @@ from bracket.models.db.domain import (
     Competitor,
     CompetitorBasicDataUpdate,
     CompetitorSportsProfileUpdate,
+    CompetitorXSportsClub,
 )
 from bracket.routes.domain_auth import actor_context_for_club
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
 from bracket.routes.f3_write_gate import require_f3_write_enabled
-from bracket.sql.domain_reads import count_competitors, get_competitor, list_competitors
-from bracket.utils.id_types import ClubId, CompetitorId
+from bracket.sql.domain_reads import (
+    count_competitors,
+    get_affiliation,
+    get_competitor,
+    get_competitor_affiliations,
+    list_competitors,
+)
+from bracket.utils.id_types import ClubId, CompetitorId, CompetitorXSportsClubId
 from bracket.utils.pagination import PaginationCompetitors
 
 router = APIRouter(prefix=config.api_prefix)
@@ -466,3 +482,189 @@ async def update_competitor_profile_endpoint(
         expected_status=status.HTTP_200_OK,
     )
     return CompetitorResponse.from_competitor(competitor)
+
+
+# --- S4.8a-3 §3: afiliacion del competidor ------------------------------------------------------
+#
+# Cuatro rutas de accion **OWNER-only** (sensibles): asignar, cambiar la primaria, cerrar una
+# afiliacion y pasar a independiente. Todas pasan por el protocolo de idempotencia de S3.3c-4 con
+# ``require_owner=True`` (COLLABORATOR -> 403 ROLE_NOT_ALLOWED; anonimo -> 401) y quedan detras de
+# la puerta de escritura F3 (bandera apagada -> 503 antes de reservar).
+
+_AFFILIATION_RESOURCE_TYPE = "competitor_affiliation"
+
+
+def _affiliation_outcome(
+    response_status: int, affiliation: CompetitorXSportsClub
+) -> OperationOutcome:
+    return OperationOutcome(
+        response_status=response_status,
+        metadata={
+            "resource_id": affiliation.id,
+            "competitor_id": affiliation.competitor_id,
+        },
+        resource_type=_AFFILIATION_RESOURCE_TYPE,
+        resource_id=affiliation.id,
+    )
+
+
+def _independence_outcome(response_status: int, competitor_id: CompetitorId) -> OperationOutcome:
+    return OperationOutcome(
+        response_status=response_status,
+        metadata={"resource_id": competitor_id, "competitor_id": competitor_id},
+        resource_type=_AFFILIATION_RESOURCE_TYPE,
+        resource_id=competitor_id,
+    )
+
+
+async def _load_affiliation(context: ActorContext, affiliation_id: int) -> CompetitorXSportsClub:
+    affiliation = await get_affiliation(
+        CompetitorXSportsClubId(affiliation_id), tenant_club_id=context.tenant_club_id
+    )
+    if affiliation is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=_STATE_ERROR)
+    return affiliation
+
+
+async def _execute_affiliation(
+    *,
+    context: ActorContext,
+    request: Request,
+    operation: Callable[[], Awaitable[OperationOutcome]],
+    expected_status: int,
+) -> CompetitorXSportsClub:
+    """Ejecuta una accion de afiliacion dentro del protocolo y devuelve la afiliacion resultante."""
+    result = await _run_protocol(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=expected_status,
+        require_owner=True,
+    )
+    if result.resource_id is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=_STATE_ERROR)
+    return await _load_affiliation(context, result.resource_id)
+
+
+@router.post(
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations",
+    dependencies=[Depends(require_f3_write_enabled)],
+    response_model=CompetitorAffiliationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def assign_affiliation_endpoint(
+    club_id: ClubId,
+    competitor_id: CompetitorId,
+    body: CompetitorAffiliationBody,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_club),
+) -> CompetitorAffiliationResponse:
+    """Abre una afiliacion vigente con una academia del tenant (OWNER-only)."""
+    _assert_context_matches_route(context, club_id)
+
+    async def operation() -> OperationOutcome:
+        affiliation = await assign_affiliation(
+            context, competitor_id, sports_club_id=body.sports_club_id
+        )
+        return _affiliation_outcome(status.HTTP_201_CREATED, affiliation)
+
+    affiliation = await _execute_affiliation(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_201_CREATED,
+    )
+    return CompetitorAffiliationResponse.from_affiliation(affiliation)
+
+
+@router.post(
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary",
+    dependencies=[Depends(require_f3_write_enabled)],
+    response_model=CompetitorAffiliationResponse,
+)
+async def promote_affiliation_endpoint(
+    club_id: ClubId,
+    competitor_id: CompetitorId,
+    affiliation_id: CompetitorXSportsClubId,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_club),
+) -> CompetitorAffiliationResponse:
+    """Convierte en primaria una afiliacion vigente, cerrando la anterior (OWNER-only)."""
+    _assert_context_matches_route(context, club_id)
+
+    async def operation() -> OperationOutcome:
+        affiliation = await promote_affiliation(context, competitor_id, affiliation_id)
+        return _affiliation_outcome(status.HTTP_200_OK, affiliation)
+
+    affiliation = await _execute_affiliation(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
+    )
+    return CompetitorAffiliationResponse.from_affiliation(affiliation)
+
+
+@router.post(
+    "/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close",
+    dependencies=[Depends(require_f3_write_enabled)],
+    response_model=CompetitorAffiliationResponse,
+)
+async def close_affiliation_endpoint(
+    club_id: ClubId,
+    competitor_id: CompetitorId,
+    affiliation_id: CompetitorXSportsClubId,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_club),
+) -> CompetitorAffiliationResponse:
+    """Cierra una afiliacion vigente escribiendo ``valid_to`` (OWNER-only)."""
+    _assert_context_matches_route(context, club_id)
+
+    async def operation() -> OperationOutcome:
+        affiliation = await close_affiliation(context, competitor_id, affiliation_id)
+        return _affiliation_outcome(status.HTTP_200_OK, affiliation)
+
+    affiliation = await _execute_affiliation(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
+    )
+    return CompetitorAffiliationResponse.from_affiliation(affiliation)
+
+
+@router.post(
+    "/clubs/{club_id}/competitors/{competitor_id}/independence",
+    dependencies=[Depends(require_f3_write_enabled)],
+    response_model=CompetitorAffiliationsResponse,
+)
+async def go_independent_endpoint(
+    club_id: ClubId,
+    competitor_id: CompetitorId,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_club),
+) -> CompetitorAffiliationsResponse:
+    """Cierra todas las afiliaciones vigentes del competidor (OWNER-only)."""
+    _assert_context_matches_route(context, club_id)
+
+    async def operation() -> OperationOutcome:
+        await go_independent(context, competitor_id)
+        return _independence_outcome(status.HTTP_200_OK, competitor_id)
+
+    result = await _run_protocol(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
+        require_owner=True,
+    )
+    if result.resource_id is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=_STATE_ERROR)
+    competitor = await _load_competitor(context, CompetitorId(result.resource_id))
+    affiliations = await get_competitor_affiliations(
+        competitor.id, tenant_club_id=context.tenant_club_id, include_history=True
+    )
+    return CompetitorAffiliationsResponse(
+        competitor_id=competitor.id,
+        affiliations=[CompetitorAffiliationResponse.from_affiliation(a) for a in affiliations],
+    )

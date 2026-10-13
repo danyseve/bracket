@@ -94,7 +94,8 @@ ADDED_PAIRS: tuple[tuple[str, str, str], ...] = (
 )
 
 INSERT_LOG = (
-    "INSERT INTO domain_change_log (entity, entity_id, action, changed_fields, reason, reason_code) "
+    "INSERT INTO domain_change_log "
+    "(entity, entity_id, action, changed_fields, reason, reason_code) "
     "VALUES (:entity, 1, :action, '{}', 'lab', :code)"
 )
 
