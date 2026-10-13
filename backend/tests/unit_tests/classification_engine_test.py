@@ -108,7 +108,7 @@ def test_without_age_restriction_a_missing_date_of_birth_does_not_block() -> Non
 
 
 def test_age_below_the_minimum_is_incompatible() -> None:
-    verdict = verdict_of(rules(age_min=30), competitor(date_of_birth=date(1995, 5, 5)), registration())
+    verdict = verdict_of(rules(age_min=30), competitor(date_of_birth=date(2000, 5, 5)), registration())
     assert verdict.blockers == (ClassificationBlocker.CATEGORY_INCOMPATIBLE,)
 
 
@@ -283,8 +283,8 @@ def test_one_single_failing_rule_blocks_the_category() -> None:
     assert result.compatible_categories == ()
     assert result.recommended_category is None
     assert result.blockers == (
-        ClassificationBlocker.NO_COMPATIBLE_CATEGORY,
         ClassificationBlocker.CATEGORY_INCOMPATIBLE,
+        ClassificationBlocker.NO_COMPATIBLE_CATEGORY,
     )
 
 
@@ -307,8 +307,8 @@ def test_no_compatible_category_is_reported_with_its_reasons() -> None:
     )
     assert result.compatible_categories == ()
     assert result.blockers == (
-        ClassificationBlocker.NO_COMPATIBLE_CATEGORY,
         ClassificationBlocker.CATEGORY_INCOMPATIBLE,
+        ClassificationBlocker.NO_COMPATIBLE_CATEGORY,
     )
 
 
@@ -390,7 +390,11 @@ def test_a_confirmed_registration_without_the_required_weight_does_not_count() -
     )
     assert assessment.ok is False
     assert assessment.countable is False
-    assert assessment.blockers == (ClassificationBlocker.MISSING_WEIGHT,)
+    assert assessment.blockers == (
+        ClassificationBlocker.MISSING_WEIGHT,
+        ClassificationBlocker.NO_COMPATIBLE_CATEGORY,
+    )
+    assert ClassificationBlocker.CATEGORY_INCOMPATIBLE not in assessment.blockers
 
 
 def test_a_confirmed_registration_with_an_incompatible_category_does_not_count() -> None:
