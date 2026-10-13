@@ -43,6 +43,8 @@ cambios que §19 audita. §20 y §21 son independientes.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from collections.abc import AsyncIterator, Iterator
 from datetime import date
 from decimal import Decimal
@@ -70,7 +72,6 @@ from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     open_primary_count,
     post_logo,
     profile_row,
-    registration_row,
 )
 from tests.integration_tests.api.s48a5_e2e_trozo_b_support import (
     create_registration_http,
@@ -118,6 +119,15 @@ REGISTRY: dict[str, Any] = {}
 
 IDEMPOTENCY_REUSED = "IDEMPOTENCY_KEY_REUSED"
 CATEGORY_RULES_PARTIAL = "CATEGORY_RULES_PARTIAL"
+
+#: Comando canonico de regeneracion del contrato (mismo que ``tests/unit_tests/openapi_test.py``:
+#: el import de ``openapi`` aplica el monkeypatch de pydantic que marca todos los campos requeridos).
+_OPENAPI_DUMP = (
+    "import json;"
+    "from bracket.app import app;"
+    "from openapi import openapi;"  # noqa: F401 - efecto: parchea GenerateJsonSchema
+    "print(json.dumps(app.openapi(), indent=2, sort_keys=True))"
+)
 AFFILIATION_CHANGE = "AFFILIATION_CHANGE"
 CLUB_LOGO_CHANGE = "CLUB_LOGO_CHANGE"
 CATEGORY_CHANGE = "CATEGORY_CHANGE"
@@ -196,6 +206,27 @@ async def _assert_conflict(
     assert body.get("detail") == IDEMPOTENCY_REUSED, body
 
 
+async def _dedicated_registration(
+    scenario: C2Scenario, competitor_key: str, weight: str, modality: str = "GI"
+) -> int:
+    """Crea y CONFIRMA una inscripcion propia de un competidor libre, para aislar el test de categoria."""
+    dataset = scenario.dataset
+    body = await create_registration_http(
+        tournament_id=int(dataset.tournament),
+        token=dataset.owner_token,
+        competitor_id=int(dataset.competitors[competitor_key]),
+        representation="INDEPENDENT",
+        sports_club_id=None,
+        affiliation_id=None,
+        declared_weight_kg=Decimal(weight),
+        modality=modality,
+    )
+    await confirm_registration_http(
+        tournament_id=int(dataset.tournament), registration_id=int(body["id"]), token=dataset.owner_token
+    )
+    return int(body["id"])
+
+
 def _record_write(
     name: str,
     *,
@@ -232,20 +263,20 @@ async def test_17a_organizador_expone_perfil_deportivo_y_peso(scenario: C2Scenar
     registration = await create_registration_http(
         tournament_id=int(dataset.tournament),
         token=dataset.owner_token,
-        competitor_id=int(dataset.competitors["a1"]),
-        representation=representation_of(dataset, "a1")["representation"],
-        sports_club_id=representation_of(dataset, "a1")["sports_club_id"],
-        affiliation_id=representation_of(dataset, "a1")["affiliation_id"],
+        competitor_id=int(dataset.competitors["a4"]),
+        representation=representation_of(dataset, "a4")["representation"],
+        sports_club_id=representation_of(dataset, "a4")["sports_club_id"],
+        affiliation_id=representation_of(dataset, "a4")["affiliation_id"],
         declared_weight_kg=Decimal("76.50"),
         modality="GI",
     )
     REGISTRY["reg_organizer"] = int(registration["id"])
 
     status_c, competitor_body = await call(
-        "GET", competitor_url(dataset.club, int(dataset.competitors["a1"])), token=dataset.owner_token
+        "GET", competitor_url(dataset.club, int(dataset.competitors["a4"])), token=dataset.owner_token
     )
     assert status_c == 200, competitor_body
-    assert competitor_body["date_of_birth"] == "1990-05-17", competitor_body
+    assert competitor_body["date_of_birth"] == "1995-07-21", competitor_body
     assert competitor_body["sex"] == "MALE", competitor_body
     assert competitor_body["belt_id"] is not None, competitor_body
 
@@ -259,7 +290,7 @@ async def test_17a_organizador_expone_perfil_deportivo_y_peso(scenario: C2Scenar
 
     EVIDENCE_D["privacy"]["organizer_http"] = {
         "competitor_get": {
-            "url": competitor_url(dataset.club, int(dataset.competitors["a1"])),
+            "url": competitor_url(dataset.club, int(dataset.competitors["a4"])),
             "date_of_birth": competitor_body["date_of_birth"],
             "sex": competitor_body["sex"],
             "belt_id_presente": competitor_body["belt_id"] is not None,
@@ -294,31 +325,33 @@ async def test_17b_publico_no_expone_datos_personales(scenario: C2Scenario) -> N
         for forbidden in ("date_of_birth", "declared_weight_kg", "sex", "belt_id"):
             assert forbidden not in serialized, (forbidden, serialized)
 
-        fighters = {
-            match["fighter_a"] for court in body["courts"] for match in court.get("matches", [])
-        }
+        fighters: set[str] = set()
+        entry_keys: set[str] = set()
+        for court in body["courts"]:
+            entries = list(court.get("upcoming", [])) + list(court.get("completed", []))
+            if court.get("current"):
+                entries.append(court["current"])
+            if court.get("next"):
+                entries.append(court["next"])
+            for entry in entries:
+                entry_keys.update(entry)
+                for key in ("fighter_a", "fighter_b"):
+                    if entry.get(key):
+                        fighters.add(str(entry[key]))
         assert dataset.name("a1") in fighters, fighters  # prueba no vacia
         assert "1990-05-17" not in serialized  # valor de date_of_birth de a1
 
-        courts = body.get("courts", [])
-        for court in courts:
-            for match in court.get("matches", []):
-                assert set(match) <= PUBLIC_MATCH_KEYS, set(match) - PUBLIC_MATCH_KEYS
+        # Cada entrada publica solo lleva la lista blanca de claves de combate.
+        for key in entry_keys:
+            assert key in PUBLIC_MATCH_KEYS, (key, sorted(PUBLIC_MATCH_KEYS))
 
         EVIDENCE_D["privacy"]["public_http"] = {
             "url": public_schedule_url(public_tournament),
             "fighter_names": sorted(fighters),
-            "match_keys": _first_match_keys(body),
+            "entry_keys": sorted(entry_keys),
             "public_match_keys": sorted(PUBLIC_MATCH_KEYS),
         }
     record_d("17_publico_sin_datos_personales", True, EVIDENCE_D["privacy"]["public_http"])
-
-
-def _first_match_keys(body: dict[str, Any]) -> list[str]:
-    for court in body.get("courts", []):
-        for match in court.get("matches", []):
-            return sorted(match)
-    return []
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -402,7 +435,7 @@ async def test_18a_perfil_replay_y_conflicto(scenario: C2Scenario) -> None:
     await _assert_conflict(post, key=key, other_payload=p2, expected=200)
 
     row = await profile_row(competitor)
-    assert row["date_of_birth"] == "1991-01-01", row
+    assert str(row["date_of_birth"]) == "1991-01-01", row
     audit_after = await count_audit_events(dataset.club, entity="competitor", action="UPDATE")
     keys_after = await count_idempotency_keys(dataset.club)
     assert keys_after == keys_before + 1
@@ -415,7 +448,7 @@ async def test_18a_perfil_replay_y_conflicto(scenario: C2Scenario) -> None:
         replay_same_body=True,
         conflict_409=True,
         keys_delta=1,
-        effect={"date_of_birth": row["date_of_birth"]},
+        effect={"date_of_birth": str(row["date_of_birth"])},
     )
 
 
@@ -466,10 +499,21 @@ async def test_18b_afiliacion_alta_replay_y_conflicto(scenario: C2Scenario) -> N
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_18c_afiliacion_primaria_replay(scenario: C2Scenario) -> None:
-    """Afiliacion (primaria): replay sin duplicar; sin cuerpo no hay 'cuerpo distinto'."""
+    """Afiliacion (marcar primaria): replay sin duplicar; sin cuerpo no hay 'cuerpo distinto'."""
     dataset = scenario.dataset
     competitor = int(dataset.competitors["i1"])
-    affiliation_id = int(REGISTRY["affiliation_i1"])
+    # i1 ya tiene una afiliacion (18b). Se crea una SEGUNDA (no primaria) y se promueve esa: promover
+    # la ya-primaria seria un no-op sin evento de auditoria.
+    _, second = await call(
+        "POST",
+        f"{_root()}clubs/{dataset.club}/competitors/{competitor}/affiliations",
+        token=dataset.owner_token,
+        key=fresh_key(),
+        payload={"sports_club_id": int(dataset.clubs["B"])},
+    )
+    affiliation_id = int(second["id"])
+    REGISTRY["affiliation_i1_second"] = affiliation_id
+    assert not second.get("is_primary"), second
     key = fresh_key()
     audit_before = await count_audit_events(
         dataset.club, entity="competitor", action="UPDATE", reason_code=AFFILIATION_CHANGE
@@ -496,7 +540,7 @@ async def test_18c_afiliacion_primaria_replay(scenario: C2Scenario) -> None:
         replay_same_body=True,
         conflict_409=False,
         keys_delta=1,
-        effect={"primarias_vigentes": 1},
+        effect={"primarias_vigentes": 1, "auditoria_delta": audit_after - audit_before},
         note=SKIP_CONFLICT,
     )
 
@@ -506,7 +550,7 @@ async def test_18d_afiliacion_cierre_replay(scenario: C2Scenario) -> None:
     """Afiliacion (cierre): replay sin duplicar efecto."""
     dataset = scenario.dataset
     competitor = int(dataset.competitors["i1"])
-    affiliation_id = int(REGISTRY["affiliation_i1"])
+    affiliation_id = int(REGISTRY["affiliation_i1_second"])
     key = fresh_key()
 
     async def post(k: str, payload: dict[str, Any] | None) -> tuple[int, Any]:
@@ -613,13 +657,22 @@ async def test_18f_inscripcion_alta_replay_y_conflicto(scenario: C2Scenario) -> 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_18g_asignacion_categoria_replay_y_conflicto(scenario: C2Scenario) -> None:
-    """Asignacion de categoria: replay sin cambiar ``revision`` ni duplicar auditoria; 409."""
+    """Asignacion de categoria: replay sin cambiar ``revision`` ni duplicar auditoria; 409.
+
+    Se usa una inscripcion propia (competidor libre ``a3``) y la categoria se elige de la propia
+    clasificacion HTTP (estructurada + legacy), para no depender de elecciones incompatibles.
+    """
     dataset = scenario.dataset
     tournament = int(dataset.tournament)
-    registration_id = int(REGISTRY["reg_category"])
+    registration_id = await _dedicated_registration(scenario, "a3", "52.00")
+    REGISTRY["reg_assign"] = registration_id
+    classification = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
+    compatible = [item["category_key"] for item in classification["compatible_categories"]]
+    assert len(compatible) >= 2, compatible
+    chosen, other = compatible[0], compatible[1]
     key = fresh_key()
-    heavy = f"si:{dataset.categories['cat-male-gi-heavy']}"
-    open_nogi = f"si:{dataset.categories['cat-open-nogi']}"
     audit_before = await count_audit_events(
         dataset.club, entity="tournament_registration", action="UPDATE", reason_code=CATEGORY_CHANGE
     )
@@ -632,18 +685,20 @@ async def test_18g_asignacion_categoria_replay_y_conflicto(scenario: C2Scenario)
             token=dataset.owner_token,
             key=k,
             category_key=payload["category_key"],
-            reason_code="PLANNED_ENTRY",
         )
 
     _, body = await _assert_replay_same_body(
-        post, key=key, payload={"category_key": heavy}, expected=200
+        post, key=key, payload={"category_key": chosen}, expected=200
     )
     revision = body["revision"]
-    await _assert_conflict(post, key=key, other_payload={"category_key": open_nogi}, expected=200)
+    await _assert_conflict(post, key=key, other_payload={"category_key": other}, expected=200)
 
-    row = await registration_row(registration_id)
-    assert row["category_key"] == heavy, row
-    assert int(row["revision"]) == int(revision), (row["revision"], revision)
+    status_r, reread_body = await get_registration_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
+    assert status_r == 200, reread_body
+    assert reread_body["category_key"] == chosen, reread_body
+    assert int(reread_body["revision"]) == int(revision), (reread_body["revision"], revision)
     audit_after = await count_audit_events(
         dataset.club, entity="tournament_registration", action="UPDATE", reason_code=CATEGORY_CHANGE
     )
@@ -655,7 +710,8 @@ async def test_18g_asignacion_categoria_replay_y_conflicto(scenario: C2Scenario)
         replay_same_body=True,
         conflict_409=True,
         keys_delta=1,
-        effect={"revision_estable": int(revision), "auditoria_categoria_delta": audit_after - audit_before},
+        effect={"revision_estable": int(revision), "auditoria_categoria_delta": audit_after - audit_before,
+                "categoria": chosen},
     )
 
 
@@ -664,10 +720,10 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
     """Override (OWNER, motivo obligatorio): replay y 409; auditoria CATEGORY_CHANGE una vez."""
     dataset = scenario.dataset
     tournament = int(dataset.tournament)
-    registration_id = int(REGISTRY["reg_category"])
+    registration_id = int(REGISTRY["reg_assign"])
     key = fresh_key()
     audit_before = await count_audit_events(
-        dataset.club, entity="tournament_registration", action="UPDATE", reason_code=CATEGORY_CHANGE
+        dataset.club, entity="tournament_registration", action="UPDATE", reason_code="DATA_CORRECTION"
     )
 
     async def post(k: str, payload: dict[str, Any] | None) -> tuple[int, Any]:
@@ -680,16 +736,22 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
             category_key=payload["category_key"],
             override=True,
             reason_code="DATA_CORRECTION",
-            reason_note="override E2E trozo D",
         )
 
-    p1 = {"category_key": f"si:{dataset.categories['cat-female-gi']}"}
-    p2 = {"category_key": f"si:{dataset.categories['cat-open-nogi']}"}
+    # Categoria estructurada INCOMPATIBLE para a3 (MALE) forzada con override; el segundo cuerpo usa
+    # otra categoria existente (legacy) -> mismo clave, cuerpo distinto -> 409.
+    p1 = {"category_key": f"si:{dataset.categories['cat-male-gi-heavy']}"}
+    p2 = {"category_key": f"si:{dataset.categories['legacy-open']}"}
     await _assert_replay_same_body(post, key=key, payload=p1, expected=200)
     await _assert_conflict(post, key=key, other_payload=p2, expected=200)
+    status_r, reread_body = await get_registration_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
+    assert status_r == 200, reread_body
+    assert reread_body["category_key"] == p1["category_key"], reread_body
 
     audit_after = await count_audit_events(
-        dataset.club, entity="tournament_registration", action="UPDATE", reason_code=CATEGORY_CHANGE
+        dataset.club, entity="tournament_registration", action="UPDATE", reason_code="DATA_CORRECTION"
     )
     assert audit_after == audit_before + 1
     _record_write(
@@ -699,7 +761,7 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
         replay_same_body=True,
         conflict_409=True,
         keys_delta=1,
-        effect={"auditoria_categoria_delta": audit_after - audit_before},
+        effect={"auditoria_override_delta": audit_after - audit_before, "categoria_forzada": p1["category_key"]},
     )
 
 
@@ -1024,11 +1086,17 @@ async def test_20_categoria_legacy_solo_aporta_compatibilidad_parcial(scenario: 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_21a_openapi_sin_deriva_y_endpoints_presentes(scenario: C2Scenario) -> None:
     """El esquema generado coincide con ``backend/openapi/openapi.json`` y cubre los endpoints F3."""
-    schema = app.openapi()
+    # Regeneracion con el comando real del repo (importando ``openapi`` para aplicar el monkeypatch
+    # pydantic de campos requeridos) en un PROCESO LIMPIO, y comparacion con el fichero versionado.
+    proc = subprocess.run(
+        [sys.executable, "-c", _OPENAPI_DUMP], capture_output=True, text=True, check=False
+    )
+    assert proc.returncode == 0, proc.stderr
     on_disk = Path("openapi/openapi.json").read_text(encoding="utf-8")
-    regenerated = json.dumps(schema, indent=2, sort_keys=True)
-    drift = on_disk != regenerated
-    assert not drift, "DERIVA REAL: openapi/openapi.json no coincide con app.openapi()"
+    regenerated = proc.stdout.strip()
+    drift = on_disk.strip() != regenerated
+    assert not drift, "DERIVA REAL: openapi/openapi.json no coincide con la regeneracion del repo"
+    schema = json.loads(on_disk)
 
     paths = schema["paths"]
     required = (
