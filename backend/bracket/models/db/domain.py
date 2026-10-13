@@ -108,6 +108,19 @@ class ActorContext(BaseModelORM):
     actor_label: str | None = None
 
 
+class CompetitorSportsProfileUpdate(BaseModelORM):
+    """Perfil deportivo deseado de un competidor (S4.8a-3 §2).
+
+    Modelo de **reemplazo explicito**, como la inscripcion en borrador: los tres campos son
+    obligatorios y ``None`` es un valor con significado propio ("no declarado"), no un campo sin
+    mencionar. Una edicion no puede dejar el perfil a medias.
+    """
+
+    date_of_birth: date | None
+    sex: CompetitorSex | None
+    belt_id: BeltId | None
+
+
 class CompetitorBasicDataUpdate(BaseModelORM):
     """Datos basicos editables de un competidor.
 

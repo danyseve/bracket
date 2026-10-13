@@ -12,7 +12,11 @@ Lo que **no** esta aqui, a proposito:
 * el estado (``active``) y el historial de nombres: los cambian las operaciones de ciclo
   de vida (baja y reactivacion), nunca el payload;
 * ``managed_by_club_id``: el tenant sale del contexto autorizado. La respuesta tampoco lo
-  publica: el ambito ya esta en la propia ruta y repetirlo no aporta nada al cliente.
+  publica: el ambito ya esta en la propia ruta y repetirlo no aporta nada al cliente. S4.8a-3
+  pedia extender la lectura con ese campo: se mantiene fuera a proposito (ajuste declarado) y
+  lo que se publica es el perfil deportivo.
+* el **perfil deportivo** (``date_of_birth``, ``sex``, ``belt_id``) si viaja en la respuesta: lo
+  necesita quien clasifica y no revela ambito ninguno.
 
 El motivo de auditoria entra solo por el vocabulario cerrado ``reason_code``/
 ``reason_note`` (catalogo de S3.3c-2, alcance ``competitor``): no hay campo de texto libre.
@@ -20,11 +24,13 @@ El motivo de auditoria entra solo por el vocabulario cerrado ``reason_code``/
 
 from __future__ import annotations
 
+from datetime import date
+
 from heliclockter import datetime_utc
 from pydantic import BaseModel, ConfigDict
 
-from bracket.models.db.domain import Competitor
-from bracket.utils.id_types import CompetitorId
+from bracket.models.db.domain import Competitor, CompetitorSex
+from bracket.utils.id_types import BeltId, CompetitorId
 
 
 class CompetitorRequestModel(BaseModel):
@@ -39,13 +45,35 @@ class CompetitorRequestModel(BaseModel):
 
 
 class CompetitorCreateBody(CompetitorRequestModel):
-    """Alta de identidad: el nombre y, opcionalmente, el motivo del alta.
+    """Alta de identidad: nombre, perfil deportivo opcional y motivo del alta.
 
     No hay campo de academia: en el dominio certificado (S2) un competidor puede existir
     sin academia y la afiliacion no es un dato de entrada del alta.
+
+    El perfil deportivo (S4.8a-3 §2) es **opcional**: un cliente anterior a S4.8a sigue dando de
+    alta identidades sin enviarlo y los tres campos quedan en ``NULL``. No hay valor por defecto
+    deportivo: no se inventa cinturon, sexo ni fecha.
     """
 
     display_name: str
+    date_of_birth: date | None = None
+    sex: CompetitorSex | None = None
+    belt_id: BeltId | None = None
+    reason_code: str | None = None
+    reason_note: str | None = None
+
+
+class CompetitorProfileBody(CompetitorRequestModel):
+    """Perfil deportivo de un competidor: reemplazo explicito de los tres campos.
+
+    Los tres viajan **siempre**, aunque sean ``NULL``: es la misma politica que la inscripcion en
+    borrador, donde una edicion describe el estado completo y no puede dejar campos a medias.
+    ``NULL`` es un valor legitimo (dato no declarado) y no un campo sin mencionar.
+    """
+
+    date_of_birth: date | None
+    sex: CompetitorSex | None
+    belt_id: BeltId | None
     reason_code: str | None = None
     reason_note: str | None = None
 
@@ -82,6 +110,9 @@ class CompetitorResponse(BaseModel):
     active: bool
     created: datetime_utc
     updated_at: datetime_utc | None
+    date_of_birth: date | None
+    sex: CompetitorSex | None
+    belt_id: BeltId | None
 
     @classmethod
     def from_competitor(cls, competitor: Competitor) -> CompetitorResponse:
@@ -92,6 +123,9 @@ class CompetitorResponse(BaseModel):
             active=competitor.active,
             created=competitor.created,
             updated_at=competitor.updated_at,
+            date_of_birth=competitor.date_of_birth,
+            sex=competitor.sex,
+            belt_id=competitor.belt_id,
         )
 
 

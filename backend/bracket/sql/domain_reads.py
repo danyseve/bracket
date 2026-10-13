@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from bracket.database import database
 from bracket.models.db.domain import (
+    Belt,
     Competitor,
     CompetitorNameHistory,
     CompetitorXSportsClub,
@@ -44,6 +45,7 @@ from bracket.models.db.domain import (
     TournamentRegistration,
 )
 from bracket.utils.id_types import (
+    BeltId,
     ClubId,
     CompetitorId,
     SportsClubId,
@@ -57,8 +59,27 @@ _CURRENT_REGISTRATION = "tr.status <> 'CORRECTED' AND tr.superseded_by_registrat
 _SPORTS_CLUB_COLUMNS = "s.id, s.name, s.active, s.tenant_club_id, s.created, s.updated_at"
 
 _COMPETITOR_COLUMNS = (
-    "c.id, c.display_name, c.active, c.managed_by_club_id, c.created, c.updated_at"
+    "c.id, c.display_name, c.active, c.managed_by_club_id, c.created, c.updated_at,"
+    " c.date_of_birth, c.sex, c.belt_id"
 )
+
+_BELT_COLUMNS = "b.id, b.code, b.label, b.rank, b.scope, b.active, b.created"
+
+
+async def get_belt(belt_id: BeltId) -> Belt | None:
+    """Cinturon del catalogo por id.
+
+    El catalogo ``belts`` es de **plataforma** (S4.8a-1): describe la escala deportiva, no
+    pertenece a ninguna academia y lo comparten todos los tenants, asi que esta lectura no lleva
+    ambito de tenant. Devuelve tambien los retirados (``active = false``): quien valida decide si
+    el estado lo inhabilita.
+    """
+    record = await database.fetch_one(
+        query=f"SELECT {_BELT_COLUMNS} FROM belts b WHERE b.id = :belt_id",
+        values={"belt_id": belt_id},
+    )
+    return Belt.model_validate(dict(record._mapping)) if record is not None else None
+
 
 _REGISTRATION_COLUMNS = """
     tr.id, tr.tournament_id, tr.competitor_id, tr.identity_status, tr.representation,

@@ -50,16 +50,23 @@ from bracket.logic.competitors import (
     create_competitor,
     deactivate_competitor,
     update_competitor_display_name,
+    update_competitor_profile,
 )
 from bracket.logic.idempotency_protocol import OperationOutcome, ProtocolResult
 from bracket.models.db.competitor_api import (
     CompetitorCreateBody,
     CompetitorLifecycleBody,
     CompetitorListResponse,
+    CompetitorProfileBody,
     CompetitorRenameBody,
     CompetitorResponse,
 )
-from bracket.models.db.domain import ActorContext, Competitor, CompetitorBasicDataUpdate
+from bracket.models.db.domain import (
+    ActorContext,
+    Competitor,
+    CompetitorBasicDataUpdate,
+    CompetitorSportsProfileUpdate,
+)
 from bracket.routes.domain_auth import actor_context_for_club
 from bracket.routes.domain_idempotency import execute_idempotent_operation, idempotency_request
 from bracket.routes.f3_write_gate import require_f3_write_enabled
@@ -234,6 +241,9 @@ async def create_competitor_endpoint(
         competitor = await create_competitor(
             context,
             display_name=body.display_name,
+            date_of_birth=body.date_of_birth,
+            sex=body.sex,
+            belt_id=body.belt_id,
             reason_code=body.reason_code,
             reason_note=body.reason_note,
         )
@@ -412,5 +422,47 @@ async def activate_competitor_endpoint(
         operation=operation,
         expected_status=status.HTTP_200_OK,
         require_owner=True,
+    )
+    return CompetitorResponse.from_competitor(competitor)
+
+
+@router.post(
+    "/clubs/{club_id}/competitors/{competitor_id}/profile",
+    dependencies=[Depends(require_f3_write_enabled)],
+    response_model=CompetitorResponse,
+)
+async def update_competitor_profile_endpoint(
+    club_id: ClubId,
+    competitor_id: CompetitorId,
+    body: CompetitorProfileBody,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_club),
+) -> CompetitorResponse:
+    """Reemplaza el perfil deportivo del competidor (S4.8a-3 §2).
+
+    La politica de permisos es la de los datos basicos del contrato certificado (OWNER y
+    COLLABORATOR): este endpoint no introduce ninguna regla de autorizacion nueva, y la puerta de
+    escritura de S3.6b sigue siendo el unico interruptor. Sin cambios reales no hay evento de
+    auditoria y la respuesta es la identidad tal cual estaba.
+    """
+    _assert_context_matches_route(context, club_id)
+
+    async def operation() -> OperationOutcome:
+        competitor = await update_competitor_profile(
+            context,
+            competitor_id,
+            CompetitorSportsProfileUpdate(
+                date_of_birth=body.date_of_birth, sex=body.sex, belt_id=body.belt_id
+            ),
+            reason_code=body.reason_code,
+            reason_note=body.reason_note,
+        )
+        return _outcome(status.HTTP_200_OK, competitor)
+
+    competitor = await _execute(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
     )
     return CompetitorResponse.from_competitor(competitor)

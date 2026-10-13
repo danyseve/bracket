@@ -15,21 +15,41 @@ aqui de forma explicita para no acoplar la escritura a un simbolo privado de
 
 from __future__ import annotations
 
+from datetime import date
+
 from bracket.database import database
-from bracket.models.db.domain import Competitor, DomainChangeLogAction, DomainWriteScopeError
-from bracket.utils.id_types import ClubId, CompetitorId, UserId
+from bracket.models.db.domain import (
+    Competitor,
+    CompetitorSex,
+    DomainChangeLogAction,
+    DomainWriteScopeError,
+)
+from bracket.utils.id_types import BeltId, ClubId, CompetitorId, UserId
 from bracket.utils.types import assert_some
 
-_COMPETITOR_COLUMNS = "id, display_name, active, managed_by_club_id, created, updated_at"
+_COMPETITOR_COLUMNS = (
+    "id, display_name, active, managed_by_club_id, created, updated_at, date_of_birth, sex, belt_id"
+)
 
 
 async def sql_insert_competitor(
-    *, display_name: str, managed_by_club_id: ClubId, active: bool = True
+    *,
+    display_name: str,
+    managed_by_club_id: ClubId,
+    active: bool = True,
+    date_of_birth: date | None = None,
+    sex: CompetitorSex | None = None,
+    belt_id: BeltId | None = None,
 ) -> Competitor:
-    """Crea la identidad. ``managed_by_club_id`` sale del contexto autorizado, no del payload."""
+    """Crea la identidad. ``managed_by_club_id`` sale del contexto autorizado, no del payload.
+
+    El perfil deportivo (S4.8a-3 §2) entra por parametro ya validado por la capa de dominio: la
+    fecha de nacimiento, el sexo y el cinturon son datos de la identidad, no del contexto.
+    """
     query = f"""
-        INSERT INTO competitors (display_name, managed_by_club_id, active, created)
-        VALUES (:display_name, :managed_by_club_id, :active, NOW())
+        INSERT INTO competitors
+            (display_name, managed_by_club_id, active, created, date_of_birth, sex, belt_id)
+        VALUES (:display_name, :managed_by_club_id, :active, NOW(), :date_of_birth, :sex, :belt_id)
         RETURNING {_COMPETITOR_COLUMNS}
         """
     result = await database.fetch_one(
@@ -38,9 +58,44 @@ async def sql_insert_competitor(
             "display_name": display_name,
             "managed_by_club_id": managed_by_club_id,
             "active": active,
+            "date_of_birth": date_of_birth,
+            "sex": sex,
+            "belt_id": belt_id,
         },
     )
     return Competitor.model_validate(dict(assert_some(result)._mapping))
+
+
+async def sql_update_competitor_profile(
+    *,
+    competitor_id: CompetitorId,
+    tenant_club_id: ClubId,
+    date_of_birth: date | None,
+    sex: CompetitorSex | None,
+    belt_id: BeltId | None,
+) -> Competitor | None:
+    """Reemplaza el perfil deportivo de un competidor del tenant.
+
+    ``None`` si no existe o no es de ese tenant. Escribe **los tres** campos: el estado deseado
+    es completo y ``NULL`` es un valor, no una omision.
+    """
+    query = f"""
+        UPDATE competitors
+        SET date_of_birth = :date_of_birth, sex = :sex, belt_id = :belt_id, updated_at = NOW()
+        WHERE id = :competitor_id AND managed_by_club_id = :tenant_club_id
+        RETURNING {_COMPETITOR_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "competitor_id": competitor_id,
+            "tenant_club_id": tenant_club_id,
+            "date_of_birth": date_of_birth,
+            "sex": sex,
+            "belt_id": belt_id,
+        },
+    )
+    return Competitor.model_validate(dict(result._mapping)) if result is not None else None
 
 
 async def sql_update_competitor_display_name(

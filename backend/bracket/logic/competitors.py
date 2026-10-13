@@ -52,6 +52,8 @@ LIMITACIONES DE AUTORIZACION PENDIENTES (documentadas, no resueltas aqui):
 
 from __future__ import annotations
 
+from datetime import date
+
 from bracket.database import database
 from bracket.logic.audit_reasons import (
     SCOPE_COMPETITOR,
@@ -59,9 +61,15 @@ from bracket.logic.audit_reasons import (
     AuditReasonError,
     build_audit_reason,
 )
-from bracket.models.db.domain import ActorContext, Competitor, CompetitorBasicDataUpdate
+from bracket.models.db.domain import (
+    ActorContext,
+    Competitor,
+    CompetitorBasicDataUpdate,
+    CompetitorSex,
+    CompetitorSportsProfileUpdate,
+)
 from bracket.models.db.user_x_club import UserXClubRelation
-from bracket.sql.domain_reads import get_competitor
+from bracket.sql.domain_reads import get_belt, get_competitor
 from bracket.sql.domain_writes import (
     sql_activate_competitor,
     sql_close_open_competitor_name_history,
@@ -70,9 +78,10 @@ from bracket.sql.domain_writes import (
     sql_insert_competitor_name_history,
     sql_insert_domain_change_log,
     sql_update_competitor_display_name,
+    sql_update_competitor_profile,
 )
 from bracket.sql.users import get_user_relation_to_club
-from bracket.utils.id_types import CompetitorId
+from bracket.utils.id_types import BeltId, CompetitorId
 
 MAX_DISPLAY_NAME_LENGTH = 200
 
@@ -130,6 +139,43 @@ def _resolve_audit_reason(*, action: str, code: object, note: object) -> AuditRe
         raise InvalidCompetitorDataError(str(error)) from error
 
 
+def _profile_field_names(
+    *, date_of_birth: date | None, sex: CompetitorSex | None, belt_id: BeltId | None
+) -> list[str]:
+    """Nombres de los campos de perfil que **llevan valor**, en orden canonico.
+
+    ``changed_fields`` guarda nombres, nunca valores: un campo en ``NULL`` no se anota porque no
+    hay dato que declarar.
+    """
+    names: list[str] = []
+    if date_of_birth is not None:
+        names.append("date_of_birth")
+    if sex is not None:
+        names.append("sex")
+    if belt_id is not None:
+        names.append("belt_id")
+    return names
+
+
+async def _validate_sports_profile(*, date_of_birth: date | None, belt_id: BeltId | None) -> None:
+    """Valida el perfil deportivo contra el catalogo de cinturones y el calendario.
+
+    * el cinturon tiene que existir y estar **activo**: asignar uno retirado del catalogo dejaria
+      la identidad apuntando a una escala que ya no se usa;
+    * la fecha de nacimiento no puede estar en el futuro.
+
+    No se valida aqui ninguna edad ni ninguna politica de categoria: eso es clasificacion, no
+    identidad, y vive en ``bracket/logic/classification``. El sexo lo valida el vocabulario del
+    modelo (``MALE``/``FEMALE``), que no admite ``MIXED``.
+    """
+    if belt_id is not None:
+        belt = await get_belt(belt_id)
+        if belt is None or not belt.active:
+            raise InvalidCompetitorDataError("el cinturon indicado no existe o no esta activo")
+    if date_of_birth is not None and date_of_birth > date.today():
+        raise InvalidCompetitorDataError("la fecha de nacimiento no puede estar en el futuro")
+
+
 async def _authorize(context: ActorContext, *, require_owner: bool = False) -> None:
     """Comprueba el acceso del actor al tenant y, si procede, que sea OWNER.
 
@@ -148,17 +194,33 @@ async def create_competitor(
     context: ActorContext,
     *,
     display_name: str,
+    date_of_birth: date | None = None,
+    sex: CompetitorSex | None = None,
+    belt_id: BeltId | None = None,
     reason_code: str | None = None,
     reason_note: str | None = None,
 ) -> Competitor:
-    """Alta de identidad. El competidor puede no tener academia y se audita como ``CREATE``."""
+    """Alta de identidad. El competidor puede no tener academia y se audita como ``CREATE``.
+
+    El perfil deportivo (S4.8a-3 §2) es opcional: sin el, los tres campos quedan en ``NULL``. Lo
+    que si se envia se valida contra el catalogo antes de escribir y se anota en la auditoria por
+    nombre de campo.
+    """
     normalized_name = _normalize_display_name(display_name)
     audit_reason = _resolve_audit_reason(action="CREATE", code=reason_code, note=reason_note)
+    await _validate_sports_profile(date_of_birth=date_of_birth, belt_id=belt_id)
+    changed_fields = ["display_name"] + _profile_field_names(
+        date_of_birth=date_of_birth, sex=sex, belt_id=belt_id
+    )
 
     async with database.transaction():
         await _authorize(context)
         competitor = await sql_insert_competitor(
-            display_name=normalized_name, managed_by_club_id=context.tenant_club_id
+            display_name=normalized_name,
+            managed_by_club_id=context.tenant_club_id,
+            date_of_birth=date_of_birth,
+            sex=sex,
+            belt_id=belt_id,
         )
         await sql_insert_competitor_name_history(
             competitor_id=competitor.id,
@@ -170,7 +232,7 @@ async def create_competitor(
             entity=_COMPETITOR_ENTITY,
             entity_id=competitor.id,
             action="CREATE",
-            changed_fields=["display_name"],
+            changed_fields=changed_fields,
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=audit_reason.text,
@@ -228,6 +290,67 @@ async def update_competitor_display_name(
             entity_id=competitor_id,
             action="UPDATE",
             changed_fields=["display_name"],
+            actor_user_id=context.actor_user_id,
+            actor_label=context.actor_label,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
+            tenant_club_id=context.tenant_club_id,
+        )
+
+    return updated
+
+
+async def update_competitor_profile(
+    context: ActorContext,
+    competitor_id: CompetitorId,
+    data: CompetitorSportsProfileUpdate,
+    *,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
+) -> Competitor:
+    """Reemplaza el perfil deportivo de un competidor (S4.8a-3 §2).
+
+    Si el perfil resultante es identico al vigente no cambia nada (sin auditoria) y devuelve la
+    identidad tal cual: la operacion es idempotente por contenido, no solo por clave.
+
+    La politica de permisos es la de los datos basicos del contrato certificado (``_authorize``
+    sin ``require_owner``): no se relaja ni se endurece ninguna regla de ``users_x_clubs``.
+    """
+    audit_reason = _resolve_audit_reason(action="UPDATE", code=reason_code, note=reason_note)
+    await _validate_sports_profile(date_of_birth=data.date_of_birth, belt_id=data.belt_id)
+
+    async with database.transaction():
+        await _authorize(context)
+        current = await get_competitor(competitor_id, tenant_club_id=context.tenant_club_id)
+        if current is None:
+            raise CompetitorNotFoundError("competidor no encontrado")
+
+        changed: list[str] = []
+        if current.date_of_birth != data.date_of_birth:
+            changed.append("date_of_birth")
+        if current.sex != data.sex:
+            changed.append("sex")
+        if current.belt_id != data.belt_id:
+            changed.append("belt_id")
+        if not changed:
+            return current
+
+        updated = await sql_update_competitor_profile(
+            competitor_id=competitor_id,
+            tenant_club_id=context.tenant_club_id,
+            date_of_birth=data.date_of_birth,
+            sex=data.sex,
+            belt_id=data.belt_id,
+        )
+        if updated is None:
+            raise CompetitorNotFoundError("competidor no encontrado")
+
+        await sql_insert_domain_change_log(
+            entity=_COMPETITOR_ENTITY,
+            entity_id=competitor_id,
+            action="UPDATE",
+            changed_fields=changed,
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=audit_reason.text,
