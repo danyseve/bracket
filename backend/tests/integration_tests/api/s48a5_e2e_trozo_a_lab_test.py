@@ -9,7 +9,8 @@ mismo constructor (``e2e_dataset_context``) o seguir este patron.
 
 Que fija este modulo (§3-§7 de la especificacion S4.8a-5):
 
-* §3  torneo LAB **aislado** con 3 academias, 24 competidores y 5 categorias estructuradas + 1 legacy;
+* §3  torneo LAB **aislado** con 3 academias, 24 competidores y 5 categorias estructuradas + 1
+legacy;
 * §4  catalogo/listado de academias, ``logo_path`` por academia, **fallback** sin logo y ciclo
       upload/replace/remove del logo;
 * §5  24 competidores F3 repartidos 7/7/7 + 3 independientes, con DOB/sexo/cinturon variados y
@@ -38,6 +39,7 @@ import pytest_asyncio
 
 from bracket.config import config
 from bracket.database import database
+from bracket.utils.id_types import ClubId
 from tests.integration_tests.api.generate_bracket_http_support import SYNTHETIC_SECRET
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     ADULT_BELTS,
@@ -57,12 +59,10 @@ from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     competitors_url,
     count_competitors,
     create_competitor_http,
-    delete_sports_club,
     e2e_dataset_context,
     fresh_key,
     independence_url,
     insert_frozen_registration,
-    insert_sports_club,
     open_count,
     open_primary_count,
     post_logo,
@@ -72,6 +72,10 @@ from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     sports_clubs_url,
     stage_item_row,
     write_evidence,
+)
+from tests.integration_tests.registration_fixtures import (
+    delete_sports_club,
+    insert_sports_club,
 )
 
 #: Campos publicos de una academia (``SportsClubResponse``): un campo de mas cierra el contrato.
@@ -107,8 +111,8 @@ def e2e_write_gate() -> Iterator[None]:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="module")
 async def dataset(
-    startup_and_shutdown_uvicorn_server: None,  # noqa: F811 - fixture autouse del conftest de api
-    e2e_write_gate: None,  # noqa: F811 - fixture de modulo definida arriba
+    startup_and_shutdown_uvicorn_server: None,
+    e2e_write_gate: None,
 ) -> AsyncIterator[E2EDataset]:
     """Escenario LAB unico del modulo; al cerrar vuelca la evidencia de §25."""
     async with e2e_dataset_context() as scenario:
@@ -164,9 +168,7 @@ async def test_e2e_academy_catalog_lists_three_academies_with_logo_and_fallback(
     dataset: E2EDataset,
 ) -> None:
     """§4: el listado sirve las tres academias, el ``logo_path`` real y el fallback sin logo."""
-    status_code, body = await call(
-        "GET", sports_clubs_url(dataset.club), token=dataset.owner_token
-    )
+    status_code, body = await call("GET", sports_clubs_url(dataset.club), token=dataset.owner_token)
     assert status_code == 200, body
     rows = {int(row["id"]): row for row in body}
     assert set(dataset.clubs.values()) <= set(rows)
@@ -201,14 +203,15 @@ async def test_e2e_academy_catalog_lists_three_academies_with_logo_and_fallback(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_e2e_logo_upload_replace_and_remove_cycle(dataset: E2EDataset) -> None:
-    """§4: el ciclo real de logo (subir -> reemplazar -> quitar) deja la columna y el disco coherentes.
+    """§4: el ciclo real de logo (subir -> reemplazar -> quitar) deja la columna y el disco
+    coherentes.
 
     Se hace sobre una academia propia del caso (no toca las tres del escenario) para no alterar el
     dataset que los trozos B/C/D van a congelar.
     """
     suffix = uuid4().hex[:8]
     sports_club_id = await insert_sports_club(
-        f"{NAME_PREFIX}-cycle-{suffix}", dataset.club, active=True, created=CREATED
+        f"{NAME_PREFIX}-cycle-{suffix}", ClubId(dataset.club), active=True, created=CREATED
     )
     created_files: list[Path] = []
     try:
@@ -308,7 +311,9 @@ async def test_e2e_five_structured_categories_and_one_legacy_without_rules(
         "§7.categories",
         True,
         {
-            "structured": {spec["name"]: int(dataset.categories[spec["name"]]) for spec in CATEGORY_SPECS},
+            "structured": {
+                spec["name"]: int(dataset.categories[spec["name"]]) for spec in CATEGORY_SPECS
+            },
             "legacy": int(dataset.categories[LEGACY_CATEGORY]),
             "total": int(total),
         },
@@ -348,7 +353,9 @@ async def test_e2e_competitors_vary_their_profile_and_include_deliberate_gaps(
         True,
         {
             "sexes": sorted(sex for sex in sexes if sex is not None),
-            "profiles_without_sex": sum(1 for profile in profiles.values() if profile["sex"] is None),
+            "profiles_without_sex": sum(
+                1 for profile in profiles.values() if profile["sex"] is None
+            ),
             "distinct_belts": len(belts),
             "gaps": {"a7": "no_dob", "b6": "no_belt", "b7": "no_sex", "c7": "no_profile"},
         },
@@ -362,7 +369,8 @@ async def test_e2e_competitors_vary_their_profile_and_include_deliberate_gaps(
 async def test_e2e_each_affiliated_competitor_has_a_single_open_primary(
     dataset: E2EDataset,
 ) -> None:
-    """§6 A/B: cada competidor con academia tiene una sola primaria abierta; el independiente, ninguna."""
+    """§6 A/B: cada competidor con academia tiene una sola primaria abierta; el independiente,
+    ninguna."""
     for key, academy in dataset.academy_of.items():
         competitor_id = int(dataset.competitors[key])
         if academy is None:
@@ -373,7 +381,9 @@ async def test_e2e_each_affiliated_competitor_has_a_single_open_primary(
 
     # La vista vigente por HTTP sirve exactamente la primaria del competidor.
     a1 = int(dataset.competitors["a1"])
-    status_code, body = await call("GET", affiliations_url(dataset.club, a1), token=dataset.owner_token)
+    status_code, body = await call(
+        "GET", affiliations_url(dataset.club, a1), token=dataset.owner_token
+    )
     assert status_code == 200, body
     assert body["competitor_id"] == a1
     assert len(body["affiliations"]) == 1
@@ -389,7 +399,8 @@ async def test_e2e_each_affiliated_competitor_has_a_single_open_primary(
 async def test_e2e_affiliation_change_close_and_independence_preserve_history(
     dataset: E2EDataset,
 ) -> None:
-    """§6 C/D/E: cambio de club, cierre y vuelta a independiente conservan el historico y una sola primaria."""
+    """§6 C/D/E: cambio de club, cierre y vuelta a independiente conservan el historico y una sola
+    primaria."""
     suffix = uuid4().hex[:8]
     competitor_id = await create_competitor_http(
         dataset.club,
@@ -402,7 +413,9 @@ async def test_e2e_affiliation_change_close_and_independence_preserve_history(
     club_a, club_b, club_c = (int(dataset.clubs[letter]) for letter in ("A", "B", "C"))
 
     # A) con club: la primera afiliacion nace primaria y vigente.
-    first = await assign_affiliation_http(dataset.club, competitor_id, club_a, token=dataset.owner_token)
+    first = await assign_affiliation_http(
+        dataset.club, competitor_id, club_a, token=dataset.owner_token
+    )
     assert first["is_primary"] is True and first["valid_to"] is None
     assert await open_primary_count(competitor_id) == 1
 
@@ -417,7 +430,9 @@ async def test_e2e_affiliation_change_close_and_independence_preserve_history(
     )
 
     # C) cambio de club: la segunda afiliacion NO nace primaria; promoverla cierra la anterior.
-    second = await assign_affiliation_http(dataset.club, competitor_id, club_b, token=dataset.owner_token)
+    second = await assign_affiliation_http(
+        dataset.club, competitor_id, club_b, token=dataset.owner_token
+    )
     assert second["is_primary"] is False and second["valid_to"] is None
     status_code, promoted = await call(
         "POST",
@@ -450,9 +465,14 @@ async def test_e2e_affiliation_change_close_and_independence_preserve_history(
     assert await open_count(competitor_id) == 0
 
     # E) vuelta a independiente: cierra todo lo vigente.
-    third = await assign_affiliation_http(dataset.club, competitor_id, club_c, token=dataset.owner_token)
+    third = await assign_affiliation_http(
+        dataset.club, competitor_id, club_c, token=dataset.owner_token
+    )
     status_code, body = await call(
-        "POST", independence_url(dataset.club, competitor_id), token=dataset.owner_token, key=fresh_key()
+        "POST",
+        independence_url(dataset.club, competitor_id),
+        token=dataset.owner_token,
+        key=fresh_key(),
     )
     assert status_code == 200, body
     assert await open_count(competitor_id) == 0

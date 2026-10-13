@@ -22,7 +22,8 @@ estructuradas** (mismos rangos de sexo/edad/peso/modalidad/cinturon) y **sin** e
 * El caso "multiples compatibles" (b) clasifica tambien contra esa superficie limpia: el titular
   ``b3`` cae a la vez en ``cat-male-gi-heavy`` y en ``cat-male-gi-master``, dos categorias
   **estructuradas** con reglas reales (el solape solo existe para el).
-* La compatibilidad con la categoria legacy **sin reglas** (§20) se mide aparte, contra el torneo del
+* La compatibilidad con la categoria legacy **sin reglas** (§20) se mide aparte, contra el torneo
+del
   escenario A, y no sostiene el caso obligatorio (b).
 """
 
@@ -31,20 +32,20 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 from uuid import uuid4
 
 from bracket.database import database
 from bracket.logic.classification.vocabulary import ClassificationBlocker, ClassificationWarning
-from bracket.utils.id_types import RankingId, StageId, StageItemId, TournamentId
+from bracket.utils.id_types import RankingId, StageId, TournamentId
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     CATEGORY_SPECS,
     CREATED,
-    E2EDataset,
     START_TIME,
+    E2EDataset,
     call,
     e2e_dataset_context,
     fresh_key,
@@ -66,9 +67,13 @@ def warning(code: ClassificationWarning) -> str:
 
 
 #: Orden canonico del vocabulario de blockers (indice de declaracion): se usa para comparar listas.
-BLOCKER_ORDER: Final[dict[str, int]] = {str(code.value): i for i, code in enumerate(ClassificationBlocker)}
+BLOCKER_ORDER: Final[dict[str, int]] = {
+    str(code.value): i for i, code in enumerate(ClassificationBlocker)
+}
 #: Orden canonico del vocabulario de avisos.
-WARNING_ORDER: Final[dict[str, int]] = {str(code.value): i for i, code in enumerate(ClassificationWarning)}
+WARNING_ORDER: Final[dict[str, int]] = {
+    str(code.value): i for i, code in enumerate(ClassificationWarning)
+}
 
 
 # ---------------------------------------------------------------- modelo de la superficie
@@ -84,7 +89,8 @@ class ClassificationSurface:
     categories: dict[str, int]
 
     def key(self, name: str) -> str:
-        """``category_key`` real que el motor publica para esa categoria (``si:<stage_item_id>``)."""
+        """``category_key`` real que el motor publica para esa categoria
+        (``si:<stage_item_id>``)."""
         return f"si:{self.categories[name]}"
 
 
@@ -135,7 +141,8 @@ _DELETE_SURFACE_TOURNAMENT = "DELETE FROM tournaments WHERE id = :id"
 async def _insert_surface_category(
     *, stage: int, ranking: int, belts: dict[str, int], spec: dict[str, Any]
 ) -> int:
-    """Siembra, en la superficie limpia, una categoria con las mismas reglas reales del escenario A."""
+    """Siembra, en la superficie limpia, una categoria con las mismas reglas reales del escenario
+    A."""
     belt_min = None if spec["belt_min"] is None else belts[spec["belt_min"]]
     belt_max = None if spec["belt_max"] is None else belts[spec["belt_max"]]
     stage_item_id = await database.fetch_val(
@@ -161,7 +168,9 @@ async def _insert_surface_category(
 
 
 @asynccontextmanager
-async def classification_surface_context(dataset: E2EDataset) -> AsyncIterator[ClassificationSurface]:
+async def classification_surface_context(
+    dataset: E2EDataset,
+) -> AsyncIterator[ClassificationSurface]:
     """Superficie de clasificacion limpia: torneo hermano con las cinco categorias estructuradas.
 
     Es un torneo propio del mismo tenant, sin cuadro legacy, para que las categorias estructuradas
@@ -185,9 +194,7 @@ async def classification_surface_context(dataset: E2EDataset) -> AsyncIterator[C
         created: dict[str, Any] = {"stage": None, "ranking": None, "items": []}
 
         async def _teardown() -> None:
-            await database.execute(
-                query=_DELETE_SURFACE_REGISTRATIONS, values={"t": tournament_id}
-            )
+            await database.execute(query=_DELETE_SURFACE_REGISTRATIONS, values={"t": tournament_id})
             if created["items"]:
                 await database.execute(
                     query=_DELETE_SURFACE_STAGE_ITEMS, values={"ids": list(created["items"])}
@@ -198,9 +205,7 @@ async def classification_surface_context(dataset: E2EDataset) -> AsyncIterator[C
                 )
             if created["stage"] is not None:
                 await database.execute(query=_DELETE_SURFACE_STAGE, values={"id": created["stage"]})
-            await database.execute(
-                query=_DELETE_SURFACE_TOURNAMENT, values={"id": tournament_id}
-            )
+            await database.execute(query=_DELETE_SURFACE_TOURNAMENT, values={"id": tournament_id})
 
         stack.push_async_callback(_teardown)
 
@@ -289,21 +294,23 @@ async def create_registration_http(
         "reason_code": "PLANNED_ENTRY",
     }
     status_code, body = await call(
-        "POST", registrations_url(tournament_id), token=token, key=key or fresh_key(), payload=payload
+        "POST",
+        registrations_url(tournament_id),
+        token=token,
+        key=key or fresh_key(),
+        payload=payload,
     )
     assert status_code == 201, body
-    return body
+    return cast("dict[str, Any]", body)
 
 
-async def classify_http(
-    *, tournament_id: int, registration_id: int, token: str
-) -> dict[str, Any]:
+async def classify_http(*, tournament_id: int, registration_id: int, token: str) -> dict[str, Any]:
     """Lee la clasificacion de una inscripcion (GET real, sin cuerpo ni clave de idempotencia)."""
     status_code, body = await call(
         "GET", classification_url(tournament_id, registration_id), token=token
     )
     assert status_code == 200, body
-    return body
+    return cast("dict[str, Any]", body)
 
 
 def representation_of(dataset: E2EDataset, competitor_key: str) -> dict[str, Any]:
@@ -347,7 +354,9 @@ async def count_audit_rows(tenant_club_id: int) -> int:
     return int(await database.fetch_val(query=_SELECT_AUDIT_COUNT, values={"club": tenant_club_id}))
 
 
-async def set_registration_category_sql(registration_id: int, category_key: str, label: str) -> None:
+async def set_registration_category_sql(
+    registration_id: int, category_key: str, label: str
+) -> None:
     """Fija la categoria asignada de una inscripcion (estado de partida del caso (h)).
 
     Se hace por SQL a proposito: la asignacion por API (§7) es otra unidad; aqui solo se prepara el
@@ -367,9 +376,7 @@ EVIDENCE_B: dict[str, Any] = {"trozo": "B", "cases": [], "validations": []}
 
 def record_b(name: str, passed: bool, detail: dict[str, Any] | None = None) -> None:
     """Anota el resultado de una validacion del trozo B."""
-    EVIDENCE_B["validations"].append(
-        {"name": name, "passed": bool(passed), "detail": detail or {}}
-    )
+    EVIDENCE_B["validations"].append({"name": name, "passed": bool(passed), "detail": detail or {}})
 
 
 def record_case(
@@ -407,12 +414,3 @@ def write_evidence_b() -> Path:
         json.dumps(EVIDENCE_B, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8"
     )
     return EVIDENCE_B_PATH
-
-
-#: Superficie usada por los casos deterministas (un solo punto de verdad para el informe).
-EXPECTED_STRUCTURED: Final = tuple(spec["name"] for spec in CATEGORY_SPECS)
-
-
-def surface_names() -> tuple[str, ...]:
-    """Nombres de las cinco categorias estructuradas del escenario A."""
-    return EXPECTED_STRUCTURED

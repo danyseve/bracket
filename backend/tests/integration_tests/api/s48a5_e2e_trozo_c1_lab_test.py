@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Iterator
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import pytest_asyncio
@@ -83,8 +83,10 @@ _DERIVED = frozenset({CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY})
 def e2e_write_gate() -> Iterator[None]:
     """Escritura F3 y secreto de idempotencia habilitados durante todo el modulo.
 
-    El perfil de competidor, la asignacion de categoria y la confirmacion estan detras de la puerta de
-    escritura y del protocolo de idempotencia. No se depende del entorno de CI: el modulo lo fija y lo
+    El perfil de competidor, la asignacion de categoria y la confirmacion estan detras de la puerta
+    de
+    escritura y del protocolo de idempotencia. No se depende del entorno de CI: el modulo lo fija y
+    lo
     restaura.
     """
     previous = {
@@ -104,8 +106,8 @@ def e2e_write_gate() -> Iterator[None]:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="module")
 async def scenario(
-    startup_and_shutdown_uvicorn_server: None,  # noqa: F811 - fixture autouse del conftest de api
-    e2e_write_gate: None,  # noqa: F811 - fixture de modulo definida arriba
+    startup_and_shutdown_uvicorn_server: None,
+    e2e_write_gate: None,
 ) -> AsyncIterator[C1Scenario]:
     """Escenario A + superficie ``before`` + superficie ``after``; al cerrar vuelca §25."""
     async with trozo_c1_scenario() as scenario_:
@@ -167,7 +169,7 @@ async def reread(scenario_: C1Scenario, which: str, registration_id: int) -> dic
         token=scenario_.dataset.owner_token,
     )
     assert status_code == 200, body
-    return body
+    return cast("dict[str, Any]", body)
 
 
 async def assert_correction(
@@ -206,7 +208,10 @@ async def assert_correction(
     assert added == [], (case, "aparece un blocker nuevo", added)
     # Tras corregir, la unica compatible hace que quede la etiqueta sin resolver.
     assert bl_after == [CATEGORY_NOT_RESOLVED], (case, bl_after)
-    assert len(after_body["compatible_categories"]) == 1, (case, after_body["compatible_categories"])
+    assert len(after_body["compatible_categories"]) == 1, (
+        case,
+        after_body["compatible_categories"],
+    )
 
     control_after = await classify(scenario_, "after", control_registration_id)
     other_unchanged = control_after == control_before
@@ -249,10 +254,9 @@ async def control_registration(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_c10_b2_peso_corregido_quita_missing_weight(scenario: C1Scenario) -> None:
-    """§10.peso: ``b2`` sin peso bloquea por ``MISSING_WEIGHT``; al declarar 74.50 kg, se revalida."""
-    control_id, control_before = await control_registration(
-        scenario, "a2", Decimal("110.00"), "GI"
-    )
+    """§10.peso: ``b2`` sin peso bloquea por ``MISSING_WEIGHT``; al declarar 74.50 kg, se
+    revalida."""
+    control_id, control_before = await control_registration(scenario, "a2", Decimal("110.00"), "GI")
 
     before_id = await register(scenario, "before", "b2", weight=None, modality="GI")
     before = await classify(scenario, "before", before_id)
@@ -279,11 +283,10 @@ async def test_c10_b2_peso_corregido_quita_missing_weight(scenario: C1Scenario) 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_c10_b6_cinturon_corregido_quita_missing_belt(scenario: C1Scenario) -> None:
-    """§10.cinturon: ``b6`` sin cinturon bloquea por ``MISSING_BELT``; se corrige por el perfil real."""
+    """§10.cinturon: ``b6`` sin cinturon bloquea por ``MISSING_BELT``; se corrige por el perfil
+    real."""
     dataset = scenario.dataset
-    control_id, control_before = await control_registration(
-        scenario, "b3", Decimal("85.00"), "GI"
-    )
+    control_id, control_before = await control_registration(scenario, "b3", Decimal("85.00"), "GI")
 
     before_id = await register(scenario, "before", "b6", weight=Decimal("74.50"), modality="GI")
     before = await classify(scenario, "before", before_id)
@@ -320,11 +323,10 @@ async def test_c10_b6_cinturon_corregido_quita_missing_belt(scenario: C1Scenario
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_c10_a7_fecha_nacimiento_corregida_quita_missing_dob(scenario: C1Scenario) -> None:
-    """§10.DOB: ``a7`` sin fecha bloquea por ``MISSING_DATE_OF_BIRTH``; se corrige por el perfil real."""
+    """§10.DOB: ``a7`` sin fecha bloquea por ``MISSING_DATE_OF_BIRTH``; se corrige por el perfil
+    real."""
     dataset = scenario.dataset
-    control_id, control_before = await control_registration(
-        scenario, "b4", Decimal("55.00"), "GI"
-    )
+    control_id, control_before = await control_registration(scenario, "b4", Decimal("55.00"), "GI")
 
     before_id = await register(scenario, "before", "a7", weight=Decimal("74.50"), modality="GI")
     before = await classify(scenario, "before", before_id)
@@ -361,10 +363,9 @@ async def test_c10_a7_fecha_nacimiento_corregida_quita_missing_dob(scenario: C1S
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_c10_c3_modalidad_corregida_quita_missing_modality(scenario: C1Scenario) -> None:
-    """§10.modalidad: ``c3`` sin modalidad bloquea por ``MISSING_MODALITY``; se corrige al declarar GI."""
-    control_id, control_before = await control_registration(
-        scenario, "c2", Decimal("55.00"), "GI"
-    )
+    """§10.modalidad: ``c3`` sin modalidad bloquea por ``MISSING_MODALITY``; se corrige al declarar
+    GI."""
+    control_id, control_before = await control_registration(scenario, "c2", Decimal("55.00"), "GI")
 
     before_id = await register(scenario, "before", "c3", weight=Decimal("74.50"), modality=None)
     before = await classify(scenario, "before", before_id)
@@ -394,7 +395,8 @@ async def test_c10_c3_modalidad_corregida_quita_missing_modality(scenario: C1Sce
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_c11_owner_asigna_recomendada_sin_override(scenario: C1Scenario) -> None:
-    """§11.OWNER: asigna la recomendada sin ``override``, la relee y la clasificacion se resuelve."""
+    """§11.OWNER: asigna la recomendada sin ``override``, la relee y la clasificacion se
+    resuelve."""
     dataset = scenario.dataset
     surface = scenario.after_surface
     light = surface.key("cat-male-gi-light")
@@ -479,7 +481,8 @@ async def test_c11_collaborator_tambien_asigna_sin_override(scenario: C1Scenario
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_c11_idempotencia_replay_y_conflicto(scenario: C1Scenario) -> None:
-    """§11.idempotencia: misma clave + mismo cuerpo -> replay; misma clave + cuerpo distinto -> 409."""
+    """§11.idempotencia: misma clave + mismo cuerpo -> replay; misma clave + cuerpo distinto ->
+    409."""
     dataset = scenario.dataset
     surface = scenario.after_surface
     female = surface.key("cat-female-gi")
@@ -509,7 +512,9 @@ async def test_c11_idempotencia_replay_y_conflicto(scenario: C1Scenario) -> None
     assert replay_body["id"] == first_body["id"]
     assert replay_body["category_key"] == female
     assert replay_body["revision"] == first_body["revision"]
-    assert await count_category_change_events(registration_id) == events_after_first, "el replay audita"
+    assert await count_category_change_events(registration_id) == events_after_first, (
+        "el replay audita"
+    )
 
     conflict_status, conflict_body = await assign_category_http(
         tournament_id=int(surface.tournament),
@@ -761,7 +766,8 @@ async def test_c12_owner_override_exige_motivo_y_audita(scenario: C1Scenario) ->
     assert await actor_relation(int(event["actor_user_id"]), dataset.club) == "OWNER"
     record_override_event(event)
 
-    # La clasificacion sigue diciendo que la elegida es incompatible, pero el readiness la legitimiza.
+    # La clasificacion sigue diciendo que la elegida es incompatible, pero el readiness la
+    # legitimiza.
     after = await classify(scenario, "after", registration_id)
     assert str(after["recommended_category"]["category_key"]) == heavy
     assert CATEGORY_INCOMPATIBLE in codes(after), codes(after)

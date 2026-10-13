@@ -29,20 +29,18 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 from uuid import uuid4
 
 from bracket.config import config  # noqa: F401  (reexportado: el modulo de pruebas lo usa)
 from bracket.database import database
 from bracket.logic.scheduling.generation import MINIMUM_ENTRANTS
 from bracket.utils.id_types import RankingId, StageId, TournamentId
-from tests.integration_tests.api.shared import get_root_uvicorn_url
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     CATEGORY_SPECS,
     CREATED,
     START_TIME,
     E2EDataset,
-    assign_affiliation_http,
     call,
     e2e_dataset_context,
     fresh_key,
@@ -62,6 +60,7 @@ from tests.integration_tests.api.s48a5_e2e_trozo_c1_support import (
     issue_codes,
     readiness_http,
 )
+from tests.integration_tests.api.shared import get_root_uvicorn_url
 
 #: Resumen congelable de §25 para este trozo.
 EVIDENCE_C2_PATH: Final = Path("/home/ubuntu/s48a5-evidence/trozo-c2.json")
@@ -105,15 +104,9 @@ class BracketScenario:
     team_count: int = BRACKET_TEAM_COUNT
 
     def key(self, name: str) -> str:
-        """``category_key`` real que el motor publica para esa categoria (``si:<stage_item_id>``)."""
+        """``category_key`` real que el motor publica para esa categoria
+        (``si:<stage_item_id>``)."""
         return f"si:{self.categories[name]}"
-
-    def stage_item_for_key(self, category_key: str | None) -> str | None:
-        """Nombre de la categoria cuyo ``category_key`` es ese (``None`` si no es de este torneo)."""
-        for name in self.entrants:
-            if self.key(name) == category_key:
-                return name
-        return None
 
 
 @dataclass
@@ -164,7 +157,9 @@ def window_url(tournament_id: int) -> str:
 # ---------------------------------------------------------------- HTTP helpers
 
 
-async def generate_http(*, tournament_id: int, token: str, key: str | None = None) -> tuple[int, Any]:
+async def generate_http(
+    *, tournament_id: int, token: str, key: str | None = None
+) -> tuple[int, Any]:
     """Generacion del cuadro por la ruta real (§15): cuerpo vacio a proposito, clave obligatoria."""
     return await call("POST", generate_url(tournament_id), token=token, key=key or fresh_key())
 
@@ -180,7 +175,7 @@ async def window_http(*, tournament_id: int, token: str) -> dict[str, Any]:
     """Lectura de la ventana de inscripcion (200 o falla la prueba)."""
     status_code, body = await call("GET", window_url(tournament_id), token=token)
     assert status_code == 200, body
-    return body
+    return cast("dict[str, Any]", body)
 
 
 def generate_blocking_issues(status_code: int, body: Any) -> list[str]:
@@ -262,11 +257,7 @@ async def occupied_team_ids(stage_item_id: int) -> list[int]:
 
 async def count_generate_audit(tournament_id: int) -> int:
     """Eventos de auditoria ``GENERATE_BRACKET`` del torneo (para probar el congelado)."""
-    return int(
-        await database.fetch_val(
-            query=_COUNT_GENERATE_AUDIT, values={"tid": tournament_id}
-        )
-    )
+    return int(await database.fetch_val(query=_COUNT_GENERATE_AUDIT, values={"tid": tournament_id}))
 
 
 async def current_registration(tournament_id: int, competitor_id: int) -> dict[str, Any]:
@@ -281,12 +272,12 @@ async def current_registration(tournament_id: int, competitor_id: int) -> dict[s
 
 async def competitor_row(competitor_id: int) -> dict[str, Any]:
     """Fila minima del competidor: nombre y club gestor (``None`` = independiente)."""
-    record = await database.fetch_one(
-        query=_SELECT_COMPETITOR_CLUB, values={"id": competitor_id}
-    )
+    record = await database.fetch_one(query=_SELECT_COMPETITOR_CLUB, values={"id": competitor_id})
     assert record is not None
-    return {"display_name": str(record._mapping["display_name"]),
-            "managed_by_club_id": record._mapping["managed_by_club_id"]}
+    return {
+        "display_name": str(record._mapping["display_name"]),
+        "managed_by_club_id": record._mapping["managed_by_club_id"],
+    }
 
 
 # ---------------------------------------------------------------- constructor del torneo de cuadros
@@ -336,7 +327,9 @@ _DELETE_BRACKET_STAGE = "DELETE FROM stages WHERE id = :id"
 _DELETE_BRACKET_TOURNAMENT = "DELETE FROM tournaments WHERE id = :id"
 
 #: Reglas reales por nombre de categoria (tomadas del escenario A, sin redefinirlas).
-_CATEGORY_BY_NAME: Final[dict[str, dict[str, Any]]] = {spec["name"]: spec for spec in CATEGORY_SPECS}
+_CATEGORY_BY_NAME: Final[dict[str, dict[str, Any]]] = {
+    spec["name"]: spec for spec in CATEGORY_SPECS
+}
 
 
 async def _insert_bracket_category(
@@ -391,21 +384,15 @@ async def _bracket_scenario_context(dataset: E2EDataset) -> AsyncIterator[Bracke
         created: dict[str, Any] = {"items": []}
 
         async def _teardown() -> None:
-            await database.execute(
-                query=_DELETE_BRACKET_REGISTRATIONS, values={"t": tournament_id}
-            )
+            await database.execute(query=_DELETE_BRACKET_REGISTRATIONS, values={"t": tournament_id})
             await database.execute(query=_DELETE_BRACKET_INPUTS, values={"t": tournament_id})
             await database.execute(query=_DELETE_BRACKET_TEAMS, values={"t": tournament_id})
             await database.execute(
                 query=_DELETE_BRACKET_STAGE_ITEMS, values={"ids": created["items"]}
             )
-            await database.execute(
-                query=_DELETE_BRACKET_RANKING, values={"id": created["ranking"]}
-            )
+            await database.execute(query=_DELETE_BRACKET_RANKING, values={"id": created["ranking"]})
             await database.execute(query=_DELETE_BRACKET_STAGE, values={"id": created["stage"]})
-            await database.execute(
-                query=_DELETE_BRACKET_TOURNAMENT, values={"id": tournament_id}
-            )
+            await database.execute(query=_DELETE_BRACKET_TOURNAMENT, values={"id": tournament_id})
 
         stack.push_async_callback(_teardown)
 

@@ -34,16 +34,14 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import aiohttp
 from heliclockter import datetime_utc
 
-from bracket.config import config
 from bracket.database import database
-from bracket.routes.domain_idempotency import IDEMPOTENCY_KEY_HEADER
 from bracket.utils.id_types import (
     CompetitorId,
     RankingId,
@@ -58,8 +56,9 @@ from tests.integration_tests.api.competitor_http_support import (
     competitor_lab_context,
 )
 from tests.integration_tests.api.shared import get_root_uvicorn_url
+
 # Los bytes de imagen validos ya viven (y se prueban) en el contrato del logo de a-3: se reutilizan.
-from tests.integration_tests.api.sports_club_logo_http_test import (  # noqa: F401
+from tests.integration_tests.api.sports_club_logo_http_test import (
     JPEG_BYTES,
     PNG_BYTES,
     WEBP_BYTES,
@@ -146,9 +145,7 @@ _DELETE_STAGE = "DELETE FROM stages WHERE id = :id"
 _DELETE_SPORTS_CLUBS = "DELETE FROM sports_clubs WHERE id = ANY(:ids)"
 _DELETE_BELTS = "DELETE FROM belts WHERE id = ANY(:ids)"
 
-_COUNT_COMPETITORS_BY_PREFIX = (
-    "SELECT count(*) FROM competitors WHERE display_name LIKE :prefix"
-)
+_COUNT_COMPETITORS_BY_PREFIX = "SELECT count(*) FROM competitors WHERE display_name LIKE :prefix"
 _COUNT_OPEN_PRIMARY = """
     SELECT count(*) FROM competitors_x_sports_clubs
     WHERE competitor_id = :competitor_id AND valid_to IS NULL AND is_primary
@@ -407,7 +404,7 @@ async def assign_affiliation_http(
         payload={"sports_club_id": sports_club_id},
     )
     assert status_code == 201, body
-    return body
+    return cast("dict[str, Any]", body)
 
 
 async def post_logo(
@@ -438,14 +435,10 @@ async def insert_belt(scope: str, code: str, label: str, rank: int) -> int:
     await database.execute(
         query=_UPSERT_BELT, values={"code": code, "label": label, "rank": rank, "scope": scope}
     )
-    return int(
-        await database.fetch_val(query=_SELECT_BELT, values={"scope": scope, "code": code})
-    )
+    return int(await database.fetch_val(query=_SELECT_BELT, values={"scope": scope, "code": code}))
 
 
-async def insert_category(
-    dataset: E2EDataset, spec: dict[str, Any]
-) -> StageItemId:
+async def insert_category(dataset: E2EDataset, spec: dict[str, Any]) -> StageItemId:
     """Siembra una categoria con reglas reales en ``stage_items`` y devuelve su id."""
     belt_min = None if spec["belt_min"] is None else dataset.belts[spec["belt_min"]]
     belt_max = None if spec["belt_max"] is None else dataset.belts[spec["belt_max"]]
@@ -478,9 +471,7 @@ async def count_competitors(prefix: str) -> int:
 
 async def open_primary_count(competitor_id: int) -> int:
     return int(
-        await database.fetch_val(
-            query=_COUNT_OPEN_PRIMARY, values={"competitor_id": competitor_id}
-        )
+        await database.fetch_val(query=_COUNT_OPEN_PRIMARY, values={"competitor_id": competitor_id})
     )
 
 
@@ -489,9 +480,7 @@ async def open_count(competitor_id: int) -> int:
 
 
 async def stage_item_row(stage_item_id: int) -> dict[str, Any]:
-    record = await database.fetch_one(
-        query=_SELECT_STAGE_ITEM, values={"id": stage_item_id}
-    )
+    record = await database.fetch_one(query=_SELECT_STAGE_ITEM, values={"id": stage_item_id})
     assert record is not None
     return dict(record._mapping)
 
@@ -535,9 +524,7 @@ async def insert_frozen_registration(
 
 async def registration_row(registration_id: int) -> dict[str, Any]:
     """Fila de una inscripcion (para comprobar que la foto historica no se mueve)."""
-    record = await database.fetch_one(
-        query=_SELECT_REGISTRATION, values={"id": registration_id}
-    )
+    record = await database.fetch_one(query=_SELECT_REGISTRATION, values={"id": registration_id})
     assert record is not None
     return dict(record._mapping)
 
@@ -555,12 +542,8 @@ async def affiliation_history(competitor_id: int) -> list[dict[str, Any]]:
 
 async def _cleanup(dataset: E2EDataset) -> None:
     """Deshace el escenario de hojas a raices, antes de que cierre el laboratorio de base."""
-    await database.execute(
-        query=_DELETE_FROZEN_REGISTRATIONS, values={"t": dataset.tournament}
-    )
-    await database.execute(
-        query=_DELETE_AFFILIATIONS, values={"t": dataset.club}
-    )
+    await database.execute(query=_DELETE_FROZEN_REGISTRATIONS, values={"t": dataset.tournament})
+    await database.execute(query=_DELETE_AFFILIATIONS, values={"t": dataset.club})
     # Los competidores referencian los cinturones con FK RESTRICT: se sueltan antes de borrarlos.
     await database.execute(query=_NULL_TENANT_BELTS, values={"t": dataset.club})
     await database.execute(
@@ -594,7 +577,11 @@ async def e2e_dataset_context() -> AsyncIterator[E2EDataset]:
             int(
                 await database.fetch_val(
                     query=_INSERT_STAGE,
-                    values={"tournament_id": lab.tournament, "name": f"{NAME_PREFIX}-stage", "created": CREATED},
+                    values={
+                        "tournament_id": lab.tournament,
+                        "name": f"{NAME_PREFIX}-stage",
+                        "created": CREATED,
+                    },
                 )
             )
         )
@@ -659,7 +646,8 @@ async def e2e_dataset_context() -> AsyncIterator[E2EDataset]:
             dataset.competitors[spec.key] = CompetitorId(competitor_id)
             dataset.academy_of[spec.key] = spec.academy
 
-        # Afiliacion primaria de los 21 competidores con academia (los 3 independientes, sin ninguna).
+        # Afiliacion primaria de los 21 competidores con academia (los 3 independientes, sin
+        # ninguna).
         for spec in COMPETITOR_SPECS:
             if spec.academy is None:
                 continue
@@ -672,8 +660,10 @@ async def e2e_dataset_context() -> AsyncIterator[E2EDataset]:
             dataset.affiliations[spec.key] = int(body["id"])
 
         # Categorias: cinco estructuradas con reglas reales + una legacy sin ninguna regla.
-        for spec in CATEGORY_SPECS:
-            dataset.categories[spec["name"]] = await insert_category(dataset, spec)
+        for category_spec in CATEGORY_SPECS:
+            dataset.categories[category_spec["name"]] = await insert_category(
+                dataset, category_spec
+            )
         dataset.categories[LEGACY_CATEGORY] = await insert_category(
             dataset,
             {

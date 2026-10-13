@@ -12,7 +12,8 @@ Que fija este modulo:
       afiliacion historica del trozo A, dejando ``category_key`` **sin resolver** en todos los casos
       salvo el de "categoria incompatible", donde se parte de una categoria **asignada**;
 * §9  los ocho casos obligatorios de clasificacion, con los codigos **exactos** del vocabulario del
-      motor: 1 compatible -> es la recomendada; >1 -> recomendada nula + ``MULTIPLE_COMPATIBLE_CATEGORIES``;
+      motor: 1 compatible -> es la recomendada; >1 -> recomendada nula +
+      ``MULTIPLE_COMPATIBLE_CATEGORIES``;
       0 -> ``NO_COMPATIBLE_CATEGORY``; y los blockers ``MISSING_*`` / ``CATEGORY_INCOMPATIBLE``;
 * §20 el caso **adicional** de compatibilidad con una categoria legacy sin reglas: se mide aparte y
       el caso obligatorio (b) **no** depende de el.
@@ -36,7 +37,6 @@ from bracket.logic.classification.vocabulary import ClassificationBlocker, Class
 from tests.integration_tests.api.generate_bracket_http_support import SYNTHETIC_SECRET
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     LEGACY_CATEGORY,
-    E2EDataset,
     registration_row,
 )
 from tests.integration_tests.api.s48a5_e2e_trozo_b_support import (
@@ -69,7 +69,8 @@ MULTIPLE = warning(ClassificationWarning.MULTIPLE_COMPATIBLE_CATEGORIES)
 def e2e_write_gate() -> Iterator[None]:
     """Escritura F3 y secreto de idempotencia habilitados durante todo el modulo.
 
-    El alta de inscripciones (``POST .../registrations``) esta detras de la puerta de escritura y del
+    El alta de inscripciones (``POST .../registrations``) esta detras de la puerta de escritura y
+    del
     protocolo de idempotencia. No se depende del entorno de CI: el modulo lo fija y lo restaura.
     """
     previous = {
@@ -89,8 +90,8 @@ def e2e_write_gate() -> Iterator[None]:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="module")
 async def scenario(
-    startup_and_shutdown_uvicorn_server: None,  # noqa: F811 - fixture autouse del conftest de api
-    e2e_write_gate: None,  # noqa: F811 - fixture de modulo definida arriba
+    startup_and_shutdown_uvicorn_server: None,
+    e2e_write_gate: None,
 ) -> AsyncIterator[ClassificationScenario]:
     """Escenario del trozo A + superficie de clasificacion; al cerrar vuelca la evidencia de §25."""
     async with trozo_b_scenario() as scenario_:
@@ -145,11 +146,16 @@ async def register(
 async def test_caso_a_exactamente_una_compatible_es_la_recomendada(
     scenario: ClassificationScenario,
 ) -> None:
-    """§9(a): una sola categoria admite la inscripcion -> esa es la recomendada, sin bloqueos de motor."""
+    """§9(a): una sola categoria admite la inscripcion -> esa es la recomendada, sin bloqueos de
+    motor."""
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, created = await register(
-        scenario, tournament_id=tournament, competitor_key="a2", declared_weight_kg=Decimal("110.00"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="a2",
+        declared_weight_kg=Decimal("110.00"),
+        modality="GI",
     )
 
     # §8: la inscripcion es CLUB con su academia y su afiliacion historica, y nace sin categoria.
@@ -161,7 +167,9 @@ async def test_caso_a_exactamente_una_compatible_es_la_recomendada(
     assert row["sports_club_id"] == int(dataset.clubs["A"])
     assert row["affiliation_id"] == int(dataset.affiliations["a2"])
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     heavy = scenario.surface.key("cat-male-gi-heavy")
     assert compatible_keys(body) == [heavy]
@@ -196,7 +204,8 @@ async def test_caso_b_multiples_compatibles_estructuradas_no_recomienda_y_avisa(
     Se clasifica contra la **superficie limpia** del trozo B (torneo hermano con SOLO las categorias
     estructuradas, sin el cuadro legacy), de modo que las dos compatibles son dos categorias con
     reglas reales: ``cat-male-gi-heavy`` (peso 77.01-120.00) y ``cat-male-gi-master`` (clase master,
-    MALE + GI, edad >=40, peso 77.01-120.00, cinturon WHITE..BROWN). El titular es ``b3`` (MALE, BLUE,
+    MALE + GI, edad >=40, peso 77.01-120.00, cinturon WHITE..BROWN). El titular es ``b3`` (MALE,
+    BLUE,
     nacido 1985-12-01 -> 40 anios al inicio del torneo, 85.00 kg declarados), que cae en AMBAS y en
     ninguna otra: es el unico competidor que hoy no usa ningun otro caso y queda dentro del solape
     disenado (ver el comentario de ``cat-male-gi-master`` en el soporte del trozo A).
@@ -204,10 +213,16 @@ async def test_caso_b_multiples_compatibles_estructuradas_no_recomienda_y_avisa(
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, _ = await register(
-        scenario, tournament_id=tournament, competitor_key="b3", declared_weight_kg=Decimal("85.00"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="b3",
+        declared_weight_kg=Decimal("85.00"),
+        modality="GI",
     )
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     # Las DOS compatibles son estructuradas (con reglas reales): la legacy no esta en la superficie.
     labels = sorted(str(category["category_label"]) for category in body["compatible_categories"])
@@ -244,17 +259,24 @@ async def test_caso_b20_legacy_sin_reglas_es_compatible_adicional(
     """§20: una categoria legacy sin reglas admite la inscripcion y anade una compatible **extra**.
 
     Se clasifica contra el torneo del escenario A, que SI trae el cuadro legacy ``legacy-open`` (sin
-    ninguna regla): cualquier inscripcion es compatible con el (aviso ``CATEGORY_RULES_PARTIAL``), de
+    ninguna regla): cualquier inscripcion es compatible con el (aviso ``CATEGORY_RULES_PARTIAL``),
+    de
     modo que la compatible estructurada de ``c2`` (``cat-female-gi``) deja de ser unica. Este es el
     caso **adicional** de compatibilidad con legacy; el caso obligatorio (b) NO depende de el.
     """
     dataset = scenario.dataset
     tournament = int(dataset.tournament)
     registration_id, _ = await register(
-        scenario, tournament_id=tournament, competitor_key="c2", declared_weight_kg=Decimal("55.00"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="c2",
+        declared_weight_kg=Decimal("55.00"),
+        modality="GI",
     )
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     female = f"si:{dataset.categories['cat-female-gi']}"
     legacy = f"si:{dataset.categories[LEGACY_CATEGORY]}"
@@ -288,7 +310,11 @@ async def test_caso_c_ninguna_compatible_bloquea(scenario: ClassificationScenari
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, created = await register(
-        scenario, tournament_id=tournament, competitor_key="i3", declared_weight_kg=Decimal("70.00"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="i3",
+        declared_weight_kg=Decimal("70.00"),
+        modality="GI",
     )
     # §8: representacion real del competidor sin academia.
     assert created["representation"] == "INDEPENDENT"
@@ -296,12 +322,18 @@ async def test_caso_c_ninguna_compatible_bloquea(scenario: ClassificationScenari
     row = await registration_row(registration_id)
     assert row["affiliation_id"] is None and row["sports_club_id"] is None
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     assert body["compatible_categories"] == []
     assert recommended_key(body) is None
     # Motivos del resultado (orden canonico) y, detras, el de la categoria elegida sin resolver.
-    assert body["blockers"] == [CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
+    assert body["blockers"] == [
+        CATEGORY_INCOMPATIBLE,
+        NO_COMPATIBLE_CATEGORY,
+        CATEGORY_NOT_RESOLVED,
+    ]
     assert body["warnings"] == []
 
     record_case(
@@ -318,7 +350,7 @@ async def test_caso_c_ninguna_compatible_bloquea(scenario: ClassificationScenari
     record_b("§9.c.ninguna", True, {"blockers": body["blockers"]})
 
 
-# ---------------------------------------------------------------- §9 casos (d)-(g): datos que faltan
+# --------------------------------------------------------------- §9 casos (d)-(g): datos que faltan
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -327,18 +359,35 @@ async def test_caso_d_sin_peso_bloquea(scenario: ClassificationScenario) -> None
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, created = await register(
-        scenario, tournament_id=tournament, competitor_key="b2", declared_weight_kg=None, modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="b2",
+        declared_weight_kg=None,
+        modality="GI",
     )
     assert created["declared_weight_kg"] is None
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
-    assert body["blockers"] == [MISSING_WEIGHT, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
+    assert body["blockers"] == [
+        MISSING_WEIGHT,
+        CATEGORY_INCOMPATIBLE,
+        NO_COMPATIBLE_CATEGORY,
+        CATEGORY_NOT_RESOLVED,
+    ]
     record_case(
-        case="d", label="sin peso -> MISSING_WEIGHT", competitor_key="b2",
-        registration_id=registration_id, tournament_id=tournament, declared_weight_kg=None,
-        modality="GI", representation="CLUB", classification=body,
+        case="d",
+        label="sin peso -> MISSING_WEIGHT",
+        competitor_key="b2",
+        registration_id=registration_id,
+        tournament_id=tournament,
+        declared_weight_kg=None,
+        modality="GI",
+        representation="CLUB",
+        classification=body,
     )
     record_b("§9.d.sin_peso", True, {"blockers": body["blockers"]})
 
@@ -349,88 +398,149 @@ async def test_caso_e_sin_cinturon_bloquea(scenario: ClassificationScenario) -> 
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, _ = await register(
-        scenario, tournament_id=tournament, competitor_key="b6", declared_weight_kg=Decimal("74.50"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="b6",
+        declared_weight_kg=Decimal("74.50"),
+        modality="GI",
     )
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
-    assert body["blockers"] == [MISSING_BELT, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
+    assert body["blockers"] == [
+        MISSING_BELT,
+        CATEGORY_INCOMPATIBLE,
+        NO_COMPATIBLE_CATEGORY,
+        CATEGORY_NOT_RESOLVED,
+    ]
     record_case(
-        case="e", label="sin cinturon -> MISSING_BELT", competitor_key="b6",
-        registration_id=registration_id, tournament_id=tournament, declared_weight_kg="74.50",
-        modality="GI", representation="CLUB", classification=body,
+        case="e",
+        label="sin cinturon -> MISSING_BELT",
+        competitor_key="b6",
+        registration_id=registration_id,
+        tournament_id=tournament,
+        declared_weight_kg="74.50",
+        modality="GI",
+        representation="CLUB",
+        classification=body,
     )
     record_b("§9.e.sin_cinturon", True, {"blockers": body["blockers"]})
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_caso_f_sin_fecha_de_nacimiento_bloquea(scenario: ClassificationScenario) -> None:
-    """§9(f): el competidor no tiene fecha de nacimiento y la categoria restringe edad -> MISSING_DATE_OF_BIRTH."""
+    """§9(f): el competidor no tiene fecha de nacimiento y la categoria restringe edad ->
+    MISSING_DATE_OF_BIRTH."""
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, _ = await register(
-        scenario, tournament_id=tournament, competitor_key="a7", declared_weight_kg=Decimal("74.50"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="a7",
+        declared_weight_kg=Decimal("74.50"),
+        modality="GI",
     )
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
     assert body["blockers"] == [
-        MISSING_DATE_OF_BIRTH, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED
+        MISSING_DATE_OF_BIRTH,
+        CATEGORY_INCOMPATIBLE,
+        NO_COMPATIBLE_CATEGORY,
+        CATEGORY_NOT_RESOLVED,
     ]
     record_case(
-        case="f", label="sin DOB -> MISSING_DATE_OF_BIRTH", competitor_key="a7",
-        registration_id=registration_id, tournament_id=tournament, declared_weight_kg="74.50",
-        modality="GI", representation="CLUB", classification=body,
+        case="f",
+        label="sin DOB -> MISSING_DATE_OF_BIRTH",
+        competitor_key="a7",
+        registration_id=registration_id,
+        tournament_id=tournament,
+        declared_weight_kg="74.50",
+        modality="GI",
+        representation="CLUB",
+        classification=body,
     )
     record_b("§9.f.sin_dob", True, {"blockers": body["blockers"]})
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_caso_g_sin_modalidad_bloquea(scenario: ClassificationScenario) -> None:
-    """§9(g): la inscripcion no declara modalidad y la categoria la restringe -> MISSING_MODALITY."""
+    """§9(g): la inscripcion no declara modalidad y la categoria la restringe ->
+    MISSING_MODALITY."""
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, created = await register(
-        scenario, tournament_id=tournament, competitor_key="c3", declared_weight_kg=Decimal("74.50"), modality=None
+        scenario,
+        tournament_id=tournament,
+        competitor_key="c3",
+        declared_weight_kg=Decimal("74.50"),
+        modality=None,
     )
     assert created["modality"] is None
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     assert body["compatible_categories"] == [] and recommended_key(body) is None
-    assert body["blockers"] == [MISSING_MODALITY, CATEGORY_INCOMPATIBLE, NO_COMPATIBLE_CATEGORY, CATEGORY_NOT_RESOLVED]
+    assert body["blockers"] == [
+        MISSING_MODALITY,
+        CATEGORY_INCOMPATIBLE,
+        NO_COMPATIBLE_CATEGORY,
+        CATEGORY_NOT_RESOLVED,
+    ]
     record_case(
-        case="g", label="sin modalidad -> MISSING_MODALITY", competitor_key="c3",
-        registration_id=registration_id, tournament_id=tournament, declared_weight_kg="74.50",
-        modality=None, representation="CLUB", classification=body,
+        case="g",
+        label="sin modalidad -> MISSING_MODALITY",
+        competitor_key="c3",
+        registration_id=registration_id,
+        tournament_id=tournament,
+        declared_weight_kg="74.50",
+        modality=None,
+        representation="CLUB",
+        classification=body,
     )
     record_b("§9.g.sin_modalidad", True, {"blockers": body["blockers"]})
 
 
-# ---------------------------------------------------------------- §9 caso (h): categoria asignada incompatible
+# ----------------------------------------------------- §9 caso (h): categoria asignada incompatible
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_caso_h_categoria_asignada_incompatible_bloquea(scenario: ClassificationScenario) -> None:
+async def test_caso_h_categoria_asignada_incompatible_bloquea(
+    scenario: ClassificationScenario,
+) -> None:
     """§9(h): una categoria **asignada** cuyas reglas no encajan -> CATEGORY_INCOMPATIBLE.
 
-    La recomendacion sigue siendo la unica compatible; la categoria fijada se senala como incompatible
+    La recomendacion sigue siendo la unica compatible; la categoria fijada se senala como
+    incompatible
     (no se "arregla" la inscripcion ni se elige otra por el cliente).
     """
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, _ = await register(
-        scenario, tournament_id=tournament, competitor_key="a6", declared_weight_kg=Decimal("100.00"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="a6",
+        declared_weight_kg=Decimal("100.00"),
+        modality="GI",
     )
 
-    # Estado de partida del caso: categoria asignada (por SQL; la asignacion por API es §7, otra unidad).
+    # Estado de partida del caso: categoria asignada (por SQL; la asignacion por API es §7, otra
+    # unidad).
     await set_registration_category_sql(
         registration_id, scenario.surface.key("cat-female-gi"), "cat-female-gi"
     )
 
-    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    body = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     heavy = scenario.surface.key("cat-male-gi-heavy")
     assert compatible_keys(body) == [heavy]
@@ -439,11 +549,21 @@ async def test_caso_h_categoria_asignada_incompatible_bloquea(scenario: Classifi
     assert body["warnings"] == []
 
     record_case(
-        case="h", label="categoria asignada incompatible -> CATEGORY_INCOMPATIBLE", competitor_key="a6",
-        registration_id=registration_id, tournament_id=tournament, declared_weight_kg="100.00",
-        modality="GI", representation="CLUB", classification=body,
+        case="h",
+        label="categoria asignada incompatible -> CATEGORY_INCOMPATIBLE",
+        competitor_key="a6",
+        registration_id=registration_id,
+        tournament_id=tournament,
+        declared_weight_kg="100.00",
+        modality="GI",
+        representation="CLUB",
+        classification=body,
     )
-    record_b("§9.h.incompatible", True, {"assigned": scenario.surface.key("cat-female-gi"), "blockers": body["blockers"]})
+    record_b(
+        "§9.h.incompatible",
+        True,
+        {"assigned": scenario.surface.key("cat-female-gi"), "blockers": body["blockers"]},
+    )
 
 
 # ---------------------------------------------------------------- §9 solo lectura
@@ -451,19 +571,28 @@ async def test_caso_h_categoria_asignada_incompatible_bloquea(scenario: Classifi
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_lectura_de_clasificacion_no_escribe(scenario: ClassificationScenario) -> None:
-    """§9: la lectura de clasificacion no reserva idempotencia, no audita y no mueve la inscripcion."""
+    """§9: la lectura de clasificacion no reserva idempotencia, no audita y no mueve la
+    inscripcion."""
     dataset = scenario.dataset
     tournament = int(scenario.surface.tournament)
     registration_id, _ = await register(
-        scenario, tournament_id=tournament, competitor_key="a4", declared_weight_kg=Decimal("74.50"), modality="GI"
+        scenario,
+        tournament_id=tournament,
+        competitor_key="a4",
+        declared_weight_kg=Decimal("74.50"),
+        modality="GI",
     )
 
     keys_before = await count_idempotency_keys(dataset.club)
     audit_before = await count_audit_rows(dataset.club)
     row_before = await registration_row(registration_id)
 
-    first = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
-    second = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    first = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
+    second = await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
 
     assert first == second
     assert await count_idempotency_keys(dataset.club) == keys_before

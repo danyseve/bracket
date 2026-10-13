@@ -25,12 +25,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from bracket.database import database
-
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     E2EDataset,
     call,
@@ -208,7 +206,7 @@ async def readiness_http(*, tournament_id: int, token: str) -> dict[str, Any]:
     """Lectura de readiness del cuadro (200 o falla la prueba)."""
     status_code, body = await call("GET", readiness_url(tournament_id), token=token)
     assert status_code == 200, body
-    return body
+    return cast("dict[str, Any]", body)
 
 
 def issue_codes(readiness: dict[str, Any]) -> list[str]:
@@ -220,7 +218,7 @@ def category_group(readiness: dict[str, Any], category_key: str | None) -> dict[
     """Grupo de categoria del readiness por su clave (``None`` = sin clasificar)."""
     for category in readiness["categories"]:
         if category["category_key"] == category_key:
-            return category
+            return cast("dict[str, Any]", category)
     return None
 
 
@@ -260,14 +258,19 @@ def _as_dict(record: Any) -> dict[str, Any]:
 
 
 async def latest_category_change_event(registration_id: int) -> dict[str, Any] | None:
-    """Ultimo evento ``CATEGORY_CHANGE`` de la inscripcion (campos reales de ``domain_change_log``)."""
-    record = await database.fetch_one(query=_SELECT_CATEGORY_CHANGE, values={"rid": registration_id})
+    """Ultimo evento ``CATEGORY_CHANGE`` de la inscripcion (campos reales de
+    ``domain_change_log``)."""
+    record = await database.fetch_one(
+        query=_SELECT_CATEGORY_CHANGE, values={"rid": registration_id}
+    )
     return None if record is None else _as_dict(record)
 
 
 async def count_category_change_events(registration_id: int) -> int:
     """Cuantos eventos ``CATEGORY_CHANGE`` tiene la inscripcion (para probar el replay)."""
-    return int(await database.fetch_val(query=_COUNT_CATEGORY_CHANGE, values={"rid": registration_id}))
+    return int(
+        await database.fetch_val(query=_COUNT_CATEGORY_CHANGE, values={"rid": registration_id})
+    )
 
 
 async def actor_relation(user_id: int, club_id: int) -> str | None:
@@ -293,7 +296,9 @@ EVIDENCE_C1: dict[str, Any] = {
 
 def record_validation(name: str, passed: bool, detail: dict[str, Any] | None = None) -> None:
     """Anota el resultado de una validacion del trozo C1."""
-    EVIDENCE_C1["validations"].append({"name": name, "passed": bool(passed), "detail": detail or {}})
+    EVIDENCE_C1["validations"].append(
+        {"name": name, "passed": bool(passed), "detail": detail or {}}
+    )
 
 
 def record_correction(

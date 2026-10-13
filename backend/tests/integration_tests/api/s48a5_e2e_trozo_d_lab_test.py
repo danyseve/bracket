@@ -4,7 +4,8 @@ r"""E2E realista de S4.8a-5 (TROZO D, §17-§21): privacidad, idempotencia, audi
 de categoria legacy y contrato OpenAPI, por el API HTTP real.
 
 Pruebas **negras** sobre el escenario del TROZO A (24 competidores, 3 academias, 5 categorias
-estructuradas + 1 legacy), las superficies del TROZO B y el torneo de cuadros del TROZO C2, contra la
+estructuradas + 1 legacy), las superficies del TROZO B y el torneo de cuadros del TROZO C2, contra
+la
 base de laboratorio ``bracket_ci``. No hay mocks del motor, del protocolo de idempotencia, del RBAC
 ni de la puerta de escritura: se ejercitan las rutas reales y se lee lo que el backend escribe
 (``domain_change_log``, ``domain_idempotency_keys``, ``competitors_x_sports_clubs``,
@@ -23,14 +24,19 @@ Que fija este modulo y por que:
   **replay** de la misma clave + mismo cuerpo (efecto sin duplicar: mismas entidades, misma
   ``revision``/``updated_at``, un solo evento de auditoria, una sola fila de clave) y **409**
   ``IDEMPOTENCY_KEY_REUSED`` con la misma clave y cuerpo distinto. Se cuentan filas antes/despues.
-* §19 AUDITORIA: los eventos **reales** de ``domain_change_log`` de esta fase — ``AFFILIATION_CHANGE``,
+* §19 AUDITORIA: los eventos **reales** de ``domain_change_log`` de esta fase —
+  ``AFFILIATION_CHANGE``,
   ``CLUB_LOGO_CHANGE``, ``CATEGORY_CHANGE`` y ``GENERATE_BRACKET`` (codigos tomados de
-  ``bracket/logic/audit_reasons.py``, no inventados) — con actor, tenant y motivo; y que una tanda de
+  ``bracket/logic/audit_reasons.py``, no inventados) — con actor, tenant y motivo; y que una tanda
+  de
   ``GET`` **no** audita (mismo numero de eventos antes/despues).
-* §20 LEGACY: una categoria **sin reglas** no rompe la clasificacion/readiness/generacion: solo aporta
-  compatibilidad **adicional** con el aviso ``CATEGORY_RULES_PARTIAL``, separada del caso principal de
+* §20 LEGACY: una categoria **sin reglas** no rompe la clasificacion/readiness/generacion: solo
+  aporta
+  compatibilidad **adicional** con el aviso ``CATEGORY_RULES_PARTIAL``, separada del caso principal
+  de
   categoria estructurada (que no lleva ese aviso).
-* §21 OPENAPI: el esquema generado en proceso coincide byte a byte con ``backend/openapi/openapi.json``
+* §21 OPENAPI: el esquema generado en proceso coincide byte a byte con
+  ``backend/openapi/openapi.json``
   (sin deriva), los endpoints de a-3/a-4a y del E2E estan presentes con las schemas del contrato del
   organizador, y el cliente/types del frontend contiene las mismas fichas.
 
@@ -54,7 +60,6 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
-from bracket.app import app
 from bracket.config import config
 from bracket.logic.scheduling.public_schedule import (
     PUBLIC_MATCH_KEYS,
@@ -75,8 +80,8 @@ from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
 )
 from tests.integration_tests.api.s48a5_e2e_trozo_b_support import (
     create_registration_http,
-    representation_of,
     registrations_url,
+    representation_of,
 )
 from tests.integration_tests.api.s48a5_e2e_trozo_c1_support import (
     assign_category_http,
@@ -108,7 +113,6 @@ from tests.integration_tests.api.s48a5_e2e_trozo_d_support import (
     public_schedule_tournament,
     public_schedule_url,
     record_d,
-    sports_club_row,
     write_evidence_d,
 )
 
@@ -121,11 +125,12 @@ IDEMPOTENCY_REUSED = "IDEMPOTENCY_KEY_REUSED"
 CATEGORY_RULES_PARTIAL = "CATEGORY_RULES_PARTIAL"
 
 #: Comando canonico de regeneracion del contrato (mismo que ``tests/unit_tests/openapi_test.py``:
-#: el import de ``openapi`` aplica el monkeypatch de pydantic que marca todos los campos requeridos).
+#: el import de ``openapi`` aplica el monkeypatch de pydantic que marca todos los campos
+#: requeridos).
 _OPENAPI_DUMP = (
     "import json;"
     "from bracket.app import app;"
-    "from openapi import openapi;"  # noqa: F401 - efecto: parchea GenerateJsonSchema
+    "from openapi import openapi;"
     "print(json.dumps(app.openapi(), indent=2, sort_keys=True))"
 )
 AFFILIATION_CHANGE = "AFFILIATION_CHANGE"
@@ -139,7 +144,8 @@ def e2e_write_gate() -> Iterator[None]:
     """Escritura F3 y secreto de idempotencia habilitados durante todo el modulo.
 
     Perfil, afiliaciones, inscripcion, categoria, override y generacion estan detras de la puerta de
-    escritura y del protocolo de idempotencia. No se depende del entorno de CI: el modulo lo fija y lo
+    escritura y del protocolo de idempotencia. No se depende del entorno de CI: el modulo lo fija y
+    lo
     restaura (mismo patron que los trozos A/B/C).
     """
     previous = {
@@ -159,8 +165,8 @@ def e2e_write_gate() -> Iterator[None]:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="module")
 async def scenario(
-    startup_and_shutdown_uvicorn_server: None,  # noqa: F811 - fixture autouse del conftest de api
-    e2e_write_gate: None,  # noqa: F811 - fixture de modulo definida arriba
+    startup_and_shutdown_uvicorn_server: None,
+    e2e_write_gate: None,
 ) -> AsyncIterator[C2Scenario]:
     """Escenario A + superficies + torneo de cuadros; al cerrar vuelca la evidencia de §25."""
     async with trozo_c2_scenario() as scenario_:
@@ -178,7 +184,9 @@ def _compat_keys(body: dict[str, Any]) -> set[str]:
 
 
 def _verdict(body: dict[str, Any], category_key: str) -> dict[str, Any]:
-    return next(item for item in body["compatible_categories"] if item["category_key"] == category_key)
+    return next(
+        item for item in body["compatible_categories"] if item["category_key"] == category_key
+    )
 
 
 def _warnings(verdict: dict[str, Any]) -> list[str]:
@@ -209,7 +217,9 @@ async def _assert_conflict(
 async def _dedicated_registration(
     scenario: C2Scenario, competitor_key: str, weight: str, modality: str = "GI"
 ) -> int:
-    """Crea y CONFIRMA una inscripcion propia de un competidor libre, para aislar el test de categoria."""
+    """Crea y CONFIRMA una inscripcion propia de un competidor libre, para aislar el test de cate
+    goria.
+    """
     dataset = scenario.dataset
     body = await create_registration_http(
         tournament_id=int(dataset.tournament),
@@ -222,7 +232,9 @@ async def _dedicated_registration(
         modality=modality,
     )
     await confirm_registration_http(
-        tournament_id=int(dataset.tournament), registration_id=int(body["id"]), token=dataset.owner_token
+        tournament_id=int(dataset.tournament),
+        registration_id=int(body["id"]),
+        token=dataset.owner_token,
     )
     return int(body["id"])
 
@@ -258,7 +270,9 @@ def _record_write(
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_17a_organizador_expone_perfil_deportivo_y_peso(scenario: C2Scenario) -> None:
-    """La proyeccion del ORGANIZADOR si lleva ``date_of_birth``/``sex``/``belt_id`` y el peso declarado."""
+    """La proyeccion del ORGANIZADOR si lleva ``date_of_birth``/``sex``/``belt_id`` y el peso dec
+    larado.
+    """
     dataset = scenario.dataset
     registration = await create_registration_http(
         tournament_id=int(dataset.tournament),
@@ -273,7 +287,9 @@ async def test_17a_organizador_expone_perfil_deportivo_y_peso(scenario: C2Scenar
     REGISTRY["reg_organizer"] = int(registration["id"])
 
     status_c, competitor_body = await call(
-        "GET", competitor_url(dataset.club, int(dataset.competitors["a4"])), token=dataset.owner_token
+        "GET",
+        competitor_url(dataset.club, int(dataset.competitors["a4"])),
+        token=dataset.owner_token,
     )
     assert status_c == 200, competitor_body
     assert competitor_body["date_of_birth"] == "1995-07-21", competitor_body
@@ -365,12 +381,18 @@ async def test_17c_catalogo_publico_sin_campos_de_organizador(scenario: C2Scenar
     for club in sports_clubs:
         assert set(club) <= {"id", "name", "logo_path", "active"}, set(club)
 
-    status_b, belts = await call("GET", f"{_root()}clubs/{dataset.club}/belts", token=dataset.owner_token)
+    status_b, belts = await call(
+        "GET", f"{_root()}clubs/{dataset.club}/belts", token=dataset.owner_token
+    )
     assert status_b == 200, belts
     serialized = json.dumps(belts)
     for forbidden in ("date_of_birth", "declared_weight_kg", "email"):
         assert forbidden not in serialized
-    record_d("17_catalogo_publico_sin_organizador", True, {"sports_clubs_fields": sorted(sports_clubs[0])})
+    record_d(
+        "17_catalogo_publico_sin_organizador",
+        True,
+        {"sports_clubs_fields": sorted(sports_clubs[0])},
+    )
 
 
 def _root() -> str:
@@ -381,7 +403,9 @@ def _root() -> str:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_17d_contrato_frontend_whitelist_publica(scenario: C2Scenario) -> None:
-    """El contrato de frontend separa la ficha **publica** (lista blanca) del contrato de organizador."""
+    """El contrato de frontend separa la ficha **publica** (lista blanca) del contrato de organiz
+    ador.
+    """
     root = Path("/home/ubuntu/work/bracket-f2c/frontend/src/components/utils")
     privacy = (root / "f3_privacy.ts").read_text(encoding="utf-8")
     competitor_contract = (root / "f3_competitor_contract.ts").read_text(encoding="utf-8")
@@ -454,7 +478,9 @@ async def test_18a_perfil_replay_y_conflicto(scenario: C2Scenario) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_18b_afiliacion_alta_replay_y_conflicto(scenario: C2Scenario) -> None:
-    """Afiliacion (alta): replay y 409; efecto medido por filas de ``competitors_x_sports_clubs``."""
+    """Afiliacion (alta): replay y 409; efecto medido por filas de ``competitors_x_sports_clubs``
+    .
+    """
     dataset = scenario.dataset
     competitor = int(dataset.competitors["i1"])
     club_a = int(dataset.clubs["A"])
@@ -475,7 +501,9 @@ async def test_18b_afiliacion_alta_replay_y_conflicto(scenario: C2Scenario) -> N
             payload=payload,
         )
 
-    _, body = await _assert_replay_same_body(post, key=key, payload={"sports_club_id": club_a}, expected=201)
+    _, body = await _assert_replay_same_body(
+        post, key=key, payload={"sports_club_id": club_a}, expected=201
+    )
     await _assert_conflict(post, key=key, other_payload={"sports_club_id": club_b}, expected=201)
     REGISTRY["affiliation_i1"] = int(body["id"])
 
@@ -493,7 +521,10 @@ async def test_18b_afiliacion_alta_replay_y_conflicto(scenario: C2Scenario) -> N
         replay_same_body=True,
         conflict_409=True,
         keys_delta=1,
-        effect={"filas_afiliacion_delta": rows_after - rows_before, "auditoria_delta": audit_after - audit_before},
+        effect={
+            "filas_afiliacion_delta": rows_after - rows_before,
+            "auditoria_delta": audit_after - audit_before,
+        },
     )
 
 
@@ -502,7 +533,8 @@ async def test_18c_afiliacion_primaria_replay(scenario: C2Scenario) -> None:
     """Afiliacion (marcar primaria): replay sin duplicar; sin cuerpo no hay 'cuerpo distinto'."""
     dataset = scenario.dataset
     competitor = int(dataset.competitors["i1"])
-    # i1 ya tiene una afiliacion (18b). Se crea una SEGUNDA (no primaria) y se promueve esa: promover
+    # i1 ya tiene una afiliacion (18b). Se crea una SEGUNDA (no primaria) y se promueve esa:
+    # promover
     # la ya-primaria seria un no-op sin evento de auditoria.
     _, second = await call(
         "POST",
@@ -710,8 +742,11 @@ async def test_18g_asignacion_categoria_replay_y_conflicto(scenario: C2Scenario)
         replay_same_body=True,
         conflict_409=True,
         keys_delta=1,
-        effect={"revision_estable": int(revision), "auditoria_categoria_delta": audit_after - audit_before,
-                "categoria": chosen},
+        effect={
+            "revision_estable": int(revision),
+            "auditoria_categoria_delta": audit_after - audit_before,
+            "categoria": chosen,
+        },
     )
 
 
@@ -723,7 +758,10 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
     registration_id = int(REGISTRY["reg_assign"])
     key = fresh_key()
     audit_before = await count_audit_events(
-        dataset.club, entity="tournament_registration", action="UPDATE", reason_code="DATA_CORRECTION"
+        dataset.club,
+        entity="tournament_registration",
+        action="UPDATE",
+        reason_code="DATA_CORRECTION",
     )
 
     async def post(k: str, payload: dict[str, Any] | None) -> tuple[int, Any]:
@@ -751,7 +789,10 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
     assert reread_body["category_key"] == p1["category_key"], reread_body
 
     audit_after = await count_audit_events(
-        dataset.club, entity="tournament_registration", action="UPDATE", reason_code="DATA_CORRECTION"
+        dataset.club,
+        entity="tournament_registration",
+        action="UPDATE",
+        reason_code="DATA_CORRECTION",
     )
     assert audit_after == audit_before + 1
     _record_write(
@@ -761,7 +802,10 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
         replay_same_body=True,
         conflict_409=True,
         keys_delta=1,
-        effect={"auditoria_override_delta": audit_after - audit_before, "categoria_forzada": p1["category_key"]},
+        effect={
+            "auditoria_override_delta": audit_after - audit_before,
+            "categoria_forzada": p1["category_key"],
+        },
     )
 
 
@@ -769,7 +813,8 @@ async def test_18h_override_replay_y_conflicto(scenario: C2Scenario) -> None:
 async def test_18i_logo_academia_idempotencia_por_valor_y_hallazgo(scenario: C2Scenario) -> None:
     """Logo de academia: la ruta NO usa el protocolo de clave; su idempotencia es **por valor**.
 
-    Hallazgo (no se corrige en silencio): ``POST .../sports-clubs/{id}/logo`` no declara la dependencia
+    Hallazgo (no se corrige en silencio): ``POST .../sports-clubs/{id}/logo`` no declara la
+    dependencia
     del protocolo de idempotencia (no consume ``Idempotency-Key``), luego subir el **mismo** fichero
     dos veces crea un segundo fichero y un segundo evento ``CLUB_LOGO_CHANGE`` (no hay replay real).
     Lo que si garantiza el dominio es la idempotencia **por valor**: quitar el logo cuando ya no hay
@@ -851,7 +896,9 @@ async def test_18i_logo_academia_idempotencia_por_valor_y_hallazgo(scenario: C2S
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_19a_eventos_de_auditoria_reales_con_actor_tenant_y_motivo(scenario: C2Scenario) -> None:
+async def test_19a_eventos_de_auditoria_reales_con_actor_tenant_y_motivo(
+    scenario: C2Scenario,
+) -> None:
     """Los cambios de §18 dejan eventos reales con actor, tenant y motivo."""
     dataset = scenario.dataset
     club = dataset.club
@@ -894,12 +941,16 @@ async def test_19a_eventos_de_auditoria_reales_con_actor_tenant_y_motivo(scenari
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_19b_generar_cuadro_audita_evento_real(scenario: C2Scenario) -> None:
-    """Generar el cuadro (flujo principal) deja un evento ``GENERATE_BRACKET`` con actor y motivo."""
+    """Generar el cuadro (flujo principal) deja un evento ``GENERATE_BRACKET`` con actor y motivo
+    .
+    """
     dataset = scenario.dataset
     bracket = scenario.bracket
     tournament = int(bracket.tournament)
 
-    async def register_and_confirm(key: str, declared: tuple[Decimal, str], category_key: str | None) -> None:
+    async def register_and_confirm(
+        key: str, declared: tuple[Decimal, str], category_key: str | None
+    ) -> None:
         rep = representation_of(dataset, key)
         body = await create_registration_http(
             tournament_id=tournament,
@@ -964,11 +1015,17 @@ async def test_19c_las_lecturas_no_auditan(scenario: C2Scenario) -> None:
     audit_before = await count_audit_events(dataset.club)
     keys_before = await count_idempotency_keys(dataset.club)
 
-    await call("GET", competitor_url(dataset.club, int(dataset.competitors["a1"])), token=dataset.owner_token)
+    await call(
+        "GET",
+        competitor_url(dataset.club, int(dataset.competitors["a1"])),
+        token=dataset.owner_token,
+    )
     await get_registration_http(
         tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
     )
-    await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+    await classify_http(
+        tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token
+    )
     await readiness_http(tournament_id=tournament, token=dataset.owner_token)
     await call("GET", f"{_root()}clubs/{dataset.club}/sports-clubs", token=dataset.owner_token)
     await call("GET", f"{_root()}clubs/{dataset.club}/belts", token=dataset.owner_token)
@@ -983,8 +1040,11 @@ async def test_19c_las_lecturas_no_auditan(scenario: C2Scenario) -> None:
         "claves_antes": keys_before,
         "claves_despues": keys_after,
     }
-    record_d("19_lecturas_no_auditan", audit_after == audit_before and keys_after == keys_before,
-             EVIDENCE_D["audit"]["reads_do_not_audit"])
+    record_d(
+        "19_lecturas_no_auditan",
+        audit_after == audit_before and keys_after == keys_before,
+        EVIDENCE_D["audit"]["reads_do_not_audit"],
+    )
 
 
 # ---------------------------------------------------------------- §20 LEGACY
@@ -997,7 +1057,8 @@ async def test_20_categoria_legacy_solo_aporta_compatibilidad_parcial(scenario: 
     En el torneo que **si** tiene la categoria legacy (torneo A), la clasificacion de un competidor
     valido devuelve la categoria estructurada **y** la legacy; la legacy lleva el aviso
     ``CATEGORY_RULES_PARTIAL`` y la estructurada no. En la superficie limpia (sin legacy) el mismo
-    competidor solo clasifica en la estructurada, sin ese aviso: el caso legacy queda **separado** del
+    competidor solo clasifica en la estructurada, sin ese aviso: el caso legacy queda **separado**
+    del
     principal. Se comprueba ademas que la readiness sigue respondiendo (no rompe el flujo).
     """
     dataset = scenario.dataset
@@ -1024,9 +1085,12 @@ async def test_20_categoria_legacy_solo_aporta_compatibilidad_parcial(scenario: 
     assert structured in keys, keys
     assert legacy in keys, keys
     assert CATEGORY_RULES_PARTIAL in _warnings(_verdict(classification, legacy)), classification
-    assert CATEGORY_RULES_PARTIAL not in _warnings(_verdict(classification, structured)), classification
+    assert CATEGORY_RULES_PARTIAL not in _warnings(_verdict(classification, structured)), (
+        classification
+    )
 
-    # Solo aporta compatibilidad adicional: la legacy se puede asignar (no rompe) y la readiness responde.
+    # Solo aporta compatibilidad adicional: la legacy se puede asignar (no rompe) y la readiness
+    # responde.
     status_assign, assigned = await assign_category_http(
         tournament_id=int(dataset.tournament),
         registration_id=int(reg_legacy_tournament["id"]),
@@ -1034,7 +1098,9 @@ async def test_20_categoria_legacy_solo_aporta_compatibilidad_parcial(scenario: 
         category_key=legacy,
     )
     assert status_assign == 200, assigned
-    readiness = await readiness_http(tournament_id=int(dataset.tournament), token=dataset.owner_token)
+    readiness = await readiness_http(
+        tournament_id=int(dataset.tournament), token=dataset.owner_token
+    )
     assert isinstance(readiness.get("ready"), bool), readiness
 
     # Caso principal (sin legacy): el mismo competidor no recibe el aviso parcial.
@@ -1058,9 +1124,7 @@ async def test_20_categoria_legacy_solo_aporta_compatibilidad_parcial(scenario: 
         clean_names[item["category_key"]] for item in clean_classification["compatible_categories"]
     )
     all_clean_warnings = [
-        w
-        for item in clean_classification["compatible_categories"]
-        for w in _warnings(item)
+        w for item in clean_classification["compatible_categories"] for w in _warnings(item)
     ]
     assert clean_compatible == ["cat-male-gi-light"], clean_compatible
     assert CATEGORY_RULES_PARTIAL not in all_clean_warnings, all_clean_warnings
@@ -1085,7 +1149,9 @@ async def test_20_categoria_legacy_solo_aporta_compatibilidad_parcial(scenario: 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_21a_openapi_sin_deriva_y_endpoints_presentes(scenario: C2Scenario) -> None:
-    """El esquema generado coincide con ``backend/openapi/openapi.json`` y cubre los endpoints F3."""
+    """El esquema generado coincide con ``backend/openapi/openapi.json`` y cubre los endpoints F3
+    .
+    """
     # Regeneracion con el comando real del repo (importando ``openapi`` para aplicar el monkeypatch
     # pydantic de campos requeridos) en un PROCESO LIMPIO, y comparacion con el fichero versionado.
     proc = subprocess.run(
@@ -1138,7 +1204,9 @@ async def test_21a_openapi_sin_deriva_y_endpoints_presentes(scenario: C2Scenario
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_21b_cliente_frontend_corresponde_al_contrato(scenario: C2Scenario) -> None:
-    """El cliente/types generados del frontend contienen las mismas fichas que el backend de HEAD."""
+    """El cliente/types generados del frontend contienen las mismas fichas que el backend de HEAD
+    .
+    """
     root = Path("/home/ubuntu/work/bracket-f2c/frontend/src/openapi")
     types = (root / "types.gen.ts").read_text(encoding="utf-8")
     sdk = (root / "sdk.gen.ts").read_text(encoding="utf-8")
@@ -1155,7 +1223,11 @@ async def test_21b_cliente_frontend_corresponde_al_contrato(scenario: C2Scenario
         assert operation in sdk, operation
 
     EVIDENCE_D["openapi"]["cliente_frontend"] = {
-        "types_contienen": ["CompetitorResponse", "RegistrationResponse", "TournamentScheduleResponse"],
+        "types_contienen": [
+            "CompetitorResponse",
+            "RegistrationResponse",
+            "TournamentScheduleResponse",
+        ],
         "sdk_operaciones": [
             "getPublicTournamentScheduleEndpointPublicTournamentsTournamentIdScheduleGet",
         ],

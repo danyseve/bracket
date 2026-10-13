@@ -13,14 +13,16 @@ Que fija este modulo:
 
 * §13 HISTORICO DE CLUB: un competidor **afiliado a la academia A** se inscribe representando a su
   academia (con su snapshot) y se confirma; despues **cambia de academia a B** por los endpoints
-  reales de afiliacion (alta + ``primary``); la inscripcion historica sigue mostrando **Club A** y su
+  reales de afiliacion (alta + ``primary``); la inscripcion historica sigue mostrando **Club A** y
+  su
   snapshot original, y la inscripcion congelada del escenario A tampoco se reescribe;
 * §14 READINESS: con la ventana **abierta** y por debajo del minimo de entrants,
   ``ready=false`` con los **blockers reales por categoria** (no un booleano a secas); al cerrar la
   ventana y resolver las clasificaciones (asignar la sin-resolver y alcanzar el minimo) pasa a
   ``ready=true``;
 * §15 GENERATE BRACKET: cerrar la ventana; intentar generar cuando readiness **no** lo permite y
-  validar el rechazo real (``409 BRACKET_NOT_READY`` con sus bloqueos); generar cuando ``ready=true``
+  validar el rechazo real (``409 BRACKET_NOT_READY`` con sus bloqueos); generar cuando
+  ``ready=true``
   y validar, **por grupo**, ``category_key``/``entrant_count``/``bracket_size``, que no se mezclan
   categorias distintas, que los **independientes** entran bien, que representar un club **no**
   influye en la clasificacion deportiva, que la representacion historica de cada entrant se preserva
@@ -28,7 +30,8 @@ Que fija este modulo:
   auditoria).
 
 El escenario es de modulo y **los casos se ejecutan en orden de definicion**: §13 y la comparacion
-club/independiente son independientes, pero §14 y §15 comparten el torneo de cuadros y avanzan juntos
+club/independiente son independientes, pero §14 y §15 comparten el torneo de cuadros y avanzan
+juntos
 (antes -> rechazo -> despues -> generacion).
 
 §25: al cerrar el modulo se vuelca la evidencia en ``/home/ubuntu/s48a5-evidence/trozo-c2.json``.
@@ -93,9 +96,7 @@ from tests.integration_tests.api.s48a5_e2e_trozo_c2_support import (
 )
 
 REGISTRATION_WINDOW_OPEN = str(BracketReadinessBlocker.REGISTRATION_WINDOW_OPEN.value)
-CATEGORY_NOT_ENOUGH_COMPETITORS = str(
-    BracketReadinessBlocker.CATEGORY_NOT_ENOUGH_COMPETITORS.value
-)
+CATEGORY_NOT_ENOUGH_COMPETITORS = str(BracketReadinessBlocker.CATEGORY_NOT_ENOUGH_COMPETITORS.value)
 CATEGORY_NOT_RESOLVED = str(BracketReadinessBlocker.CATEGORY_NOT_RESOLVED.value)
 
 #: Estado mutable compartido entre los casos ordenados de §14/§15: ids de inscripcion por competidor
@@ -108,7 +109,8 @@ def e2e_write_gate() -> Iterator[None]:
     """Escritura F3 y secreto de idempotencia habilitados durante todo el modulo.
 
     La inscripcion, la confirmacion, las afiliaciones, la asignacion de categoria y la generacion
-    estan detras de la puerta de escritura y del protocolo de idempotencia. No se depende del entorno
+    estan detras de la puerta de escritura y del protocolo de idempotencia. No se depende del
+    entorno
     de CI: el modulo lo fija y lo restaura.
     """
     previous = {
@@ -128,8 +130,8 @@ def e2e_write_gate() -> Iterator[None]:
 
 @pytest_asyncio.fixture(loop_scope="session", scope="module")
 async def scenario(
-    startup_and_shutdown_uvicorn_server: None,  # noqa: F811 - fixture autouse del conftest de api
-    e2e_write_gate: None,  # noqa: F811 - fixture de modulo definida arriba
+    startup_and_shutdown_uvicorn_server: None,
+    e2e_write_gate: None,
 ) -> AsyncIterator[C2Scenario]:
     """Escenario A + superficies + torneo de cuadros; al cerrar vuelca §25."""
     async with trozo_c2_scenario() as scenario_:
@@ -245,7 +247,8 @@ async def test_13_historico_de_club_conserva_club_y_snapshot_al_cambiar_de_acade
 
     frozen_before = await registration_row(int(dataset.frozen_registration))
 
-    # (3) El competidor cambia de academia a B por los endpoints reales: alta + promocion a primaria.
+    # (3) El competidor cambia de academia a B por los endpoints reales: alta + promocion a
+    # primaria.
     new_affiliation = await assign_affiliation_http(
         dataset.club, competitor, int(dataset.clubs["B"]), token=dataset.owner_token
     )
@@ -382,7 +385,8 @@ async def test_15_el_club_no_influye_en_la_clasificacion_deportiva(scenario: C2S
 async def test_14_readiness_no_listo_expone_blockers_reales_por_categoria(
     scenario: C2Scenario,
 ) -> None:
-    """Sin resolver las clasificaciones y por debajo del minimo: ``ready=false`` con los blockers."""
+    """Sin resolver las clasificaciones y por debajo del minimo: ``ready=false`` con los
+    blockers."""
     bracket = scenario.bracket
     dataset = scenario.dataset
 
@@ -443,12 +447,16 @@ async def test_14_readiness_no_listo_expone_blockers_reales_por_categoria(
         not readiness["ready"] and REGISTRATION_WINDOW_OPEN in codes,
         {
             "codes": codes,
-            "light": {"confirmed": light["confirmed_count"],
-                       "required": light["required_minimum"],
-                       "issues": _group_codes(light)},
-            "heavy": {"confirmed": heavy["confirmed_count"],
-                      "required": heavy["required_minimum"],
-                      "issues": _group_codes(heavy)},
+            "light": {
+                "confirmed": light["confirmed_count"],
+                "required": light["required_minimum"],
+                "issues": _group_codes(light),
+            },
+            "heavy": {
+                "confirmed": heavy["confirmed_count"],
+                "required": heavy["required_minimum"],
+                "issues": _group_codes(heavy),
+            },
             "unresolved": _group_codes(unresolved),
         },
     )
@@ -614,11 +622,11 @@ async def test_15_generacion_por_grupo_y_cuadro_congelado(scenario: C2Scenario) 
     independent_name = next(
         name for name in bracket.entrants if independent_key in bracket.entrants[name]
     )
+    assert bracket.teams[independent_key] in seen_team_sets[ordered_names.index(independent_name)]
     assert (
-        bracket.teams[independent_key]
-        in seen_team_sets[ordered_names.index(independent_name)]
+        await team_name(bracket.teams[independent_key])
+        == f"{dataset.name_prefix}-team-{independent_key}"
     )
-    assert await team_name(bracket.teams[independent_key]) == f"{dataset.name_prefix}-team-{independent_key}"
 
     # La representacion historica de cada entrant se preserva tras generar.
     after = {

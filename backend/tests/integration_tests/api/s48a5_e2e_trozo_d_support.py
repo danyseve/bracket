@@ -62,8 +62,12 @@ PRIVACY_MATRIX: Final[tuple[dict[str, Any], ...]] = (
         "field": "sex",
         "public": False,
         "organizer": True,
-        "organizer_source": "backend/bracket/models/db/competitor_api.py:114 (CompetitorResponse.sex)",
-        "public_source": "backend/bracket/logic/scheduling/public_schedule.py:34 (PUBLIC_MATCH_KEYS)",
+        "organizer_source": (
+            "backend/bracket/models/db/competitor_api.py:114 (CompetitorResponse.sex)"
+        ),
+        "public_source": (
+            "backend/bracket/logic/scheduling/public_schedule.py:34 (PUBLIC_MATCH_KEYS)"
+        ),
     },
     {
         "field": "belt_id",
@@ -72,7 +76,9 @@ PRIVACY_MATRIX: Final[tuple[dict[str, Any], ...]] = (
         "organizer_source": (
             "backend/bracket/models/db/competitor_api.py:115 (CompetitorResponse.belt_id)"
         ),
-        "public_source": "backend/bracket/logic/scheduling/public_schedule.py:34 (PUBLIC_MATCH_KEYS)",
+        "public_source": (
+            "backend/bracket/logic/scheduling/public_schedule.py:34 (PUBLIC_MATCH_KEYS)"
+        ),
     },
     {
         "field": "declared_weight_kg",
@@ -105,7 +111,7 @@ EVIDENCE_D: dict[str, Any] = {
 }
 
 
-def record_d(name: str, passed: bool, detail: dict[str, Any] | None = None) -> None:
+def record_d(name: str, passed: bool, detail: dict[str, Any] | list[Any] | None = None) -> None:
     """Anota el resultado de una validacion del trozo D para el resumen de §25."""
     EVIDENCE_D["validations"].append({"name": name, "passed": bool(passed), "detail": detail or {}})
 
@@ -127,7 +133,7 @@ def public_schedule_url(tournament_id: int) -> str:
     return f"{get_root_uvicorn_url()}public/tournaments/{tournament_id}/schedule"
 
 
-# ---------------------------------------------------------------- SQL (lecturas de auditoria/claves)
+# --------------------------------------------------------------- SQL (lecturas de auditoria/claves)
 
 _SELECT_AUDIT = """
     SELECT id, entity, entity_id, action, changed_fields, actor_user_id, actor_label,
@@ -202,22 +208,15 @@ async def count_audit_events(tenant_club_id: int, **filters: Any) -> int:
 
 async def count_idempotency_keys(tenant_club_id: int) -> int:
     """Claves de idempotencia reservadas por el tenant."""
-    rows = await database.fetch_all(
-        query=_SELECT_IDEMPOTENCY, values={"club": tenant_club_id}
-    )
+    rows = await database.fetch_all(query=_SELECT_IDEMPOTENCY, values={"club": tenant_club_id})
     return len(rows)
 
 
 async def idempotency_rows_for_key(tenant_club_id: int, key: str) -> list[dict[str, Any]]:
-    """Filas de idempotencia del tenant con esa clave (deberia haber exactamente una por reserva)."""
-    rows = await database.fetch_all(
-        query=_SELECT_IDEMPOTENCY, values={"club": tenant_club_id}
-    )
-    return [
-        _row_to_dict(row)
-        for row in rows
-        if str(row["idempotency_key"]) == key
-    ]
+    """Filas de idempotencia del tenant con esa clave (deberia haber exactamente una por
+    reserva)."""
+    rows = await database.fetch_all(query=_SELECT_IDEMPOTENCY, values={"club": tenant_club_id})
+    return [_row_to_dict(row) for row in rows if str(row["idempotency_key"]) == key]
 
 
 async def count_registrations(tournament_id: int) -> int:
@@ -230,7 +229,8 @@ async def count_registrations(tournament_id: int) -> int:
 
 
 async def count_affiliations(competitor_id: int, *, open_only: bool = False) -> int:
-    """Afiliaciones del competidor (todas o solo las vigentes): efecto de alta/cierre/independencia."""
+    """Afiliaciones del competidor (todas o solo las vigentes): efecto de
+    alta/cierre/independencia."""
     query = _SELECT_OPEN_AFFILIATION_COUNT if open_only else _SELECT_AFFILIATION_COUNT
     return int(await database.fetch_val(query=query, values={"competitor": competitor_id}))
 
@@ -395,7 +395,11 @@ async def public_schedule_tournament(
         court_id = int(
             await database.fetch_val(
                 query=_INSERT_PUBLIC_COURT,
-                values={"name": f"{dataset.name_prefix}-public-court", "created": CREATED, "t": tournament_id},
+                values={
+                    "name": f"{dataset.name_prefix}-public-court",
+                    "created": CREATED,
+                    "t": tournament_id,
+                },
             )
         )
 
