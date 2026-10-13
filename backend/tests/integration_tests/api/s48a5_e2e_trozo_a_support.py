@@ -55,6 +55,7 @@ from tests.integration_tests.api.competitor_http_support import (
     call,
     competitor_lab_context,
 )
+from tests.integration_tests.api.s48a5_e2e_paths import evidence_path
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
 # Los bytes de imagen validos ya viven (y se prueban) en el contrato del logo de a-3: se reutilizan.
@@ -73,7 +74,7 @@ CREATED: Final = datetime_utc(2026, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
 #: Fecha de inicio del torneo: la edad de clasificacion se calcula contra ella, no contra el reloj.
 START_TIME: Final = datetime_utc(2026, 10, 13, 9, 0, 0, tzinfo=ZoneInfo("UTC"))
 #: Resumen congelable de §25 (lo escribe el fixture de modulo al cerrar).
-EVIDENCE_PATH: Final = Path("/home/ubuntu/s48a5-evidence/trozo-a.json")
+EVIDENCE_PATH: Final = evidence_path("trozo-a.json")
 #: Prefijo de los nombres del escenario dentro del tenant (permite contar sin ruido).
 NAME_PREFIX: Final = "e2e"
 

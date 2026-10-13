@@ -36,6 +36,7 @@ from bracket.config import config  # noqa: F401  (reexportado: el modulo de prue
 from bracket.database import database
 from bracket.logic.scheduling.generation import MINIMUM_ENTRANTS
 from bracket.utils.id_types import RankingId, StageId, TournamentId
+from tests.integration_tests.api.s48a5_e2e_paths import evidence_path
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     CATEGORY_SPECS,
     CREATED,
@@ -63,7 +64,7 @@ from tests.integration_tests.api.s48a5_e2e_trozo_c1_support import (
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
 #: Resumen congelable de §25 para este trozo.
-EVIDENCE_C2_PATH: Final = Path("/home/ubuntu/s48a5-evidence/trozo-c2.json")
+EVIDENCE_C2_PATH: Final = evidence_path("trozo-c2.json")
 
 #: Competidor del caso historico de §13 (afiliado a la academia A) y academia destino del cambio.
 HISTORICAL_COMPETITOR: Final = "a2"

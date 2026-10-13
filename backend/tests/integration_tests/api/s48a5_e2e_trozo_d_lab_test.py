@@ -24,7 +24,8 @@ El escenario es de modulo y **los casos se ejecutan en orden de definicion**: §
 cambios que §19 audita, por eso los tres tramos viven en este mismo modulo. §20 y §21 (legacy y
 contrato OpenAPI) son independientes y viven en ``s48a5_e2e_trozo_d2_lab_test.py``.
 
-§25: al cerrar el modulo se vuelca la evidencia en ``/home/ubuntu/s48a5-evidence/trozo-d.json``.
+§25: al cerrar el modulo se vuelca la evidencia en ``EVIDENCE_D_PATH`` (directorio
+temporal del sistema, o el que fije ``S48A5_EVIDENCE_DIR``).
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ import json
 from collections.abc import AsyncIterator, Iterator
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -45,6 +45,7 @@ from bracket.logic.scheduling.public_schedule import (
     assert_public_payload_is_safe,
 )
 from tests.integration_tests.api.generate_bracket_http_support import SYNTHETIC_SECRET
+from tests.integration_tests.api.s48a5_e2e_paths import REPO_ROOT
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     PNG_BYTES,
     affiliation_action_url,
@@ -291,7 +292,7 @@ async def test_17d_contrato_frontend_whitelist_publica(scenario: C2Scenario) -> 
     """El contrato de frontend separa la ficha **publica** (lista blanca) del contrato de organiz
     ador.
     """
-    root = Path("/home/ubuntu/work/bracket-f2c/frontend/src/components/utils")
+    root = REPO_ROOT / "frontend" / "src" / "components" / "utils"
     privacy = (root / "f3_privacy.ts").read_text(encoding="utf-8")
     competitor_contract = (root / "f3_competitor_contract.ts").read_text(encoding="utf-8")
 

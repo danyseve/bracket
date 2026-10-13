@@ -41,6 +41,7 @@ from uuid import uuid4
 from bracket.database import database
 from bracket.logic.classification.vocabulary import ClassificationBlocker, ClassificationWarning
 from bracket.utils.id_types import RankingId, StageId, TournamentId
+from tests.integration_tests.api.s48a5_e2e_paths import evidence_path
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     CATEGORY_SPECS,
     CREATED,
@@ -53,7 +54,7 @@ from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
 #: Resumen congelable de §25 para este trozo.
-EVIDENCE_B_PATH: Final = Path("/home/ubuntu/s48a5-evidence/trozo-b.json")
+EVIDENCE_B_PATH: Final = evidence_path("trozo-b.json")
 
 
 def blocker(code: ClassificationBlocker) -> str:

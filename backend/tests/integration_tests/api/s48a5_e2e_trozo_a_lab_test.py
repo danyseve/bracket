@@ -22,7 +22,7 @@ legacy;
       edad / rango de peso / modalidad) y una **legacy** sin reglas.
 
 §25: al cerrar el modulo se vuelca un resumen con los ids reales y el resultado de cada validacion
-en ``/home/ubuntu/s48a5-evidence/trozo-a.json``.
+en ``EVIDENCE_PATH`` (directorio temporal del sistema, o ``S48A5_EVIDENCE_DIR``).
 """
 
 from __future__ import annotations

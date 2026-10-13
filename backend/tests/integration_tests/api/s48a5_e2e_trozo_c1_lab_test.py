@@ -22,7 +22,8 @@ Que fija este modulo:
   motivo -> 400), validando el evento ``CATEGORY_CHANGE`` de la auditoria con actor, motivo y la
   categoria anterior/recomendada/elegida, y que **no existe camino silencioso** a una incompatible.
 
-§25: al cerrar el modulo se vuelca la evidencia en ``/home/ubuntu/s48a5-evidence/trozo-c1.json``.
+§25: al cerrar el modulo se vuelca la evidencia en ``EVIDENCE_C1_PATH`` (directorio temporal
+del sistema, o ``S48A5_EVIDENCE_DIR``).
 """
 
 from __future__ import annotations

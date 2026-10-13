@@ -34,7 +34,8 @@ club/independiente son independientes, pero §14 y §15 comparten el torneo de c
 juntos
 (antes -> rechazo -> despues -> generacion).
 
-§25: al cerrar el modulo se vuelca la evidencia en ``/home/ubuntu/s48a5-evidence/trozo-c2.json``.
+§25: al cerrar el modulo se vuelca la evidencia en ``EVIDENCE_C2_PATH`` (directorio temporal
+del sistema, o ``S48A5_EVIDENCE_DIR``).
 """
 
 from __future__ import annotations

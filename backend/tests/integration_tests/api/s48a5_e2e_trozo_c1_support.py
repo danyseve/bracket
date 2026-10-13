@@ -12,7 +12,8 @@ el escenario del TROZO A (``e2e_dataset_context``) y la **superficie de clasific
   de categoria (§11/§12), relectura de la inscripcion (§11) y readiness del cuadro (§11/§12);
 * lectura de la auditoria de categoria (``domain_change_log``, evento ``CATEGORY_CHANGE``) y de la
   relacion del actor, para validar el override OWNER (§12);
-* el volcado de evidencia §25 en ``/home/ubuntu/s48a5-evidence/trozo-c1.json``.
+* el volcado de evidencia §25 en ``EVIDENCE_C1_PATH`` (directorio temporal del sistema,
+  o el que fije ``S48A5_EVIDENCE_DIR``).
 
 Nada aqui reimplementa el motor de clasificacion, las reglas deportivas ni el RBAC: solo ejerce el
 contrato real por HTTP y lee lo que el backend escribe.
@@ -29,6 +30,7 @@ from pathlib import Path
 from typing import Any, Final, cast
 
 from bracket.database import database
+from tests.integration_tests.api.s48a5_e2e_paths import evidence_path
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     E2EDataset,
     call,
@@ -43,7 +45,7 @@ from tests.integration_tests.api.s48a5_e2e_trozo_b_support import (
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
 #: Salida de evidencia §25 del trozo C1.
-EVIDENCE_C1_PATH: Final = Path("/home/ubuntu/s48a5-evidence/trozo-c1.json")
+EVIDENCE_C1_PATH: Final = evidence_path("trozo-c1.json")
 
 #: Entidad real de una inscripcion en la auditoria de dominio.
 _REGISTRATION_ENTITY: Final = "tournament_registration"

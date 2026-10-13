@@ -20,7 +20,8 @@ Que fija este modulo:
 * la **no seleccion arbitraria** (con varias compatibles nunca se recomienda una) y que la **lectura
   no escribe**: ni reserva claves de idempotencia, ni audita, ni mueve la inscripcion.
 
-§25: al cerrar el modulo se vuelca el resumen en ``/home/ubuntu/s48a5-evidence/trozo-b.json``.
+§25: al cerrar el modulo se vuelca el resumen en ``EVIDENCE_B_PATH`` (directorio temporal del
+sistema, o ``S48A5_EVIDENCE_DIR``).
 """
 
 from __future__ import annotations

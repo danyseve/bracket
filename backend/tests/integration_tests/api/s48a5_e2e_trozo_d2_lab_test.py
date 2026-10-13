@@ -13,7 +13,7 @@ dos tramos **independientes** del trozo: no dependen de las escrituras de §17/�
   las mismas fichas.
 
 El escenario es de modulo (``trozo_c2_scenario``) y §25 vuelca la evidencia compartida en
-``/home/ubuntu/s48a5-evidence/trozo-d.json``.
+``EVIDENCE_D_PATH`` (directorio temporal del sistema, o ``S48A5_EVIDENCE_DIR``).
 """
 
 from __future__ import annotations
@@ -23,13 +23,13 @@ import subprocess
 import sys
 from collections.abc import AsyncIterator, Iterator
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
 from bracket.config import config
 from tests.integration_tests.api.generate_bracket_http_support import SYNTHETIC_SECRET
+from tests.integration_tests.api.s48a5_e2e_paths import BACKEND_ROOT, REPO_ROOT
 from tests.integration_tests.api.s48a5_e2e_trozo_b_support import (
     create_registration_http,
     representation_of,
@@ -215,7 +215,7 @@ async def test_21a_openapi_sin_deriva_y_endpoints_presentes(scenario: C2Scenario
         [sys.executable, "-c", _OPENAPI_DUMP], capture_output=True, text=True, check=False
     )
     assert proc.returncode == 0, proc.stderr
-    on_disk = Path("openapi/openapi.json").read_text(encoding="utf-8")
+    on_disk = (BACKEND_ROOT / "openapi" / "openapi.json").read_text(encoding="utf-8")
     regenerated = proc.stdout.strip()
     drift = on_disk.strip() != regenerated
     assert not drift, "DERIVA REAL: openapi/openapi.json no coincide con la regeneracion del repo"
@@ -264,7 +264,7 @@ async def test_21b_cliente_frontend_corresponde_al_contrato(scenario: C2Scenario
     """El cliente/types generados del frontend contienen las mismas fichas que el backend de HEAD
     .
     """
-    root = Path("/home/ubuntu/work/bracket-f2c/frontend/src/openapi")
+    root = REPO_ROOT / "frontend" / "src" / "openapi"
     types = (root / "types.gen.ts").read_text(encoding="utf-8")
     sdk = (root / "sdk.gen.ts").read_text(encoding="utf-8")
 

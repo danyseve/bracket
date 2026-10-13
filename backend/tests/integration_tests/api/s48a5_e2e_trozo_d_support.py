@@ -30,6 +30,7 @@ from typing import Any, Final
 from uuid import uuid4
 
 from bracket.database import database
+from tests.integration_tests.api.s48a5_e2e_paths import evidence_path
 from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
     CREATED,
     START_TIME,
@@ -38,7 +39,7 @@ from tests.integration_tests.api.s48a5_e2e_trozo_a_support import (
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
 #: Ruta de la evidencia congelable de §25 para este trozo.
-EVIDENCE_D_PATH: Final = Path("/home/ubuntu/s48a5-evidence/trozo-d.json")
+EVIDENCE_D_PATH: Final = evidence_path("trozo-d.json")
 
 #: Matriz de privacidad: cada campo sensible, si viaja (``True``) o no (``False``) en la proyeccion
 #: **publica** y en la del **organizador**, y el ``archivo:linea`` real que lo garantiza. Las lineas
