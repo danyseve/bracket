@@ -59,6 +59,8 @@ def row(  # un constructor por palabra clave, sin posicionales
     affiliation_competitor_id: int | None = None,
     affiliation_sports_club_id: int | None = None,
     superseded: bool = False,
+    classification_blockers: tuple[BracketReadinessBlocker, ...] = (),
+    overridden: bool = False,
 ) -> RegistrationReadinessRow:
     """Fila del torneo con los valores por defecto de una confirmacion valida e independiente."""
     return RegistrationReadinessRow(
@@ -83,6 +85,8 @@ def row(  # un constructor por palabra clave, sin posicionales
         affiliation_sports_club_id=(
             None if affiliation_sports_club_id is None else SportsClubId(affiliation_sports_club_id)
         ),
+           classification_blockers=classification_blockers,
+        overridden=overridden,
     )
 
 
@@ -469,3 +473,110 @@ def test_the_global_list_is_the_complete_view_in_canonical_order() -> None:
     by_key = {category.category_key: category for category in result.categories}
     assert by_key["nogi-absoluto"].ready is False
     assert by_key["gi-peso-83"].ready is False
+
+
+# --- S4.8a-3 §9: clasificacion integrada en el readiness ----------------------------------------
+
+
+def test_the_readiness_vocabulary_appends_the_engine_codes_without_reordering() -> None:
+    """Los nueve codigos del motor se anaden **al final**: el orden de los existentes no cambia."""
+    codes_in_order = [blocker.value for blocker in BracketReadinessBlocker]
+
+    assert codes_in_order[:7] == [
+        "REGISTRATION_WINDOW_OPEN",
+        "REGISTRATIONS_PENDING",
+        "CATEGORY_NOT_ENOUGH_COMPETITORS",
+        "COMPETITOR_INACTIVE",
+        "INVALID_CATEGORY",
+        "REGISTRATION_INCONSISTENT",
+        "BRACKET_ALREADY_EXISTS",
+    ]
+    assert codes_in_order[7:] == [
+        "MISSING_DATE_OF_BIRTH",
+        "MISSING_SEX",
+        "MISSING_BELT",
+        "MISSING_WEIGHT",
+        "MISSING_MODALITY",
+        "NO_COMPATIBLE_CATEGORY",
+        "CATEGORY_NOT_RESOLVED",
+        "CATEGORY_INCOMPATIBLE",
+        "INVALID_CATEGORY_BELT_RANGE",
+    ]
+
+
+def test_a_classification_blocker_does_not_count_toward_the_minimum() -> None:
+    """Una confirmada cuya clasificacion no resuelve no es un participante del cuadro."""
+    rows = [
+        row(1, classification_blockers=(BracketReadinessBlocker.CATEGORY_NOT_RESOLVED,)),
+        row(2, competitor_id=101, classification_blockers=(BracketReadinessBlocker.CATEGORY_NOT_RESOLVED,)),
+    ]
+
+    result = review(rows, window="CLOSED")
+
+    assert result.ready is False
+    assert codes(result.issues) == [
+        BracketReadinessBlocker.CATEGORY_NOT_ENOUGH_COMPETITORS.value,
+        BracketReadinessBlocker.CATEGORY_NOT_RESOLVED.value,
+    ]
+    [category] = result.categories
+    assert category.confirmed_count == 0
+    assert category.required_minimum == MINIMUM
+
+
+def test_a_classifiable_pair_reaches_the_minimum() -> None:
+    result = review([row(1), row(2, competitor_id=101)], window="CLOSED")
+
+    assert result.ready is True
+    assert result.categories[0].confirmed_count == 2
+
+
+def test_an_owner_override_makes_an_incompatible_row_count() -> None:
+    """Un override OWNER valido y auditado legitima el bloqueo: la fila vuelve a contar."""
+    rows = [
+        row(
+            1,
+            classification_blockers=(BracketReadinessBlocker.CATEGORY_INCOMPATIBLE,),
+            overridden=True,
+        ),
+        row(
+            2,
+            competitor_id=101,
+            classification_blockers=(BracketReadinessBlocker.CATEGORY_INCOMPATIBLE,),
+            overridden=True,
+        ),
+    ]
+
+    result = review(rows, window="CLOSED")
+
+    assert result.ready is True
+    assert BracketReadinessBlocker.CATEGORY_INCOMPATIBLE.value not in codes(result.issues)
+    assert result.categories[0].confirmed_count == 2
+
+
+def test_a_missing_datum_blocks_the_count_with_its_own_code() -> None:
+    """Sin peso declarado la categoria con restriccion de peso no admite la inscripcion."""
+    rows = [
+        row(1, classification_blockers=(BracketReadinessBlocker.MISSING_WEIGHT,)),
+        row(2, competitor_id=101, classification_blockers=(BracketReadinessBlocker.MISSING_WEIGHT,)),
+    ]
+
+    result = review(rows, window="CLOSED")
+
+    assert BracketReadinessBlocker.MISSING_WEIGHT.value in codes(result.issues)
+    assert BracketReadinessBlocker.CATEGORY_NOT_ENOUGH_COMPETITORS.value in codes(result.issues)
+
+
+def test_the_window_minimum_and_frozen_bracket_still_decide() -> None:
+    """§9 no cambia la ventana, el minimo ni el cuadro congelado."""
+    rows = [row(1), row(2, competitor_id=101)]
+
+    assert codes(review(rows, window="OPEN").issues) == [
+        BracketReadinessBlocker.REGISTRATION_WINDOW_OPEN.value
+    ]
+    assert codes(review([row(1)], window="CLOSED").issues) == [
+        BracketReadinessBlocker.CATEGORY_NOT_ENOUGH_COMPETITORS.value
+    ]
+    frozen = [bracket(5, blocker=BracketGenerationBlocker.SCORES)]
+    assert codes(review(rows, window="CLOSED", brackets=frozen).issues) == [
+        BracketReadinessBlocker.BRACKET_ALREADY_EXISTS.value
+    ]

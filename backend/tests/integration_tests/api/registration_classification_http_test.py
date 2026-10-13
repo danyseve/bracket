@@ -720,3 +720,86 @@ async def test_a_registration_of_another_tournament_is_not_found(lab: CategoryLa
 
     assert status_code == 404, body
     assert body == NOT_FOUND
+
+
+# --- §9: clasificacion integrada en el readiness -------------------------------------------------
+
+
+def _readiness_url(lab: CategoryLab) -> str:
+    return f"tournaments/{lab.tournament}/bracket-readiness"
+
+
+async def _readiness(lab: CategoryLab) -> dict[str, Any]:
+    status_code, body = await _call_json(
+        HTTPMethod.GET, _readiness_url(lab), token=lab.owner_token
+    )
+    assert status_code == 200, body
+    return body
+
+
+def _blocking_codes(body: dict[str, Any]) -> set[str]:
+    return {issue["code"] for issue in body["blocking_issues"]}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_readiness_reports_a_category_that_does_not_resolve(lab: CategoryLab) -> None:
+    """Sin categoria elegida la clasificacion no resuelve: el readiness lo dice y no cuenta."""
+    await _clear_category(lab)
+
+    body = await _readiness(lab)
+
+    assert "CATEGORY_NOT_RESOLVED" in _blocking_codes(body)
+    [uncategorized] = [item for item in body["categories"] if item["category_key"] is None]
+    assert uncategorized["confirmed_count"] == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_readiness_does_not_block_a_classifiable_registration(lab: CategoryLab) -> None:
+    """Con la categoria resuelta y compatible ningun codigo del motor aparece como bloqueo."""
+    body = await _readiness(lab)
+
+    assert not (_blocking_codes(body) & ENGINE_BLOCKERS)
+    [category] = [item for item in body["categories"] if item["category_key"] == lab.key("solo")]
+    assert category["confirmed_count"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_readiness_does_not_count_an_incompatible_category_without_override(
+    lab: CategoryLab,
+) -> None:
+    """La categoria elegida deja de admitir la inscripcion: el bloqueo aparece y no se cuenta."""
+    await database.execute(
+        query="UPDATE stage_items SET weight_min_kg = 10, weight_max_kg = 20 WHERE id = :id",
+        values={"id": lab.categories["solo"]},
+    )
+
+    body = await _readiness(lab)
+
+    assert "CATEGORY_INCOMPATIBLE" in _blocking_codes(body)
+    [category] = [item for item in body["categories"] if item["category_key"] == lab.key("solo")]
+    assert category["confirmed_count"] == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_readiness_counts_an_owner_override_of_an_incompatible_category(
+    lab: CategoryLab,
+) -> None:
+    """Un override OWNER valido y auditado legitima el bloqueo: la fila vuelve a contar."""
+    await _add_incompatible_sex_category(lab)
+
+    status_code, body = await _assign(
+        lab,
+        body={
+            "category_key": lab.key("otra"),
+            "override": True,
+            "reason_code": "CATEGORY_CHANGE",
+        },
+    )
+    assert status_code == 200, body
+
+    readiness = await _readiness(lab)
+    assert "CATEGORY_INCOMPATIBLE" not in _blocking_codes(readiness)
+    [category] = [
+        item for item in readiness["categories"] if item["category_key"] == lab.key("otra")
+    ]
+    assert category["confirmed_count"] == 1
