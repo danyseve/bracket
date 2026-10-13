@@ -123,6 +123,7 @@ _DELETE_COMPETITORS = "DELETE FROM competitors WHERE id = ANY(:ids)"
 _DELETE_STAGE_ITEMS = "DELETE FROM stage_items WHERE id = ANY(:ids)"
 _DELETE_RANKINGS = "DELETE FROM rankings WHERE id = ANY(:ids)"
 _DELETE_STAGES = "DELETE FROM stages WHERE id = ANY(:ids)"
+_DELETE_AUDIT = "DELETE FROM domain_change_log WHERE tenant_club_id = :club"
 
 #: Codigos que publica el motor (§6) y que el readiness (§9) reutiliza.
 ENGINE_BLOCKERS: Final = {blocker.value for blocker in ClassificationBlocker}
@@ -310,6 +311,8 @@ async def _lab_context() -> AsyncIterator[CategoryLab]:
             )
             await database.execute(query=_DELETE_RANKINGS, values={"ids": [lab.ranking]})
             await database.execute(query=_DELETE_STAGES, values={"ids": [lab.stage]})
+            # La auditoria del cambio de categoria referencia al club: se borra antes que el club.
+            await database.execute(query=_DELETE_AUDIT, values={"club": lab.tenant})
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")

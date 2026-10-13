@@ -48,6 +48,8 @@ from bracket.logic.bracket_readiness import (
     ReadinessIssue,
     evaluate_bracket_readiness,
 )
+from bracket.logic.classification.engine import classify_input
+from bracket.logic.classification.rules import CategoryVerdict, RegistrationClassification
 from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
 from bracket.logic.idempotency_protocol import OperationOutcome, ProtocolResult
 from bracket.logic.registration_core import RegistrationDomainError, TournamentNotFoundError
@@ -64,6 +66,7 @@ from bracket.logic.registrations import (
     InvalidRegistrationDataError,
     InvalidRegistrationStateError,
     RegistrationNotFoundError,
+    assign_registration_category,
     confirm_registration,
     create_registration,
     disqualify_registration,
@@ -77,9 +80,12 @@ from bracket.models.db.registration_api import (
     BracketReadinessIssue,
     BracketReadinessResponse,
     BracketReadinessSummary,
+    ClassificationCategoryVerdict,
     GenerateBracketStageItemResponse,
     GenerateBracketTournamentBody,
     GenerateBracketTournamentResponse,
+    RegistrationCategoryBody,
+    RegistrationClassificationResponse,
     RegistrationCreateBody,
     RegistrationFilterStatus,
     RegistrationLifecycleBody,
@@ -98,6 +104,7 @@ from bracket.sql.bracket_readiness import (
     get_existing_single_elimination_brackets,
     get_registration_readiness_rows,
 )
+from bracket.sql.classification import get_registration_classification_input
 from bracket.sql.domain_reads import (
     count_tournament_registrations,
     get_registration,
@@ -544,6 +551,103 @@ async def get_registration_endpoint(
     ademas tiene que estar en el torneo de la ruta.
     """
     registration = await _load_registration_in_tournament(context, tournament_id, registration_id)
+    return RegistrationResponse.from_registration(registration)
+
+
+# --- clasificacion de la inscripcion (S4.8a-3 §6/§7/§8) -----------------------------------------
+
+
+def _classification_verdict(verdict: CategoryVerdict) -> ClassificationCategoryVerdict:
+    """Proyeccion publica del veredicto del motor: clave, etiqueta, compatibilidad y motivos."""
+    return ClassificationCategoryVerdict(
+        category_key=verdict.category_key,
+        category_label=verdict.category_label,
+        compatible=verdict.compatible,
+        blockers=list(verdict.blockers),
+        warnings=list(verdict.warnings),
+    )
+
+
+def _classification_response(
+    assessment: RegistrationClassification,
+) -> RegistrationClassificationResponse:
+    """Contrato de §6: compatibles, recomendada (solo con una unica), bloqueos y avisos."""
+    recommended = assessment.result.recommended_category
+    return RegistrationClassificationResponse(
+        compatible_categories=[
+            _classification_verdict(verdict) for verdict in assessment.result.compatible_categories
+        ],
+        recommended_category=None if recommended is None else _classification_verdict(recommended),
+        blockers=list(assessment.blockers),
+        warnings=list(assessment.warnings),
+    )
+
+
+@router.get(
+    "/tournaments/{tournament_id}/registrations/{registration_id}/classification",
+    response_model=RegistrationClassificationResponse,
+)
+async def get_registration_classification_endpoint(
+    tournament_id: TournamentId,
+    registration_id: TournamentRegistrationId,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationClassificationResponse:
+    """Clasificacion de una inscripcion contra las categorias de su torneo (§6, solo lectura).
+
+    Reutiliza **exactamente** el motor ya validado de a-2 (``bracket/logic/classification``) y su
+    cargador SQL: no reimplementa reglas. No escribe, no audita, no reserva idempotencia y no exige
+    ``Idempotency-Key``. La inscripcion se acota al torneo de la ruta y al tenant del contexto: un
+    torneo o una inscripcion de otro tenant responden el mismo 404 que uno inexistente.
+    """
+    await _load_registration_in_tournament(context, tournament_id, registration_id)
+    data = await get_registration_classification_input(
+        registration_id, tenant_club_id=context.tenant_club_id
+    )
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND_DETAIL)
+    return _classification_response(classify_input(data))
+
+
+@router.post(
+    "/tournaments/{tournament_id}/registrations/{registration_id}/category",
+    dependencies=[Depends(require_f3_write_enabled)],
+    response_model=RegistrationResponse,
+)
+async def assign_registration_category_endpoint(
+    tournament_id: TournamentId,
+    registration_id: TournamentRegistrationId,
+    body: RegistrationCategoryBody,
+    request: Request,
+    context: ActorContext = Depends(actor_context_for_tournament),
+) -> RegistrationResponse:
+    """Asigna la categoria de una inscripcion vigente (§7) y audita el cambio (§8).
+
+    Escritura F3 con ``Idempotency-Key``. Sin ``category_key`` usa la **recomendada**, que solo
+    existe cuando hay **exactamente una** categoria compatible; con varias se rechaza sin elegir por
+    el cliente. ``override=true`` permite fijar una categoria no compatible, es **OWNER-only**
+    (COLLABORATOR ``403``, anonimo ``401``) y exige motivo; el RBAC general del resto de operaciones
+    no cambia.
+    """
+    await _load_registration_in_tournament(context, tournament_id, registration_id)
+
+    async def operation() -> OperationOutcome:
+        registration = await assign_registration_category(
+            context,
+            registration_id,
+            category_key=body.category_key,
+            override=body.override,
+            reason_code=body.reason_code,
+            reason_note=body.reason_note,
+        )
+        return _outcome(status.HTTP_200_OK, registration)
+
+    registration = await _execute(
+        context=context,
+        request=request,
+        operation=operation,
+        expected_status=status.HTTP_200_OK,
+        require_owner=body.override,
+    )
     return RegistrationResponse.from_registration(registration)
 
 

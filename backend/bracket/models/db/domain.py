@@ -253,6 +253,10 @@ class RegistrationDraftData(BaseModelORM):
       nunca el payload;
     * ``sports_club_name_snapshot``: se deriva de la academia elegida.
 
+    ``declared_weight_kg`` y ``modality`` (§4.8a-3 §5) son datos **de esta inscripcion**, no del
+    competidor: el peso se declara por torneo y la modalidad distingue dos inscripciones distintas
+    (GI y NO_GI). Ambos son opcionales (compatibilidad heredada) y se validan en la logica.
+
     ``competitor_name_snapshot`` solo aporta valor cuando no hay identidad verificada
     (``competitor_id`` NULL): el nombre de un competidor verificado se deriva de su
     identidad y no se acepta desde el payload.
@@ -266,3 +270,5 @@ class RegistrationDraftData(BaseModelORM):
     category_key: str | None
     category_label: str | None
     competitor_name_snapshot: str | None
+    declared_weight_kg: Decimal | None = None
+    modality: Modality | None = None

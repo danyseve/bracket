@@ -33,12 +33,14 @@ explicita para no acoplar la escritura a un simbolo privado de ``domain_reads``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from heliclockter import datetime_utc
 
 from bracket.database import database
 from bracket.models.db.domain import (
     Competitor,
+    Modality,
     RegistrationIdentityStatus,
     RegistrationRepresentation,
     RegistrationStatus,
@@ -60,7 +62,8 @@ _REGISTRATION_COLUMNS = """
         id, tournament_id, competitor_id, identity_status, representation,
         sports_club_id, affiliation_id, category_key, category_label,
         competitor_name_snapshot, sports_club_name_snapshot, status, revision,
-        corrects_registration_id, superseded_by_registration_id, created, updated_at
+        corrects_registration_id, superseded_by_registration_id, created, updated_at,
+        declared_weight_kg, modality
 """
 
 # Misma proyeccion con el alias de la tabla: las sentencias de UPDATE devuelven la
@@ -69,7 +72,8 @@ _REGISTRATION_COLUMNS_ALIASED = """
         tr.id, tr.tournament_id, tr.competitor_id, tr.identity_status, tr.representation,
         tr.sports_club_id, tr.affiliation_id, tr.category_key, tr.category_label,
         tr.competitor_name_snapshot, tr.sports_club_name_snapshot, tr.status, tr.revision,
-        tr.corrects_registration_id, tr.superseded_by_registration_id, tr.created, tr.updated_at
+        tr.corrects_registration_id, tr.superseded_by_registration_id, tr.created, tr.updated_at,
+        tr.declared_weight_kg, tr.modality
 """
 
 _SPORTS_CLUB_COLUMNS = "id, name, active, tenant_club_id, created, updated_at"
@@ -127,6 +131,8 @@ async def sql_insert_registration(
     sports_club_name_snapshot: str | None,
     verified_by_user_id: UserId | None,
     verified_at: datetime_utc | None,
+    declared_weight_kg: Decimal | None = None,
+    modality: Modality | None = None,
 ) -> TournamentRegistration:
     """Alta de una inscripcion en borrador (``DRAFT``, ``revision = 1``).
 
@@ -138,14 +144,16 @@ async def sql_insert_registration(
             tournament_id, competitor_id, identity_status, representation,
             sports_club_id, affiliation_id, category_key, category_label,
             competitor_name_snapshot, sports_club_name_snapshot,
-            status, revision, verified_by_user_id, verified_at, created
+            status, revision, verified_by_user_id, verified_at, created,
+            declared_weight_kg, modality
         ) VALUES (
             :tournament_id, :competitor_id,
             CAST(:identity_status AS registration_identity_status),
             CAST(:representation AS registration_representation),
             :sports_club_id, :affiliation_id, :category_key, :category_label,
             :competitor_name_snapshot, :sports_club_name_snapshot,
-            CAST('DRAFT' AS registration_status), 1, :verified_by_user_id, :verified_at, NOW()
+            CAST('DRAFT' AS registration_status), 1, :verified_by_user_id, :verified_at, NOW(),
+            :declared_weight_kg, :modality
         )
         RETURNING {_REGISTRATION_COLUMNS}
         """
@@ -164,6 +172,8 @@ async def sql_insert_registration(
             "sports_club_name_snapshot": sports_club_name_snapshot,
             "verified_by_user_id": verified_by_user_id,
             "verified_at": verified_at,
+            "declared_weight_kg": declared_weight_kg,
+            "modality": modality,
         },
     )
     return TournamentRegistration.model_validate(dict(assert_some(result)._mapping))
@@ -184,6 +194,8 @@ async def sql_update_registration_draft(
     sports_club_name_snapshot: str | None,
     verified_by_user_id: UserId | None,
     verified_at: datetime_utc | None,
+    declared_weight_kg: Decimal | None = None,
+    modality: Modality | None = None,
 ) -> TournamentRegistration | None:
     """Edita el borrador del tenant. ``None`` si no existe, es de otro tenant o ya no es ``DRAFT``.
 
@@ -203,6 +215,8 @@ async def sql_update_registration_draft(
             sports_club_name_snapshot = :sports_club_name_snapshot,
             verified_by_user_id = :verified_by_user_id,
             verified_at = :verified_at,
+            declared_weight_kg = :declared_weight_kg,
+            modality = :modality,
             updated_at = NOW()
         WHERE tr.id = :registration_id
             AND tr.status = CAST('DRAFT' AS registration_status)
@@ -225,6 +239,8 @@ async def sql_update_registration_draft(
             "sports_club_name_snapshot": sports_club_name_snapshot,
             "verified_by_user_id": verified_by_user_id,
             "verified_at": verified_at,
+            "declared_weight_kg": declared_weight_kg,
+            "modality": modality,
         },
     )
     return None if result is None else TournamentRegistration.model_validate(dict(result._mapping))
@@ -313,6 +329,42 @@ async def sql_update_registration_status(
             "registration_id": registration_id,
             "tenant_club_id": tenant_club_id,
             "to_status": to_status,
+        },
+    )
+    return None if result is None else TournamentRegistration.model_validate(dict(result._mapping))
+
+
+async def sql_set_registration_category(
+    *,
+    registration_id: TournamentRegistrationId,
+    tenant_club_id: ClubId,
+    category_key: str,
+    category_label: str,
+) -> TournamentRegistration | None:
+    """Fija la categoria de una inscripcion vigente del tenant (§7).
+
+    Solo ``DRAFT`` o ``CONFIRMED``: una inscripcion retirada o descalificada es terminal y no se
+    reclasifica. La sentencia decide en el ``WHERE`` y devuelve ``None`` si el estado ya no aplica,
+    de modo que una operacion repetida o simultanea afecta a cero filas. No toca la revision, los
+    snapshots ni el estado: solo la clave/etiqueta de categoria y ``updated_at``.
+    """
+    query = f"""
+        UPDATE tournament_registrations tr
+        SET category_key = :category_key,
+            category_label = :category_label,
+            updated_at = NOW()
+        WHERE tr.id = :registration_id
+            AND tr.status IN ('DRAFT', 'CONFIRMED')
+            AND {_REGISTRATION_IN_TENANT}
+        RETURNING {_REGISTRATION_COLUMNS_ALIASED}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={
+            "registration_id": registration_id,
+            "tenant_club_id": tenant_club_id,
+            "category_key": category_key,
+            "category_label": category_label,
         },
     )
     return None if result is None else TournamentRegistration.model_validate(dict(result._mapping))

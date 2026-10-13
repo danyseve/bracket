@@ -1013,7 +1013,7 @@ async def test_an_out_of_range_weight_is_rejected(lab: HttpLab, weight: float) -
     )
 
     assert status == 400, body
-    assert body == REQUEST_INVALID
+    assert body == {"detail": "Registration request is invalid"}
 
 
 @pytest.mark.asyncio(loop_scope="session")

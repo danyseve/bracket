@@ -88,7 +88,8 @@ _REGISTRATION_COLUMNS = """
     tr.id, tr.tournament_id, tr.competitor_id, tr.identity_status, tr.representation,
     tr.sports_club_id, tr.affiliation_id, tr.category_key, tr.category_label,
     tr.competitor_name_snapshot, tr.sports_club_name_snapshot, tr.status, tr.revision,
-    tr.corrects_registration_id, tr.superseded_by_registration_id, tr.created, tr.updated_at
+    tr.corrects_registration_id, tr.superseded_by_registration_id, tr.created, tr.updated_at,
+    tr.declared_weight_kg, tr.modality
 """
 
 _REGISTRATION_TENANT_JOIN = """

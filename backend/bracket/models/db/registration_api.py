@@ -20,13 +20,16 @@ hay campo de texto libre.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Literal
 
 from heliclockter import datetime_utc
 from pydantic import BaseModel, ConfigDict
 
 from bracket.logic.bracket_readiness import BracketReadinessBlocker
+from bracket.logic.classification.vocabulary import ClassificationBlocker, ClassificationWarning
 from bracket.models.db.domain import (
+    Modality,
     RegistrationDraftData,
     RegistrationIdentityStatus,
     RegistrationRepresentation,
@@ -72,6 +75,8 @@ class RegistrationCreateBody(RegistrationRequestModel):
     category_key: str | None = None
     category_label: str | None = None
     competitor_name_snapshot: str | None = None
+    declared_weight_kg: Decimal | None = None
+    modality: Modality | None = None
     reason_code: str | None = None
     reason_note: str | None = None
 
@@ -89,6 +94,8 @@ class RegistrationCreateBody(RegistrationRequestModel):
             category_key=self.category_key,
             category_label=self.category_label,
             competitor_name_snapshot=self.competitor_name_snapshot,
+            declared_weight_kg=self.declared_weight_kg,
+            modality=self.modality,
         )
 
 
@@ -124,6 +131,8 @@ class RegistrationResponse(BaseModel):
     sports_club_name_snapshot: str | None
     status: RegistrationStatus
     revision: int
+    declared_weight_kg: Decimal | None = None
+    modality: Modality | None = None
     created: datetime_utc
     updated_at: datetime_utc | None
 
@@ -143,6 +152,8 @@ class RegistrationResponse(BaseModel):
             sports_club_name_snapshot=registration.sports_club_name_snapshot,
             status=registration.status,
             revision=registration.revision,
+            declared_weight_kg=registration.declared_weight_kg,
+            modality=registration.modality,
             created=registration.created,
             updated_at=registration.updated_at,
         )
@@ -308,3 +319,44 @@ class BracketReadinessResponse(BaseModel):
     summary: BracketReadinessSummary
     categories: list[BracketReadinessCategory]
     blocking_issues: list[BracketReadinessIssue]
+
+
+class ClassificationCategoryVerdict(BaseModel):
+    """Una categoria del torneo juzgada para **una** inscripcion (§6).
+
+    Es la proyeccion publica del veredicto del motor: la clave y la etiqueta que el cliente ya ve en
+    la inscripcion, ``compatible`` y los motivos. Ni reglas internas ni filas de ``stage_items``.
+    """
+
+    category_key: str
+    category_label: str | None
+    compatible: bool
+    blockers: list[ClassificationBlocker]
+    warnings: list[ClassificationWarning]
+
+
+class RegistrationClassificationResponse(BaseModel):
+    """Clasificacion de una inscripcion contra las categorias de su torneo (§6, solo lectura).
+
+    El contrato son cuatro campos: las categorias compatibles, la recomendada (solo si es **unica**),
+    los bloqueos y los avisos. Ninguna categoria se elige sola con varias compatibles.
+    """
+
+    compatible_categories: list[ClassificationCategoryVerdict]
+    recommended_category: ClassificationCategoryVerdict | None
+    blockers: list[ClassificationBlocker]
+    warnings: list[ClassificationWarning]
+
+
+class RegistrationCategoryBody(RegistrationRequestModel):
+    """Cuerpo de la asignacion de categoria (§7/§8).
+
+    ``category_key`` es opcional: sin el, la operacion usa la **recomendada** (solo cuando hay
+    exactamente una compatible). ``override`` es una operacion **explicita** y OWNER-only: permite
+    fijar una categoria incompatible, pero entonces ``reason_code`` es obligatorio.
+    """
+
+    category_key: str | None = None
+    override: bool = False
+    reason_code: str | None = None
+    reason_note: str | None = None

@@ -90,6 +90,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 import asyncpg  # type: ignore[import-untyped]
 from heliclockter import datetime_utc
@@ -101,12 +102,14 @@ from bracket.logic.audit_reasons import (
     AuditReasonError,
     build_audit_reason,
 )
+from bracket.logic.classification.engine import check_chosen_category, classify_input
 from bracket.logic.competitors import InsufficientPrivilegesError, TenantNotAuthorizedError
 from bracket.logic.registration_core import RegistrationDomainError
 from bracket.logic.registration_core import authorize_tenant_actor as _authorize
 from bracket.logic.registration_window import assert_window_open, load_window_row
 from bracket.models.db.domain import (
     ActorContext,
+    Modality,
     RegistrationDraftData,
     RegistrationIdentityStatus,
     RegistrationRepresentation,
@@ -115,6 +118,7 @@ from bracket.models.db.domain import (
 )
 from bracket.models.db.user_x_club import UserXClubRelation
 from bracket.sql import registration_writes
+from bracket.sql.classification import get_registration_classification_input
 from bracket.sql.domain_reads import get_competitor_affiliations, get_registration
 from bracket.sql.domain_writes import sql_insert_domain_change_log
 from bracket.sql.users import get_user_relation_to_club
@@ -131,6 +135,14 @@ from bracket.utils.types import assert_some
 MAX_COMPETITOR_NAME_LENGTH = 200
 MAX_CATEGORY_KEY_LENGTH = 64
 MAX_CATEGORY_LABEL_LENGTH = 200
+
+# Peso declarado (§5): ``Decimal`` positivo y acotado. La cota superior frena un dedazo (3000 kg)
+# antes de que entre al cuadro; el limite real por categoria lo pone el motor de clasificacion.
+MAX_DECLARED_WEIGHT_KG = Decimal("300")
+
+# Modalidades admitidas: nunca la combinada. Una inscripcion es de UNA modalidad, y GI y NO_GI son
+# inscripciones distintas del mismo competidor.
+_ALLOWED_MODALITIES: frozenset[str] = frozenset({"GI", "NO_GI"})
 
 _REGISTRATION_ENTITY = "tournament_registration"
 
@@ -149,6 +161,8 @@ _CREATE_CHANGED_FIELDS: tuple[str, ...] = (
     "category_label",
     "competitor_name_snapshot",
     "status",
+    "declared_weight_kg",
+    "modality",
 )
 
 # Campos que una edicion de borrador puede cambiar y que se auditan por nombre.
@@ -162,6 +176,8 @@ _COMPARABLE_FIELDS: tuple[str, ...] = (
     "category_key",
     "category_label",
     "competitor_name_snapshot",
+    "declared_weight_kg",
+    "modality",
 )
 
 _DUPLICATE_INDEXES: frozenset[str] = frozenset(
@@ -215,6 +231,8 @@ class _ResolvedDraft:  # pylint: disable=too-many-instance-attributes
     competitor_name_snapshot: str
     verified_by_user_id: UserId | None
     verified_at: datetime_utc | None
+    declared_weight_kg: Decimal | None
+    modality: Modality | None
 
 
 def _normalize_text(value: object, *, field: str, max_length: int) -> str:
@@ -247,6 +265,39 @@ def _resolve_audit_reason(*, action: str, code: object, note: object) -> AuditRe
 def _is_duplicate_registration(exc: asyncpg.exceptions.UniqueViolationError) -> bool:
     """Solo se traducen los indices de unicidad de inscripciones; el resto se propaga."""
     return exc.as_dict().get("constraint_name") in _DUPLICATE_INDEXES
+
+
+def _resolve_weight(value: object) -> Decimal | None:
+    """Peso declarado (§5): ``Decimal`` mayor que 0 y como mucho 300, o ``None`` si no se declara.
+
+    El ``bool`` se rechaza explicitamente (es subclase de ``int`` y no es un peso). Un ``float`` se
+    convierte por su representacion decimal para no arrastrar ruido binario. El mensaje nombra el
+    campo, nunca el valor.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise InvalidRegistrationDataError("declared_weight_kg debe ser un numero decimal")
+    try:
+        weight = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError) as error:
+        raise InvalidRegistrationDataError("declared_weight_kg debe ser un numero decimal") from error
+    if not weight.is_finite() or weight <= 0 or weight > MAX_DECLARED_WEIGHT_KG:
+        raise InvalidRegistrationDataError(
+            "declared_weight_kg debe ser mayor que 0 y como mucho 300"
+        )
+    return weight
+
+
+def _resolve_modality(value: object) -> Modality | None:
+    """Modalidad de la inscripcion: ``GI`` o ``NO_GI`` (nunca la combinada), o ``None``."""
+    if value is None:
+        return None
+    if value == "GI":
+        return "GI"
+    if value == "NO_GI":
+        return "NO_GI"
+    raise InvalidRegistrationDataError("modality debe ser GI o NO_GI")
 
 
 def _resolve_category(data: RegistrationDraftData) -> tuple[str | None, str | None]:
@@ -410,6 +461,8 @@ async def _resolve_draft(
         competitor_name_snapshot=name_snapshot,
         verified_by_user_id=verified_by_user_id,
         verified_at=verified_at,
+        declared_weight_kg=_resolve_weight(data.declared_weight_kg),
+        modality=_resolve_modality(data.modality),
     )
 
 
@@ -458,6 +511,8 @@ async def create_registration(
                 sports_club_name_snapshot=draft.sports_club_name_snapshot,
                 verified_by_user_id=draft.verified_by_user_id,
                 verified_at=draft.verified_at,
+                declared_weight_kg=draft.declared_weight_kg,
+                modality=draft.modality,
             )
         except asyncpg.exceptions.UniqueViolationError as exc:
             if not _is_duplicate_registration(exc):
@@ -522,6 +577,8 @@ async def update_registration_draft(
                 sports_club_name_snapshot=draft.sports_club_name_snapshot,
                 verified_by_user_id=draft.verified_by_user_id,
                 verified_at=draft.verified_at,
+                declared_weight_kg=draft.declared_weight_kg,
+                modality=draft.modality,
             )
         except asyncpg.exceptions.UniqueViolationError as exc:
             if not _is_duplicate_registration(exc):
@@ -536,6 +593,112 @@ async def update_registration_draft(
             entity_id=updated.id,
             action="UPDATE",
             changed_fields=changed_fields,
+            actor_user_id=context.actor_user_id,
+            actor_label=context.actor_label,
+            reason=audit_reason.text,
+            reason_code=audit_reason.code,
+            reason_note=audit_reason.note,
+            tenant_club_id=context.tenant_club_id,
+        )
+    return updated
+
+
+async def assign_registration_category(
+    context: ActorContext,
+    registration_id: TournamentRegistrationId,
+    *,
+    category_key: str | None = None,
+    override: bool = False,
+    reason_code: str | None = None,
+    reason_note: str | None = None,
+) -> TournamentRegistration:
+    """Asigna la categoria de una inscripcion vigente (§7) y la audita como ``UPDATE`` (§8).
+
+    Dos caminos, y en ninguno se elige sola una categoria:
+
+    * **asignacion**: sin ``category_key`` se usa la **recomendada**, y solo existe cuando hay
+      **exactamente una** categoria compatible. Con varias compatibles la operacion se rechaza:
+      elegir por el usuario seria inventar una decision;
+    * **override**: ``override=True`` con ``reason_code`` **obligatorio** y relacion ``OWNER``.
+      Permite fijar una categoria que el motor no admite. La categoria elegida tiene que existir en
+      el torneo: una clave que no resuelve se rechaza siempre, con o sin override.
+
+    No cambia el RBAC del resto de operaciones: la asignacion normal la puede pedir ``OWNER`` o
+    ``COLLABORATOR``; el override solo ``OWNER``. Si la categoria no cambia no se escribe auditoria.
+    """
+    async with database.transaction():
+        await _authorize(context)
+        current = await get_registration(registration_id, tenant_club_id=context.tenant_club_id)
+        if current is None:
+            raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+        if current.status not in ("DRAFT", "CONFIRMED"):
+            raise InvalidRegistrationStateError(
+                "solo una inscripcion vigente (borrador o confirmada) se reclasifica"
+            )
+
+        data = await get_registration_classification_input(
+            registration_id, tenant_club_id=context.tenant_club_id
+        )
+        if data is None:
+            raise RegistrationNotFoundError("inscripcion no encontrada en este tenant")
+        assessment = classify_input(data)
+
+        if override and category_key is None:
+            raise InvalidRegistrationDataError(
+                "un override exige indicar la categoria elegida (category_key)"
+            )
+        if category_key is None:
+            recommended = assessment.result.recommended_category
+            if recommended is None:
+                raise InvalidRegistrationDataError(
+                    "no hay una unica categoria compatible: indica category_key explicitamente"
+                )
+            chosen_key, chosen_label = recommended.category_key, recommended.category_label
+            chosen_compatible = True
+        else:
+            chosen = check_chosen_category(category_key, assessment.result)
+            if not chosen.resolved or chosen.verdict is None:
+                raise InvalidRegistrationDataError("la categoria elegida no existe en este torneo")
+            chosen_key = chosen.verdict.category_key
+            chosen_label = chosen.verdict.category_label
+            chosen_compatible = chosen.compatible
+        if chosen_label is None:
+            raise InvalidRegistrationDataError("la categoria elegida no tiene etiqueta")
+
+        if not chosen_compatible and not override:
+            raise InvalidRegistrationDataError(
+                "la categoria elegida no es compatible: solo un override explicito puede fijarla"
+            )
+        if override:
+            relation = await _load_relation(context)
+            _require_relation(relation, require_owner=True)
+            if reason_code is None:
+                raise InvalidRegistrationDataError("un override exige un motivo (reason_code)")
+
+        # §8: un cambio de categoria se audita con el codigo cerrado CATEGORY_CHANGE; el
+        # override puede aportar otro codigo admitido por el catalogo para la accion UPDATE.
+        audit_reason = _resolve_audit_reason(
+            action="UPDATE",
+            code=reason_code if reason_code is not None else "CATEGORY_CHANGE",
+            note=reason_note,
+        )
+        if (current.category_key, current.category_label) == (chosen_key, chosen_label):
+            return current
+        updated = await registration_writes.sql_set_registration_category(
+            registration_id=registration_id,
+            tenant_club_id=context.tenant_club_id,
+            category_key=chosen_key,
+            category_label=chosen_label,
+        )
+        if updated is None:
+            raise InvalidRegistrationStateError(
+                "la inscripcion dejo de ser reclasificable durante la operacion"
+            )
+        await sql_insert_domain_change_log(
+            entity=_REGISTRATION_ENTITY,
+            entity_id=updated.id,
+            action="UPDATE",
+            changed_fields=["category_key", "category_label"],
             actor_user_id=context.actor_user_id,
             actor_label=context.actor_label,
             reason=audit_reason.text,
