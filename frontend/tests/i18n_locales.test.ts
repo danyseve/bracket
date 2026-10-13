@@ -54,6 +54,12 @@ const COMPONENT_SOURCES = [
   '../src/components/f3/readiness_panel.tsx',
   '../src/components/f3/tatami_board_view.tsx',
   '../src/components/f3/tatami_control_board.tsx',
+  // S4.8a-4 — perfil deportivo del competidor y club
+  '../src/components/utils/f3_sports_profile.ts',
+  '../src/components/f3/belt_select.tsx',
+  '../src/components/f3/sports_club_select.tsx',
+  '../src/components/f3/sports_club_logo.tsx',
+  '../src/components/f3/competitor_sports_profile.tsx',
   '../src/components/modals/competitor_modal.tsx',
   '../src/components/modals/registration_modal.tsx',
   '../src/pages/tournaments/[id]/competitors.tsx',
