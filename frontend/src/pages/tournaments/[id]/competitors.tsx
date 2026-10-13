@@ -19,6 +19,7 @@ import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import CompetitorSportsProfile from '@components/f3/competitor_sports_profile';
 import F3ErrorAlert from '@components/f3/f3_error_alert';
 import ReasonModal from '@components/f3/reason_modal';
 import CompetitorModal from '@components/modals/competitor_modal';
@@ -67,6 +68,7 @@ export default function CompetitorsPage() {
   const [failure, setFailure] = useState<F3Failure | null>(null);
   const [createOpened, setCreateOpened] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Competitor | null>(null);
+  const [profileTarget, setProfileTarget] = useState<Competitor | null>(null);
   const [lifecycleTarget, setLifecycleTarget] = useState<{
     competitor: Competitor;
     active: boolean;
@@ -282,6 +284,16 @@ export default function CompetitorsPage() {
                         >
                           {t('competitors_rename_button')}
                         </Button>
+                        <Button
+                          variant="light"
+                          size="compact-sm"
+                          onClick={() => {
+                            setFailure(null);
+                            setProfileTarget(competitor);
+                          }}
+                        >
+                          {t('competitors_profile_button')}
+                        </Button>
                         {organizerActions ? (
                           <Button
                             variant="light"
@@ -371,6 +383,27 @@ export default function CompetitorsPage() {
         inflight={inflight}
         error={failure}
         onSubmit={handleLifecycle}
+      />
+
+      <CompetitorSportsProfile
+        opened={profileTarget != null}
+        onClose={() => setProfileTarget(null)}
+        club_id={club_id}
+        canManageAcademy={organizerActions}
+        competitor={
+          profileTarget != null
+            ? {
+                id: profileTarget.id,
+                display_name: profileTarget.display_name,
+                date_of_birth: null,
+                sex: null,
+                belt_id: null,
+              }
+            : null
+        }
+        onSaved={() => {
+          void swrCompetitors.mutate();
+        }}
       />
     </TournamentLayout>
   );

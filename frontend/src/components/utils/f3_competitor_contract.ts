@@ -319,3 +319,19 @@ export function registrationCategoryUrl(tournament_id: number, registration_id: 
 export function sportsClubLogoUrl(club_id: number, sports_club_id: number): string {
   return `clubs/${club_id}/sports-clubs/${sports_club_id}/logo`;
 }
+
+/**
+ * Catálogo real de cinturones del club (`GET /clubs/{club_id}/belts`, `list_belts_endpoint`,
+ * `routes/domain_catalog.py:56`). Solo lectura: la UI no hardcodea el orden, lo recibe.
+ */
+export function beltsUrl(club_id: number): string {
+  return `clubs/${club_id}/belts`;
+}
+
+/**
+ * Academias del club (`GET /clubs/{club_id}/sports-clubs`, `list_sports_clubs_endpoint`,
+ * `routes/domain_catalog.py:75`). Solo lectura; el ámbito del tenant se aplica en el backend.
+ */
+export function sportsClubsUrl(club_id: number): string {
+  return `clubs/${club_id}/sports-clubs`;
+}

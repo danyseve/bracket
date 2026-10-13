@@ -1,6 +1,18 @@
 import useSWR, { SWRResponse } from 'swr';
 
 import {
+  Belt,
+  beltsUrl,
+  CompetitorAffiliationsList,
+  competitorAffiliationsUrl,
+  competitorIndependenceUrl,
+  CompetitorProfileBody,
+  competitorProfileUrl,
+  SportsClub,
+  sportsClubLogoUrl,
+  sportsClubsUrl,
+} from '@components/utils/f3_competitor_contract';
+import {
   BracketReadiness,
   bracketReadinessUrl,
   closeRegistrationsUrl,
@@ -28,6 +40,7 @@ import {
   stageItemCourtUrl,
 } from '@components/utils/f3_contract';
 import { describeF3Failure, F3Failure } from '@components/utils/f3_errors';
+import type { CompetitorProfileTarget } from '@components/utils/f3_sports_profile';
 import { createAxios } from '@services/adapter';
 
 /**
@@ -92,6 +105,42 @@ export function getRegistrationWindow(tournament_id: number): SWRResponse<Regist
 
 export function getBracketReadiness(tournament_id: number): SWRResponse<BracketReadiness> {
   return useSWR(tournament_id === -1 ? null : bracketReadinessUrl(tournament_id), fetcher);
+}
+
+/** Catálogo real de cinturones del club (S4.8a-4 §3): la UI no hardcodea el orden. */
+export function getBelts(club_id: number | null): SWRResponse<Belt[]> {
+  return useSWR(club_id == null || club_id === -1 ? null : beltsUrl(club_id), fetcher);
+}
+
+/** Academias del club (S4.8a-4 §6): población real del selector de club. */
+export function getSportsClubs(club_id: number | null): SWRResponse<SportsClub[]> {
+  return useSWR(club_id == null || club_id === -1 ? null : sportsClubsUrl(club_id), fetcher);
+}
+
+/** Afiliaciones del competidor (S4.8a-4 §6): precarga la academia vigente. */
+export function getCompetitorAffiliations(
+  club_id: number | null,
+  competitor_id: number
+): SWRResponse<CompetitorAffiliationsList> {
+  return useSWR(
+    club_id == null || club_id === -1 || competitor_id === -1
+      ? null
+      : competitorAffiliationsUrl(club_id, competitor_id),
+    fetcher
+  );
+}
+
+/** Perfil deportivo declarado del competidor (S4.8a-4 §5): origen de los valores iniciales. */
+export function getCompetitorSportsProfile(
+  club_id: number | null,
+  competitor_id: number
+): SWRResponse<CompetitorProfileTarget> {
+  return useSWR(
+    club_id == null || club_id === -1 || competitor_id === -1
+      ? null
+      : competitorUrl(club_id, competitor_id),
+    fetcher
+  );
 }
 
 /* ------------------------------------------------------------------ escritura ----------------- */
@@ -214,4 +263,69 @@ export async function fetchCompetitor(
   competitor_id: number
 ): Promise<F3WriteOutcome<{ id: number; display_name: string; active: boolean }>> {
   return write(() => createAxios().get(competitorUrl(club_id, competitor_id)));
+}
+
+/**
+ * Reemplaza el perfil deportivo del competidor (S4.8a-4 §3-§5). Los tres campos viajan siempre
+ * (es un reemplazo); el motivo de auditoría entra por el vocabulario cerrado del contrato.
+ */
+export async function updateCompetitorProfile(
+  club_id: number,
+  competitor_id: number,
+  body: CompetitorProfileBody,
+  key: string
+): Promise<F3WriteOutcome<CompetitorProfileTarget>> {
+  return write(() =>
+    createAxios().post(competitorProfileUrl(club_id, competitor_id), body, idempotentHeaders(key))
+  );
+}
+
+/** Asigna una academia al competidor (S4.8a-4 §6): solo el `sports_club_id` destino. */
+export async function assignAffiliation(
+  club_id: number,
+  competitor_id: number,
+  sports_club_id: number,
+  key: string
+): Promise<F3WriteOutcome<CompetitorAffiliationsList>> {
+  return write(() =>
+    createAxios().post(
+      competitorAffiliationsUrl(club_id, competitor_id),
+      { sports_club_id },
+      idempotentHeaders(key)
+    )
+  );
+}
+
+/** Pasa al competidor a independiente (S4.8a-4 §6). No toca el histórico de inscripciones. */
+export async function goIndependent(
+  club_id: number,
+  competitor_id: number,
+  key: string
+): Promise<F3WriteOutcome<CompetitorAffiliationsList>> {
+  return write(() =>
+    createAxios().post(
+      competitorIndependenceUrl(club_id, competitor_id),
+      {},
+      idempotentHeaders(key)
+    )
+  );
+}
+
+/**
+ * Sube, reemplaza (con fichero) o quita (sin fichero) el logo de la academia (S4.8a-4 §7). El
+ * backend valida tipo y tamaño por contenido; la UI valida antes solo como UX.
+ */
+export async function setSportsClubLogo(
+  club_id: number,
+  sports_club_id: number,
+  file: File | null,
+  key: string
+): Promise<F3WriteOutcome<SportsClub>> {
+  const form = new FormData();
+  if (file != null) {
+    form.append('file', file);
+  }
+  return write(() =>
+    createAxios().post(sportsClubLogoUrl(club_id, sports_club_id), form, idempotentHeaders(key))
+  );
 }

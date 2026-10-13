@@ -16,12 +16,12 @@ import { test } from 'node:test';
 
 import {
   BELT_SCOPES,
+  beltsUrl,
   CLUB_LOGO_EXTENSIONS,
   CLUB_LOGO_MAX_BYTES,
   CLUB_LOGO_MIME_TYPES,
   COMPETITOR_SEXES,
   sportsClubsUrl,
-  beltsUrl,
 } from '../src/components/utils/f3_competitor_contract.ts';
 import {
   affiliationAction,
@@ -49,10 +49,9 @@ function source(relative: string): string {
 }
 
 function loadLocale(language: string): Record<string, string> {
-  return JSON.parse(readFileSync(new URL(`${language}/common.json`, LOCALES_DIR), 'utf8')) as Record<
-    string,
-    string
-  >;
+  return JSON.parse(
+    readFileSync(new URL(`${language}/common.json`, LOCALES_DIR), 'utf8')
+  ) as Record<string, string>;
 }
 
 function belt(id: number, code: string, rank: number, scope: 'ADULT' | 'JUVENILE') {
@@ -95,8 +94,14 @@ test('el orden de cinturones sale de los datos (scope/rank/code), no de una list
 
 test('la etiqueta del cinturón prefiere la traducción y cae al label del backend', () => {
   const white = belt(4, 'WHITE', 1, 'ADULT');
-  assert.equal(beltLabel(white, () => 'Blanco'), 'Blanco');
-  assert.equal(beltLabel(white, () => null), 'WHITE');
+  assert.equal(
+    beltLabel(white, () => 'Blanco'),
+    'Blanco'
+  );
+  assert.equal(
+    beltLabel(white, () => null),
+    'WHITE'
+  );
 });
 
 test('los campos del catálogo viajan en la opción (id, scale, code, rank)', () => {
@@ -231,7 +236,10 @@ test('el logo se valida antes de subirlo: tamaño y tipo admitidos', () => {
     logoFileError({ name: 'a.svg', size: 1000, type: 'image/svg+xml' }, limits),
     'f3_club_logo_wrong_type'
   );
-  assert.equal(logoFileError({ name: 'a.png', size: 0, type: 'image/png' }, limits), 'f3_club_logo_too_large');
+  assert.equal(
+    logoFileError({ name: 'a.png', size: 0, type: 'image/png' }, limits),
+    'f3_club_logo_too_large'
+  );
 });
 
 /* ----------------------------------------------------------------- rutas del contrato (backend) */
