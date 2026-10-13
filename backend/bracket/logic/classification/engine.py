@@ -54,7 +54,9 @@ def age_on_date(date_of_birth: date, on_date: date) -> int:
     return years
 
 
-def _belt_blocker(rules: CategoryRules, competitor: CompetitorFacts) -> ClassificationBlocker | None:
+def _belt_blocker(
+    rules: CategoryRules, competitor: CompetitorFacts
+) -> ClassificationBlocker | None:
     """Motivo por el que el cinturon no encaja, o ``None`` si encaja o no hay restriccion."""
     if rules.belt_min is None and rules.belt_max is None:
         return None

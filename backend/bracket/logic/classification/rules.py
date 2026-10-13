@@ -1,7 +1,7 @@
 """Datos que juzga el motor de clasificacion: sin SQL y sin HTTP (S4.8a-2, LAB).
 
-El motor es **puro**: recibe estos datos ya resueltos y devuelve un veredicto. La carga desde la base
-vive en ``bracket/sql/classification.py``; aqui no hay acceso a datos, de modo que el juicio es
+El motor es **puro**: recibe los datos ya resueltos y devuelve un veredicto. Su carga desde la base
+de datos vive en ``bracket/sql/classification.py``; aqui no hay acceso a datos, asi que el juicio
 determinista y se puede probar sin base de datos.
 
 Contratos congelados del bloque (a-2):
@@ -9,8 +9,8 @@ Contratos congelados del bloque (a-2):
 * ``category_key`` sigue siendo ``"si:<stage_item_id>"`` y es el identificador contractual; el
   ``stage_item`` se resuelve detras (D2). No se anade clave foranea a ``registrations``.
 * ``category_label`` es presentacion (``stage_items.name``), nunca clave logica.
-* La afiliacion y el club **no** entran en la compatibilidad deportiva (``representation`` viaja como
-  contexto, sin participar en el juicio).
+* La afiliacion y el club **no** entran en la compatibilidad deportiva: ``representation`` viaja
+  como contexto, sin participar en el juicio.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class BeltLevel:
 
 
 @dataclass(frozen=True)
-class CategoryRules:
+class CategoryRules:  # pylint: disable=too-many-instance-attributes
     """Reglas **estructuradas** de una categoria (``stage_items``). ``None`` = sin restriccion.
 
     Un ``None`` significa "esta categoria no declara esa restriccion", nunca "admite cualquier
@@ -122,8 +122,7 @@ class CategoryRules:
         if self.belt_min is None or self.belt_max is None:
             return True
         return (
-            self.belt_min.scope == self.belt_max.scope
-            and self.belt_min.rank <= self.belt_max.rank
+            self.belt_min.scope == self.belt_max.scope and self.belt_min.rank <= self.belt_max.rank
         )
 
 

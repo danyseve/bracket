@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # `loaded` es el fixture de este modulo.
 """S4.8a-2 — cargador de clasificacion contra la base real (integracion, LAB).
 
 La capa pura se prueba sin base de datos; aqui se prueba lo que solo la base puede demostrar: que
@@ -104,7 +105,7 @@ _DELETE_CLUBS = "DELETE FROM clubs WHERE id = ANY(:ids)"
 
 
 @dataclass
-class LoadedData:
+class LoadedData:  # pylint: disable=too-many-instance-attributes
     """Filas creadas por el modulo de pruebas (se retiran al terminar la bateria)."""
 
     tenant: ClubId
@@ -144,7 +145,7 @@ async def _belt_id(scope: str, code: str, label: str, rank: int) -> int:
     )
 
 
-@pytest_asyncio.fixture(loop_scope="session", scope="function")
+@pytest_asyncio.fixture(loop_scope="session")
 async def loaded() -> AsyncIterator[LoadedData]:
     """Escenario completo: dos clubes, tres categorias con reglas y una inscripcion confirmada."""
     tenant = ClubId(await _insert(_INSERT_CLUB, name="club-clasificacion", created=_CREATED))

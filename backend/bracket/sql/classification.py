@@ -11,9 +11,8 @@ Ambito: la clave se acota por ``tournament_id``/``tenant_club_id``, de modo que 
 unas categorias de otro club no se pueden leer. Ninguna de las dos decide: solo cargan datos, y el
 juicio queda en el motor puro (``bracket/logic/classification``).
 
-El cinturon no se guarda en el competidor: se guarda su ``belt_id`` y aqui se resuelve su escala y su
-orden contra el catalogo, que es lo que permite comparar rangos sin parsear nunca el nombre de la
-categoria.
+El cinturon no se guarda en el competidor: se guarda su ``belt_id``, y aqui se resuelven su escala
+y su orden contra el catalogo, lo que permite comparar rangos sin parsear el nombre de la categoria.
 """
 
 from __future__ import annotations
@@ -22,8 +21,6 @@ from collections.abc import Mapping
 from typing import Any, Final
 
 from bracket.database import database
-from bracket.models.db.domain import BeltScope
-
 from bracket.logic.classification.rules import (
     BeltLevel,
     CategoryRules,
@@ -31,6 +28,7 @@ from bracket.logic.classification.rules import (
     CompetitorFacts,
     RegistrationFacts,
 )
+from bracket.models.db.domain import BeltScope
 from bracket.utils.id_types import ClubId, TournamentId, TournamentRegistrationId
 
 _CATEGORY_COLUMNS: Final[str] = """
@@ -86,9 +84,7 @@ _SELECT_REGISTRATION_INPUT: Final[str] = """
 """
 
 
-def _belt_level(
-    scope: BeltScope | None, rank: int | None, code: str | None
-) -> BeltLevel | None:
+def _belt_level(scope: BeltScope | None, rank: int | None, code: str | None) -> BeltLevel | None:
     """Cinturon resuelto a partir de las columnas del catalogo (``None`` si no hay cinturon)."""
     if scope is None or rank is None:
         return None

@@ -17,6 +17,7 @@ import pytest
 from bracket.logic.classification import (
     BeltLevel,
     CategoryRules,
+    CategoryVerdict,
     ClassificationBlocker,
     ClassificationWarning,
     CompetitorFacts,
@@ -29,6 +30,7 @@ from bracket.logic.classification import (
     evaluate_category,
     stage_item_id_from_key,
 )
+from bracket.models.db.domain import CompetitorSex, Modality, SexConstraint
 from bracket.utils.id_types import StageItemId
 
 #: Fecha del torneo con la que se calcula la edad en toda la bateria.
@@ -62,7 +64,9 @@ def registration(**overrides: object) -> RegistrationFacts:
     return RegistrationFacts(**values)  # type: ignore[arg-type]
 
 
-def verdict_of(category: CategoryRules, person: CompetitorFacts, entry: RegistrationFacts):
+def verdict_of(
+    category: CategoryRules, person: CompetitorFacts, entry: RegistrationFacts
+) -> CategoryVerdict:
     """Veredicto de una sola categoria (atajo de la bateria)."""
     return evaluate_category(category, person, entry, ON_DATE)
 
@@ -104,22 +108,28 @@ def test_age_restriction_without_date_of_birth_is_missing_data() -> None:
 def test_without_age_restriction_a_missing_date_of_birth_does_not_block() -> None:
     verdict = verdict_of(rules(), competitor(), registration())
     assert verdict.compatible is True
-    assert verdict.blockers == ()
+    assert not verdict.blockers
 
 
 def test_age_below_the_minimum_is_incompatible() -> None:
-    verdict = verdict_of(rules(age_min=30), competitor(date_of_birth=date(2000, 5, 5)), registration())
+    verdict = verdict_of(
+        rules(age_min=30), competitor(date_of_birth=date(2000, 5, 5)), registration()
+    )
     assert verdict.blockers == (ClassificationBlocker.CATEGORY_INCOMPATIBLE,)
 
 
 def test_age_above_the_maximum_is_incompatible() -> None:
-    verdict = verdict_of(rules(age_max=30), competitor(date_of_birth=date(1990, 5, 5)), registration())
+    verdict = verdict_of(
+        rules(age_max=30), competitor(date_of_birth=date(1990, 5, 5)), registration()
+    )
     assert verdict.blockers == (ClassificationBlocker.CATEGORY_INCOMPATIBLE,)
 
 
 def test_age_limits_are_inclusive() -> None:
     born = date(1996, 10, 13)
-    verdict = verdict_of(rules(age_min=30, age_max=30), competitor(date_of_birth=born), registration())
+    verdict = verdict_of(
+        rules(age_min=30, age_max=30), competitor(date_of_birth=born), registration()
+    )
     assert verdict.compatible is True
 
 
@@ -141,7 +151,11 @@ def test_age_limits_are_inclusive() -> None:
         ("FEMALE", None, ()),
     ],
 )
-def test_sex_compatibility(sex, constraint, expected) -> None:
+def test_sex_compatibility(
+    sex: CompetitorSex | None,
+    constraint: SexConstraint | None,
+    expected: tuple[ClassificationBlocker, ...],
+) -> None:
     verdict = verdict_of(rules(sex_constraint=constraint), competitor(sex=sex), registration())
     assert verdict.blockers == expected
 
@@ -151,7 +165,9 @@ def test_sex_compatibility(sex, constraint, expected) -> None:
 
 def test_belt_inside_the_range_is_compatible() -> None:
     verdict = verdict_of(
-        rules(belt_min=ADULT_BLUE, belt_max=ADULT_PURPLE), competitor(belt=ADULT_PURPLE), registration()
+        rules(belt_min=ADULT_BLUE, belt_max=ADULT_PURPLE),
+        competitor(belt=ADULT_PURPLE),
+        registration(),
     )
     assert verdict.compatible is True
 
@@ -169,7 +185,12 @@ def test_belt_inside_the_range_is_compatible() -> None:
         (None, None, None, ()),
     ],
 )
-def test_belt_range_and_scope(minimum, maximum, belt, expected) -> None:
+def test_belt_range_and_scope(
+    minimum: BeltLevel | None,
+    maximum: BeltLevel | None,
+    belt: BeltLevel | None,
+    expected: tuple[ClassificationBlocker, ...],
+) -> None:
     verdict = verdict_of(
         rules(belt_min=minimum, belt_max=maximum), competitor(belt=belt), registration()
     )
@@ -178,7 +199,9 @@ def test_belt_range_and_scope(minimum, maximum, belt, expected) -> None:
 
 def test_a_range_whose_minimum_is_above_its_maximum_is_invalid_configuration() -> None:
     verdict = verdict_of(
-        rules(belt_min=ADULT_PURPLE, belt_max=ADULT_BLUE), competitor(belt=ADULT_BLUE), registration()
+        rules(belt_min=ADULT_PURPLE, belt_max=ADULT_BLUE),
+        competitor(belt=ADULT_BLUE),
+        registration(),
     )
     assert verdict.compatible is False
     assert verdict.blockers == (ClassificationBlocker.INVALID_CATEGORY_BELT_RANGE,)
@@ -202,15 +225,30 @@ def test_a_range_mixing_two_scales_is_invalid_configuration() -> None:
         (Decimal("71.00"), Decimal("77.00"), Decimal("71.00"), ()),
         (Decimal("71.00"), Decimal("77.00"), Decimal("77.00"), ()),
         (Decimal("71.00"), Decimal("77.00"), Decimal("74.50"), ()),
-        (Decimal("71.00"), Decimal("77.00"), Decimal("70.99"), (ClassificationBlocker.CATEGORY_INCOMPATIBLE,)),
-        (Decimal("71.00"), Decimal("77.00"), Decimal("77.01"), (ClassificationBlocker.CATEGORY_INCOMPATIBLE,)),
+        (
+            Decimal("71.00"),
+            Decimal("77.00"),
+            Decimal("70.99"),
+            (ClassificationBlocker.CATEGORY_INCOMPATIBLE,),
+        ),
+        (
+            Decimal("71.00"),
+            Decimal("77.00"),
+            Decimal("77.01"),
+            (ClassificationBlocker.CATEGORY_INCOMPATIBLE,),
+        ),
         (None, Decimal("71.00"), Decimal("60.00"), ()),
         (Decimal("71.00"), None, Decimal("120.00"), ()),
         (Decimal("71.00"), Decimal("77.00"), None, (ClassificationBlocker.MISSING_WEIGHT,)),
         (None, None, None, ()),
     ],
 )
-def test_weight_compatibility_with_inclusive_limits(minimum, maximum, weight, expected) -> None:
+def test_weight_compatibility_with_inclusive_limits(
+    minimum: Decimal | None,
+    maximum: Decimal | None,
+    weight: Decimal | None,
+    expected: tuple[ClassificationBlocker, ...],
+) -> None:
     verdict = verdict_of(
         rules(weight_min_kg=minimum, weight_max_kg=maximum),
         competitor(),
@@ -234,10 +272,12 @@ def test_weight_compatibility_with_inclusive_limits(minimum, maximum, weight, ex
         (None, None, ()),
     ],
 )
-def test_modality_compatibility(constraint, modality, expected) -> None:
-    verdict = verdict_of(
-        rules(modality=constraint), competitor(), registration(modality=modality)
-    )
+def test_modality_compatibility(
+    constraint: Modality | None,
+    modality: Modality | None,
+    expected: tuple[ClassificationBlocker, ...],
+) -> None:
+    verdict = verdict_of(rules(modality=constraint), competitor(), registration(modality=modality))
     assert verdict.blockers == expected
 
 
@@ -270,17 +310,21 @@ def complete_registration() -> RegistrationFacts:
 
 
 def test_every_rule_holding_makes_the_category_compatible() -> None:
-    result = classify((complete_category(),), complete_competitor(), complete_registration(), ON_DATE)
+    result = classify(
+        (complete_category(),), complete_competitor(), complete_registration(), ON_DATE
+    )
     assert result.compatible_categories == result.verdicts
-    assert result.blockers == ()
-    assert result.recommended_category.category_label == "categoria-1"
+    assert not result.blockers
+    recommended = result.recommended_category
+    assert recommended is not None
+    assert recommended.category_label == "categoria-1"
 
 
 def test_one_single_failing_rule_blocks_the_category() -> None:
     person = complete_competitor()
     entry = registration(declared_weight_kg=Decimal("78.50"), modality="GI")
     result = classify((complete_category(),), person, entry, ON_DATE)
-    assert result.compatible_categories == ()
+    assert not result.compatible_categories
     assert result.recommended_category is None
     assert result.blockers == (
         ClassificationBlocker.CATEGORY_INCOMPATIBLE,
@@ -290,12 +334,15 @@ def test_one_single_failing_rule_blocks_the_category() -> None:
 
 def test_several_compatible_categories_are_all_returned_without_recommendation() -> None:
     result = classify(
-        (complete_category(1), complete_category(2)), complete_competitor(), complete_registration(), ON_DATE
+        (complete_category(1), complete_category(2)),
+        complete_competitor(),
+        complete_registration(),
+        ON_DATE,
     )
     assert len(result.compatible_categories) == 2
     assert result.recommended_category is None
     assert result.warnings == (ClassificationWarning.MULTIPLE_COMPATIBLE_CATEGORIES,)
-    assert result.blockers == ()
+    assert not result.blockers
 
 
 def test_no_compatible_category_is_reported_with_its_reasons() -> None:
@@ -305,7 +352,7 @@ def test_no_compatible_category_is_reported_with_its_reasons() -> None:
         complete_registration(),
         ON_DATE,
     )
-    assert result.compatible_categories == ()
+    assert not result.compatible_categories
     assert result.blockers == (
         ClassificationBlocker.CATEGORY_INCOMPATIBLE,
         ClassificationBlocker.NO_COMPATIBLE_CATEGORY,
@@ -320,7 +367,9 @@ def test_exactly_one_compatible_category_is_recommended() -> None:
         ON_DATE,
     )
     assert len(result.compatible_categories) == 1
-    assert result.recommended_category.category_key == "si:2"
+    recommended = result.recommended_category
+    assert recommended is not None
+    assert recommended.category_key == "si:2"
 
 
 # ---------------------------------------------------------------- reglas nulas (legacy)
@@ -377,7 +426,7 @@ def test_a_confirmed_registration_with_a_resolved_category_is_countable() -> Non
     )
     assert assessment.ok is True
     assert assessment.countable is True
-    assert assessment.chosen.blockers == ()
+    assert not assessment.chosen.blockers
     assert assessment.blockers == ()
 
 
@@ -409,7 +458,9 @@ def test_a_confirmed_registration_with_an_incompatible_category_does_not_count()
 
 
 def test_a_confirmed_legacy_registration_keeps_counting() -> None:
-    assessment = classify_registration((rules(1),), competitor(), registration(category_key="si:1"), ON_DATE)
+    assessment = classify_registration(
+        (rules(1),), competitor(), registration(category_key="si:1"), ON_DATE
+    )
     assert assessment.countable is True
 
 
@@ -438,7 +489,9 @@ def test_a_registration_that_is_not_confirmed_does_not_count(status: str) -> Non
     assessment = classify_registration(
         (complete_category(),),
         complete_competitor(),
-        registration(declared_weight_kg=Decimal("74.50"), modality="GI", category_key="si:1", status=status),
+        registration(
+            declared_weight_kg=Decimal("74.50"), modality="GI", category_key="si:1", status=status
+        ),
         ON_DATE,
     )
     assert assessment.ok is True
@@ -467,7 +520,9 @@ def test_the_recommended_category_is_not_a_deviation() -> None:
         registration(declared_weight_kg=Decimal("74.50"), modality="GI", category_key="si:2"),
         ON_DATE,
     )
-    assert over.recommended_category.category_key == "si:2"
+    recommended = over.recommended_category
+    assert recommended is not None
+    assert recommended.category_key == "si:2"
     assert over.compatible is True
     assert over.deviation_from_recommendation is False
 
@@ -491,7 +546,9 @@ def test_choosing_a_category_other_than_the_recommendation_is_a_deviation() -> N
         registration(declared_weight_kg=Decimal("74.50"), modality="GI", category_key="si:2"),
         ON_DATE,
     )
-    assert over.recommended_category.category_key == "si:1"
+    recommended = over.recommended_category
+    assert recommended is not None
+    assert recommended.category_key == "si:1"
     assert over.chosen.resolved is True
     assert over.compatible is False
     assert over.deviation_from_recommendation is True
@@ -504,7 +561,9 @@ def test_an_unresolved_choice_is_not_a_deviation() -> None:
         registration(declared_weight_kg=Decimal("74.50"), modality="GI", category_key="si:99"),
         ON_DATE,
     )
-    assert over.recommended_category.category_key == "si:1"
+    recommended = over.recommended_category
+    assert recommended is not None
+    assert recommended.category_key == "si:1"
     assert over.chosen.resolved is False
     assert over.deviation_from_recommendation is False
 
@@ -524,7 +583,9 @@ def test_the_club_representation_does_not_change_the_sporting_verdict() -> None:
     independent = classify(
         (complete_category(),),
         complete_competitor(),
-        registration(declared_weight_kg=Decimal("74.50"), modality="GI", representation="INDEPENDENT"),
+        registration(
+            declared_weight_kg=Decimal("74.50"), modality="GI", representation="INDEPENDENT"
+        ),
         ON_DATE,
     )
     club = classify(
