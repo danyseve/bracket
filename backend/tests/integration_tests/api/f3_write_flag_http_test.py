@@ -50,6 +50,7 @@ EXPECTED_GUARDED: Final = (
     "POST /tournaments/{tournament_id}/registration-window",
     "POST /tournaments/{tournament_id}/registrations",
     "POST /tournaments/{tournament_id}/registrations/close",
+    "POST /tournaments/{tournament_id}/registrations/{registration_id}/category",
     "POST /tournaments/{tournament_id}/registrations/{registration_id}/confirm",
     "POST /tournaments/{tournament_id}/registrations/{registration_id}/disqualify",
     "POST /tournaments/{tournament_id}/registrations/{registration_id}/reinstate",

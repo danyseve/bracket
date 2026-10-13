@@ -27,6 +27,7 @@ import json
 from collections.abc import AsyncIterator, Iterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -39,6 +40,7 @@ from bracket.config import config
 from bracket.database import database
 from bracket.logic.idempotency_protocol import RETRY_AFTER_SECONDS
 from bracket.models.db.club import ClubInsertable
+from bracket.models.db.competitor_api import CompetitorResponse
 from bracket.models.db.user_x_club import UserXClubInsertable, UserXClubRelation
 from bracket.routes.domain_idempotency import IDEMPOTENCY_KEY_HEADER
 from bracket.sql.idempotency import sql_insert_idempotency_reservation
@@ -98,6 +100,9 @@ PUBLIC_REGISTRATION_FIELDS = frozenset(
         "sports_club_name_snapshot",
         "status",
         "revision",
+        # S4.8a-3 §5: el peso declarado y la modalidad son datos de la inscripcion.
+        "declared_weight_kg",
+        "modality",
         "created",
         "updated_at",
     }
@@ -973,3 +978,72 @@ async def test_audit_records_field_names_and_never_values(lab: HttpLab) -> None:
     assert "Competidora" not in json.dumps(rows, default=str)
     assert "Academia" not in json.dumps(rows, default=str)
     assert await count_registrations(lab, lab.other_tournament) == 0
+
+
+# --- 0b. peso declarado y modalidad (S4.8a-3 §5) ------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_created_draft_carries_the_declared_weight_and_modality(lab: HttpLab) -> None:
+    """El peso y la modalidad son datos de la inscripcion y viajan en la proyeccion publica."""
+    status, _, body = await create_registration(
+        lab, payload=draft_payload(lab, declared_weight_kg=74.5, modality="GI")
+    )
+
+    assert status == 201, body
+    assert Decimal(str(body["declared_weight_kg"])) == Decimal("74.50")
+    assert body["modality"] == "GI"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_registration_without_weight_nor_modality_is_still_valid(lab: HttpLab) -> None:
+    """Una inscripcion heredada, sin peso ni modalidad, sigue funcionando igual."""
+    status, _, body = await create_registration(lab)
+
+    assert status == 201, body
+    assert body["declared_weight_kg"] is None
+    assert body["modality"] is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("weight", [0, -5, 300.01, 301])
+async def test_an_out_of_range_weight_is_rejected(lab: HttpLab, weight: float) -> None:
+    status, _, body = await create_registration(
+        lab, payload=draft_payload(lab, declared_weight_kg=weight)
+    )
+
+    assert status == 400, body
+    assert body == REQUEST_INVALID
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_non_numeric_weight_is_rejected_by_the_contract(lab: HttpLab) -> None:
+    """Un peso que no es numero no llega al dominio: lo rechaza el contrato del cuerpo (422)."""
+    status, _, _ = await create_registration(
+        lab, payload=draft_payload(lab, declared_weight_kg="mucho")
+    )
+
+    assert status == 422
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("modality", ["GI", "NO_GI"])
+async def test_a_valid_modality_is_accepted(lab: HttpLab, modality: str) -> None:
+    status, _, body = await create_registration(lab, payload=draft_payload(lab, modality=modality))
+
+    assert status == 201, body
+    assert body["modality"] == modality
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("modality", ["GI_AND_NO_GI", "BOTH", "gi"])
+async def test_an_invalid_modality_is_rejected_by_the_contract(lab: HttpLab, modality: str) -> None:
+    status, _, _ = await create_registration(lab, payload=draft_payload(lab, modality=modality))
+
+    assert status == 422
+
+
+def test_the_declared_weight_is_not_a_competitor_attribute() -> None:
+    """El peso es dato de la inscripcion, no atributo permanente del competidor."""
+    assert "declared_weight_kg" not in CompetitorResponse.model_fields
+    assert "modality" not in CompetitorResponse.model_fields
