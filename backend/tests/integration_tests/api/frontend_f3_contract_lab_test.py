@@ -51,8 +51,19 @@ from tests.integration_tests.api.generate_bracket_http_support import (
 )
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
-#: Campos publicados que la UI consume (lista blanca de ``f3_contract.ts``).
-COMPETITOR_FIELDS: Final = {"id", "display_name", "active", "created", "updated_at"}
+#: Campos publicados que la UI consume. El perfil deportivo entra en S4.8a-3 y la lista blanca
+#: del frontend (``f3_contract.ts``) lo incorpora en S4.8a-4: hasta entonces el contrato que fija
+#: este test es el del backend.
+COMPETITOR_FIELDS: Final = {
+    "id",
+    "display_name",
+    "active",
+    "created",
+    "updated_at",
+    "date_of_birth",
+    "sex",
+    "belt_id",
+}
 REGISTRATION_FIELDS: Final = {
     "id",
     "tournament_id",

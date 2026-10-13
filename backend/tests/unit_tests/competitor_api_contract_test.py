@@ -35,7 +35,7 @@ from bracket.routes import domain_competitors
 from bracket.routes.f3_write_gate import require_f3_write_enabled
 from bracket.utils.id_types import ClubId, CompetitorId
 
-#: Las seis rutas de la fase, con su metodo. El ambito es el club, no el torneo.
+#: Las siete rutas de la fase, con su metodo. El ambito es el club, no el torneo.
 EXPECTED_ROUTES: Final = {
     ("POST", "/clubs/{club_id}/competitors"),
     ("GET", "/clubs/{club_id}/competitors"),
@@ -43,12 +43,23 @@ EXPECTED_ROUTES: Final = {
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/rename"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/deactivate"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/activate"),
+    ("POST", "/clubs/{club_id}/competitors/{competitor_id}/profile"),
 }
 #: Las cuatro escrituras: las unicas que llevan la puerta de F3.
 WRITE_ROUTES: Final = {route for route in EXPECTED_ROUTES if route[0] == "POST"}
 READ_ROUTES: Final = EXPECTED_ROUTES - WRITE_ROUTES
 #: Proyeccion publica: ni tenant, ni estado interno de mas.
-PUBLIC_FIELDS: Final = {"id", "display_name", "active", "created", "updated_at"}
+PUBLIC_FIELDS: Final = {
+    "id",
+    "display_name",
+    "active",
+    "created",
+    "updated_at",
+    # Perfil deportivo (S4.8a-3 §2): lo publica la lectura para poder clasificar.
+    "date_of_birth",
+    "sex",
+    "belt_id",
+}
 
 
 def a_competitor() -> Competitor:
@@ -59,6 +70,9 @@ def a_competitor() -> Competitor:
         managed_by_club_id=ClubId(7),
         created=datetime_utc.now(),
         updated_at=None,
+        date_of_birth=None,
+        sex=None,
+        belt_id=None,
     )
 
 

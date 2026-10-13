@@ -56,7 +56,17 @@ def api_url(path: str) -> str:
 
 
 #: Proyeccion publica del competidor: un campo de mas es un fallo y cierra el contrato.
-COMPETITOR_FIELDS: Final = {"id", "display_name", "active", "created", "updated_at"}
+COMPETITOR_FIELDS: Final = {
+    "id",
+    "display_name",
+    "active",
+    "created",
+    "updated_at",
+    # Perfil deportivo (S4.8a-3 §2).
+    "date_of_birth",
+    "sex",
+    "belt_id",
+}
 #: Proyeccion del listado.
 LIST_FIELDS: Final = {"count", "competitors"}
 #: Cuerpo con el que un club ajeno y un club inexistente deniegan: indistinguibles.
