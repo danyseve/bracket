@@ -40,7 +40,8 @@ from tests.integration_tests.api.generate_bracket_http_support import (
 )
 from tests.integration_tests.api.shared import get_root_uvicorn_url
 
-#: Las trece familias de escritura de F3 (inscripciones, generacion, competidores y tatami).
+#: Las familias de escritura de F3 (inscripciones, generacion, competidores, afiliaciones,
+#: logo de academia y tatami).
 EXPECTED_GUARDED: Final = (
     "POST /tournaments/{tournament_id}/generate-bracket",
     "PUT /tournaments/{tournament_id}/stage-items/{stage_item_id}/court",
@@ -58,6 +59,11 @@ EXPECTED_GUARDED: Final = (
     "POST /clubs/{club_id}/competitors/{competitor_id}/deactivate",
     "POST /clubs/{club_id}/competitors/{competitor_id}/rename",
     "POST /clubs/{club_id}/competitors/{competitor_id}/profile",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/affiliations",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary",
+    "POST /clubs/{club_id}/competitors/{competitor_id}/independence",
+    "POST /clubs/{club_id}/sports-clubs/{sports_club_id}/logo",
 )
 
 #: Campos publicados de la ventana, del listado, del readiness y del detalle (lista blanca).

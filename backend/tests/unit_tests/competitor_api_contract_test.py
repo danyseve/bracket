@@ -35,7 +35,7 @@ from bracket.routes import domain_competitors
 from bracket.routes.f3_write_gate import require_f3_write_enabled
 from bracket.utils.id_types import ClubId, CompetitorId
 
-#: Las siete rutas de la fase, con su metodo. El ambito es el club, no el torneo.
+#: Las once rutas de la fase, con su metodo. El ambito es el club, no el torneo.
 EXPECTED_ROUTES: Final = {
     ("POST", "/clubs/{club_id}/competitors"),
     ("GET", "/clubs/{club_id}/competitors"),
@@ -44,6 +44,16 @@ EXPECTED_ROUTES: Final = {
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/deactivate"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/activate"),
     ("POST", "/clubs/{club_id}/competitors/{competitor_id}/profile"),
+    ("POST", "/clubs/{club_id}/competitors/{competitor_id}/affiliations"),
+    (
+        "POST",
+        "/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close",
+    ),
+    (
+        "POST",
+        "/clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary",
+    ),
+    ("POST", "/clubs/{club_id}/competitors/{competitor_id}/independence"),
 }
 #: Las cuatro escrituras: las unicas que llevan la puerta de F3.
 WRITE_ROUTES: Final = {route for route in EXPECTED_ROUTES if route[0] == "POST"}

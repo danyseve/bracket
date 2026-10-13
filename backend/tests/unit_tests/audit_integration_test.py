@@ -27,11 +27,11 @@ import pytest
 from sqlalchemy import CheckConstraint, String, Text
 
 from bracket import schema
-from bracket.logic import audit_reasons, competitors, registrations
+from bracket.logic import audit_reasons, competitors, registrations, sports_clubs
 from bracket.sql import domain_writes
 
-# (modulo, funcion, entidad, accion, exige codigo explicito). Las diez operaciones que escriben
-# auditoria hoy: cuatro en competidores y seis en inscripciones.
+# (modulo, funcion, entidad, accion, exige codigo explicito). Las once operaciones que escriben
+# auditoria hoy: cuatro en competidores, seis en inscripciones y una en academias.
 AUDIT_OPERATIONS: tuple[tuple[Any, str, str, str, bool], ...] = (
     (competitors, "create_competitor", audit_reasons.SCOPE_COMPETITOR, "CREATE", False),
     (
@@ -53,6 +53,13 @@ AUDIT_OPERATIONS: tuple[tuple[Any, str, str, str, bool], ...] = (
         "disqualify_registration",
         audit_reasons.SCOPE_REGISTRATION,
         "DISQUALIFY",
+        True,
+    ),
+    (
+        sports_clubs,
+        "set_sports_club_logo",
+        audit_reasons.SCOPE_SPORTS_CLUB,
+        "UPDATE",
         True,
     ),
 )
@@ -109,12 +116,12 @@ def _triples(sql: str) -> set[tuple[str, str, str]]:
 # --- cobertura del catalogo ---------------------------------------------------------------------
 
 
-def test_catalog_covers_exactly_the_ten_audit_operations() -> None:
+def test_catalog_covers_exactly_the_audited_operations() -> None:
     written = {(scope, action) for _, _, scope, action, _ in AUDIT_OPERATIONS}
 
-    assert len(AUDIT_OPERATIONS) == 10
+    assert len(AUDIT_OPERATIONS) == 11
     assert set(audit_reasons.CATALOG) == written, (
-        "el catalogo no cubre exactamente esas diez parejas"
+        "el catalogo no cubre exactamente esas parejas"
     )
     for _, _, scope, action, _ in AUDIT_OPERATIONS:
         assert audit_reasons.allowed_codes(scope=scope, action=action)

@@ -41,7 +41,7 @@ CATALOG_PAIRS = tuple(audit_reasons.CATALOG)
 
 APPROVED_CATALOG: dict[tuple[str, str], tuple[str, ...]] = {
     ("competitor", "CREATE"): ("PLANNED_ENTRY",),
-    ("competitor", "UPDATE"): ("DATA_CORRECTION",),
+    ("competitor", "UPDATE"): ("DATA_CORRECTION", "AFFILIATION_CHANGE"),
     ("competitor", "DEACTIVATE"): (
         "REQUESTED_BY_ATHLETE",
         "DUPLICATE",
@@ -78,6 +78,7 @@ APPROVED_CATALOG: dict[tuple[str, str], tuple[str, ...]] = {
         "ELIGIBILITY",
         "ADMINISTRATIVE",
     ),
+    ("sports_club", "UPDATE"): ("CLUB_LOGO_CHANGE",),
 }
 
 
@@ -688,6 +689,7 @@ def test_public_api_surface() -> None:
     assert set(audit_reasons.__all__) == {
         "SCOPE_COMPETITOR",
         "SCOPE_REGISTRATION",
+        "SCOPE_SPORTS_CLUB",
         "MAX_REASON_NOTE_LENGTH",
         "REASON_CODES",
         "CATALOG",
