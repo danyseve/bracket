@@ -1,7 +1,7 @@
 # pylint: disable=redefined-outer-name
 """E2E realista de S4.8a-5 (TROZO B, §8-§9): inscripciones y clasificacion contra el API HTTP real.
 
-Pruebas **negras** sobre el escenario del TROZO A (24 competidores, 3 academias, 4 categorias
+Pruebas **negras** sobre el escenario del TROZO A (24 competidores, 3 academias, 5 categorias
 estructuradas + 1 legacy) y la base de laboratorio ``bracket_ci``. No hay mocks del motor ni del
 protocolo: se dan de alta inscripciones por el camino HTTP real (puerta F3 + idempotencia) y se
 inspecciona la clasificacion con ``GET /tournaments/{t}/registrations/{r}/classification``.
@@ -14,6 +14,8 @@ Que fija este modulo:
 * §9  los ocho casos obligatorios de clasificacion, con los codigos **exactos** del vocabulario del
       motor: 1 compatible -> es la recomendada; >1 -> recomendada nula + ``MULTIPLE_COMPATIBLE_CATEGORIES``;
       0 -> ``NO_COMPATIBLE_CATEGORY``; y los blockers ``MISSING_*`` / ``CATEGORY_INCOMPATIBLE``;
+* §20 el caso **adicional** de compatibilidad con una categoria legacy sin reglas: se mide aparte y
+      el caso obligatorio (b) **no** depende de el.
 * la **no seleccion arbitraria** (con varias compatibles nunca se recomienda una) y que la **lectura
   no escribe**: ni reserva claves de idempotencia, ni audita, ni mueve la inscripcion.
 
@@ -186,13 +188,67 @@ async def test_caso_a_exactamente_una_compatible_es_la_recomendada(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_caso_b_multiples_compatibles_no_recomienda_y_avisa(
+async def test_caso_b_multiples_compatibles_estructuradas_no_recomienda_y_avisa(
     scenario: ClassificationScenario,
 ) -> None:
-    """§9(b): >1 categoria admite la inscripcion -> recomendada nula y aviso, nunca una elegida sola."""
+    """§9(b): >1 categoria **estructurada** admite la inscripcion -> recomendada nula y aviso.
+
+    Se clasifica contra la **superficie limpia** del trozo B (torneo hermano con SOLO las categorias
+    estructuradas, sin el cuadro legacy), de modo que las dos compatibles son dos categorias con
+    reglas reales: ``cat-male-gi-heavy`` (peso 77.01-120.00) y ``cat-male-gi-master`` (clase master,
+    MALE + GI, edad >=40, peso 77.01-120.00, cinturon WHITE..BROWN). El titular es ``b3`` (MALE, BLUE,
+    nacido 1985-12-01 -> 40 anios al inicio del torneo, 85.00 kg declarados), que cae en AMBAS y en
+    ninguna otra: es el unico competidor que hoy no usa ningun otro caso y queda dentro del solape
+    disenado (ver el comentario de ``cat-male-gi-master`` en el soporte del trozo A).
+    """
     dataset = scenario.dataset
-    # El torneo del escenario A trae 4 categorias estructuradas + 1 legacy; el cuadro legacy admite
-    # cualquier inscripcion, asi que una compatible estructurada da DOS compatibles.
+    tournament = int(scenario.surface.tournament)
+    registration_id, _ = await register(
+        scenario, tournament_id=tournament, competitor_key="b3", declared_weight_kg=Decimal("85.00"), modality="GI"
+    )
+
+    body = await classify_http(tournament_id=tournament, registration_id=registration_id, token=dataset.owner_token)
+
+    # Las DOS compatibles son estructuradas (con reglas reales): la legacy no esta en la superficie.
+    labels = sorted(str(category["category_label"]) for category in body["compatible_categories"])
+    assert labels == ["cat-male-gi-heavy", "cat-male-gi-master"]
+    heavy = scenario.surface.key("cat-male-gi-heavy")
+    master = scenario.surface.key("cat-male-gi-master")
+    assert set(compatible_keys(body)) == {heavy, master}
+    assert len(body["compatible_categories"]) == 2
+    assert recommended_key(body) is None
+    assert body["warnings"] == [MULTIPLE]
+    assert body["blockers"] == [CATEGORY_NOT_RESOLVED]
+
+    record_case(
+        case="b",
+        label="multiples compatibles ESTRUCTURADAS -> recomendada nula + MULTIPLE",
+        competitor_key="b3",
+        registration_id=registration_id,
+        tournament_id=tournament,
+        declared_weight_kg="85.00",
+        modality="GI",
+        representation="CLUB",
+        classification=body,
+    )
+    record_b("§9.b.multiples_estructuradas", True, {"compatible": compatible_keys(body)})
+
+
+# ---------------------------------------------------------------- §20 compatibilidad legacy
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_caso_b20_legacy_sin_reglas_es_compatible_adicional(
+    scenario: ClassificationScenario,
+) -> None:
+    """§20: una categoria legacy sin reglas admite la inscripcion y anade una compatible **extra**.
+
+    Se clasifica contra el torneo del escenario A, que SI trae el cuadro legacy ``legacy-open`` (sin
+    ninguna regla): cualquier inscripcion es compatible con el (aviso ``CATEGORY_RULES_PARTIAL``), de
+    modo que la compatible estructurada de ``c2`` (``cat-female-gi``) deja de ser unica. Este es el
+    caso **adicional** de compatibilidad con legacy; el caso obligatorio (b) NO depende de el.
+    """
+    dataset = scenario.dataset
     tournament = int(dataset.tournament)
     registration_id, _ = await register(
         scenario, tournament_id=tournament, competitor_key="c2", declared_weight_kg=Decimal("55.00"), modality="GI"
@@ -205,12 +261,13 @@ async def test_caso_b_multiples_compatibles_no_recomienda_y_avisa(
     assert set(compatible_keys(body)) == {female, legacy}
     assert len(body["compatible_categories"]) == 2
     assert recommended_key(body) is None
-    assert MULTIPLE in body["warnings"]
+    # Orden canonico del vocabulario: CATEGORY_RULES_PARTIAL (legacy) antes de MULTIPLE.
+    assert body["warnings"] == [warning(ClassificationWarning.CATEGORY_RULES_PARTIAL), MULTIPLE]
     assert body["blockers"] == [CATEGORY_NOT_RESOLVED]
 
     record_case(
-        case="b",
-        label="multiples compatibles -> recomendada nula + MULTIPLE",
+        case="b20-legacy",
+        label="legacy sin reglas -> compatible adicional (§20)",
         competitor_key="c2",
         registration_id=registration_id,
         tournament_id=tournament,
@@ -219,7 +276,7 @@ async def test_caso_b_multiples_compatibles_no_recomienda_y_avisa(
         representation="CLUB",
         classification=body,
     )
-    record_b("§9.b.multiples", True, {"compatible": compatible_keys(body)})
+    record_b("§20.legacy_compatible_adicional", True, {"compatible": compatible_keys(body)})
 
 
 # ---------------------------------------------------------------- §9 caso (c)
