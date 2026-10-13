@@ -130,6 +130,32 @@ def migration_lab() -> Iterator[Engine]:
     for column in ("winner_stage_item_input_id", "result_method", "finished_at"):
         _execute(engine, f"ALTER TABLE matches DROP COLUMN IF EXISTS {column}")
 
+    # S4.8a-1: el metadata vivo declara ademas los objetos de clasificacion (revision
+    # c1a4f7e92b08, posterior a la que prueba este modulo); se retiran para dejar el estado fisico
+    # previo de verdad, o el ``upgrade head`` del test chocaria al crearlos otra vez.
+    for table, column in (
+        ("clubs", "logo_path"),
+        ("stage_items", "sex_constraint"),
+        ("stage_items", "belt_min_id"),
+        ("stage_items", "belt_max_id"),
+        ("stage_items", "age_min"),
+        ("stage_items", "age_max"),
+        ("stage_items", "weight_min_kg"),
+        ("stage_items", "weight_max_kg"),
+        ("stage_items", "modality"),
+        ("competitors", "date_of_birth"),
+        ("competitors", "sex"),
+        ("competitors", "belt_id"),
+        ("tournament_registrations", "declared_weight_kg"),
+        ("tournament_registrations", "modality"),
+    ):
+        _execute(engine, f"ALTER TABLE {table} DROP COLUMN IF EXISTS {column}")
+    # El catalogo se retira despues de sus columnas (las claves foraneas de ``RESTRICT`` lo
+    # impiden antes) y los tipos enumerados, al final, cuando ya nadie los usa.
+    _execute(engine, "DROP TABLE IF EXISTS belts")
+    for enum_name in ("belt_scope", "competitor_sex", "sex_constraint", "modality"):
+        _execute(engine, f"DROP TYPE IF EXISTS {enum_name}")
+
     _alembic("stamp", PREVIOUS_REVISION)
 
     try:

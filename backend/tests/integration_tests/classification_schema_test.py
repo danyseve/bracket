@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DataError, IntegrityError
 
 from bracket.database import engine
+from bracket.models.db.domain import Belt
 
 #: Tipos enumerados cerrados que S4.8a introduce, con sus etiquetas exactas y en su orden.
 EXPECTED_ENUMS: dict[str, tuple[str, ...]] = {
@@ -338,6 +339,24 @@ def test_the_registration_weight_and_modality_are_constrained(lab: dict[str, int
             {"id": registration_id},
         )
         == 1
+    )
+
+
+def test_the_belt_row_model_parses_a_catalog_row(lab: dict[str, int]) -> None:
+    """El modelo de fila ``Belt`` interpreta una fila real del catalogo (color, orden y escala)."""
+    with engine.connect() as connection:
+        row = connection.execute(
+            text("SELECT * FROM belts WHERE id = :id"), {"id": lab["low_belt_id"]}
+        ).one()
+    belt = Belt.model_validate(dict(row._mapping))
+
+    assert (belt.id, belt.code, belt.label, belt.rank, belt.scope, belt.active) == (
+        lab["low_belt_id"],
+        "LAB_LOW",
+        "Lab low",
+        90,
+        "ADULT",
+        True,
     )
 
 
