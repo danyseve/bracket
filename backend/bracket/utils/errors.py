@@ -14,6 +14,9 @@ class UniqueIndex(EnumAutoStr):
     ix_users_email = auto()
     stage_item_inputs_stage_item_id_team_id_key = auto()
     stage_item_inputs_stage_item_id_winner_from_stage_item_id_w_key = auto()
+    # S4.8a-1: unicidad del catalogo de cinturones, por escala.
+    uq_belts_scope_code = auto()
+    uq_belts_scope_rank = auto()
     # F3A: indices unicos parciales del modelo de dominio (docs/21 v3 §12.1/§12.3).
     uq_competitors_x_sports_clubs_primary = auto()
     uq_tenant_quota_overrides_club_key = auto()
@@ -71,6 +74,9 @@ unique_index_violation_error_lookup = {
     ),
     # F3A: mensajes de las UNIQUE del modelo de dominio. No hay endpoints todavia (F3B/F3C),
     # pero la base ya impone estas reglas y el mapeo evita un 500 si se violan.
+    # S4.8a-1: el catalogo de cinturones no admite repetir color ni orden dentro de su escala.
+    UniqueIndex.uq_belts_scope_code: "This belt already exists in this scope",
+    UniqueIndex.uq_belts_scope_rank: "This belt rank is already taken in this scope",
     UniqueIndex.uq_competitors_x_sports_clubs_primary: (
         "This competitor already has a primary sports club"
     ),

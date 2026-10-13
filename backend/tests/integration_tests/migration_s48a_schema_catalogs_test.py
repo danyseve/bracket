@@ -138,7 +138,8 @@ def _alembic(*arguments: str) -> str:
 
 
 def _scalar(engine: Engine, sql: str, params: dict[str, Any] | None = None) -> Any:
-    with engine.connect() as connection:
+    """Un unico valor; abre transaccion propia porque este auxiliar tambien siembra filas."""
+    with engine.begin() as connection:
         return connection.execute(text(sql), params or {}).scalar_one()
 
 
@@ -484,7 +485,9 @@ def test_the_belt_catalog_rejects_duplicates_and_protects_the_referenced_rows(
         {"belt_id": belt_id},
     )
     _fails(migration_lab, "DELETE FROM belts WHERE id = :belt_id", {"belt_id": belt_id})
-    _execute(migration_lab, "UPDATE competitors SET belt_id = NULL WHERE id = :id", {"id": competitor_id})
+    _execute(
+        migration_lab, "UPDATE competitors SET belt_id = NULL WHERE id = :id", {"id": competitor_id}
+    )
     _execute(migration_lab, "DELETE FROM belts WHERE id = :belt_id", {"belt_id": belt_id})
 
 

@@ -124,7 +124,7 @@ def _constraint_exists(table: str, constraint: str) -> bool:
 
 @pytest.fixture
 def lab() -> Iterator[dict[str, int]]:
-    """Un club, un torneo, una etapa, un ranking, un cuadro legacy y dos cinturones de laboratorio."""
+    """Un club, un torneo, una etapa, un ranking, un cuadro legacy y dos cinturones."""
     club_id = int(_scalar("INSERT INTO clubs (name) VALUES ('s48a-lab-club') RETURNING id"))
     tournament_id = int(
         _scalar(
@@ -179,18 +179,30 @@ def lab() -> Iterator[dict[str, int]]:
             "high_belt_id": high_belt_id,
         }
     finally:
-        _execute("UPDATE competitors SET belt_id = NULL WHERE belt_id IN (:a, :b)",
-                 {"a": low_belt_id, "b": high_belt_id})
-        _execute("UPDATE stage_items SET belt_min_id = NULL, belt_max_id = NULL "
-                 "WHERE belt_min_id IN (:a, :b) OR belt_max_id IN (:a, :b)",
-                 {"a": low_belt_id, "b": high_belt_id})
-        _execute("UPDATE tournament_registrations SET declared_weight_kg = NULL, modality = NULL "
-                 "WHERE tournament_id = :t", {"t": tournament_id})
-        _execute("DELETE FROM tournament_registrations WHERE tournament_id = :t", {"t": tournament_id})
+        _execute(
+            "UPDATE competitors SET belt_id = NULL WHERE belt_id IN (:a, :b)",
+            {"a": low_belt_id, "b": high_belt_id},
+        )
+        _execute(
+            "UPDATE stage_items SET belt_min_id = NULL, belt_max_id = NULL "
+            "WHERE belt_min_id IN (:a, :b) OR belt_max_id IN (:a, :b)",
+            {"a": low_belt_id, "b": high_belt_id},
+        )
+        _execute(
+            "UPDATE tournament_registrations SET declared_weight_kg = NULL, modality = NULL "
+            "WHERE tournament_id = :t",
+            {"t": tournament_id},
+        )
+        _execute(
+            "DELETE FROM tournament_registrations WHERE tournament_id = :t", {"t": tournament_id}
+        )
         _execute("DELETE FROM competitors WHERE display_name LIKE 's48a-lab-%'")
         _execute("DELETE FROM belts WHERE id IN (:a, :b)", {"a": low_belt_id, "b": high_belt_id})
-        _execute("DELETE FROM stage_items WHERE stage_id IN "
-                 "(SELECT id FROM stages WHERE tournament_id = :t)", {"t": tournament_id})
+        _execute(
+            "DELETE FROM stage_items WHERE stage_id IN "
+            "(SELECT id FROM stages WHERE tournament_id = :t)",
+            {"t": tournament_id},
+        )
         _execute("DELETE FROM rankings WHERE tournament_id = :t", {"t": tournament_id})
         _execute("DELETE FROM stages WHERE tournament_id = :t", {"t": tournament_id})
         _execute("DELETE FROM tournaments WHERE id = :t", {"t": tournament_id})
@@ -207,7 +219,9 @@ def test_the_new_columns_are_nullable_with_their_exact_type() -> None:
     for table, columns in EXPECTED_COLUMNS.items():
         declared = _columns(table)
         for column, shape in columns.items():
-            assert declared.get(column) == shape, f"{table}.{column}: {declared.get(column)} != {shape}"
+            assert declared.get(column) == shape, (
+                f"{table}.{column}: {declared.get(column)} != {shape}"
+            )
 
 
 def test_a_legacy_stage_item_is_valid_without_any_rule(lab: dict[str, int]) -> None:
@@ -228,14 +242,18 @@ def test_the_category_rules_are_constrained_by_the_database(lab: dict[str, int])
     """Rangos invertidos, edades negativas y pesos fuera de (0, 300] no entran; los validos si."""
     stage_item_id = lab["stage_item_id"]
 
-    _fails("UPDATE stage_items SET age_min = 30, age_max = 18 WHERE id = :id",
-           {"id": stage_item_id})
+    _fails(
+        "UPDATE stage_items SET age_min = 30, age_max = 18 WHERE id = :id", {"id": stage_item_id}
+    )
     _fails("UPDATE stage_items SET age_min = -1 WHERE id = :id", {"id": stage_item_id})
-    _fails("UPDATE stage_items SET weight_min_kg = 80, weight_max_kg = 70 WHERE id = :id",
-           {"id": stage_item_id})
+    _fails(
+        "UPDATE stage_items SET weight_min_kg = 80, weight_max_kg = 70 WHERE id = :id",
+        {"id": stage_item_id},
+    )
     _fails("UPDATE stage_items SET weight_max_kg = 300.01 WHERE id = :id", {"id": stage_item_id})
-    _fails_with_type_error("UPDATE stage_items SET age_max = 30.5 WHERE id = :id",
-                           {"id": stage_item_id})
+    _fails_with_type_error(
+        "UPDATE stage_items SET age_max = '18.5' WHERE id = :id", {"id": stage_item_id}
+    )
 
     _execute(
         """
@@ -247,14 +265,17 @@ def test_the_category_rules_are_constrained_by_the_database(lab: dict[str, int])
         """,
         {"id": stage_item_id, "low": lab["low_belt_id"], "high": lab["high_belt_id"]},
     )
-    assert _scalar(
-        """
+    assert (
+        _scalar(
+            """
         SELECT count(*) FROM stage_items
         WHERE id = :id AND sex_constraint = 'MIXED' AND modality = 'GI'
           AND weight_min_kg = 0.01 AND weight_max_kg = 300.00
         """,
-        {"id": stage_item_id},
-    ) == 1
+            {"id": stage_item_id},
+        )
+        == 1
+    )
 
 
 def test_the_competitor_sex_is_closed_and_the_belt_is_a_catalog_reference(
@@ -310,14 +331,17 @@ def test_the_registration_weight_and_modality_are_constrained(lab: dict[str, int
         "WHERE id = :id",
         {"id": registration_id},
     )
-    assert _scalar(
-        "SELECT count(*) FROM tournament_registrations WHERE id = :id "
-        "AND declared_weight_kg = 300.00 AND modality IS NULL",
-        {"id": registration_id},
-    ) == 1
+    assert (
+        _scalar(
+            "SELECT count(*) FROM tournament_registrations WHERE id = :id "
+            "AND declared_weight_kg = 300.00 AND modality IS NULL",
+            {"id": registration_id},
+        )
+        == 1
+    )
 
 
-def test_the_belt_catalog_uniqueness_is_per_scope() -> None:
+def test_the_belt_catalog_uniqueness_is_per_scope(lab: dict[str, int]) -> None:
     """``(scope, code)`` y ``(scope, rank)`` son unicos; el mismo color convive entre escalas."""
     _fails("INSERT INTO belts (code, label, rank, scope) VALUES ('LAB_LOW', 'Otro', 92, 'ADULT')")
     _fails("INSERT INTO belts (code, label, rank, scope) VALUES ('LAB_OTHER', 'Otro', 90, 'ADULT')")

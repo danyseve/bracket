@@ -27,12 +27,15 @@ revisado, nunca como ``SELECT *``.
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from heliclockter import datetime_utc
 
 from bracket.models.db.shared import BaseModelORM
 from bracket.utils.id_types import (
+    BeltId,
     ClubId,
     CompetitorId,
     CompetitorXSportsClubId,
@@ -45,6 +48,15 @@ from bracket.utils.id_types import (
 type RegistrationIdentityStatus = Literal["UNVERIFIED", "AMBIGUOUS", "VERIFIED"]
 type RegistrationRepresentation = Literal["INDEPENDENT", "CLUB"]
 type RegistrationStatus = Literal["DRAFT", "CONFIRMED", "WITHDRAWN", "DISQUALIFIED", "CORRECTED"]
+# Vocabularios de clasificacion (S4.8a-1). El sexo de la **persona** y la restriccion de la
+# **categoria** son tipos distintos a proposito: ``MIXED`` describe una categoria, no a nadie.
+type CompetitorSex = Literal["MALE", "FEMALE"]
+type SexConstraint = Literal["MALE", "FEMALE", "MIXED"]
+# Modalidad de una participacion deportiva concreta: GI y NO_GI son inscripciones distintas.
+type Modality = Literal["GI", "NO_GI"]
+# Escala del cinturon: el mismo color existe en la juvenil y en la adulta, y el orden solo es
+# comparable dentro de su escala.
+type BeltScope = Literal["JUVENILE", "ADULT"]
 type DomainChangeLogAction = Literal[
     "CREATE",
     "UPDATE",
@@ -125,8 +137,31 @@ class SportsClubNameHistory(BaseModelORM):
     valid_to: datetime_utc | None = None
 
 
+class Belt(BaseModelORM):
+    """Cinturon del catalogo cerrado (``belts``).
+
+    ``code`` es la clave logica estable (``BLUE``); ``label`` es la etiqueta canonica de respaldo
+    y la traduccion vive en el frontend. ``rank`` ordena **dentro** de ``scope``: el mismo color
+    existe en la escala juvenil y en la adulta, asi que un rango solo se compara con otro de su
+    misma escala.
+    """
+
+    id: BeltId
+    code: str
+    label: str
+    rank: int
+    scope: BeltScope
+    active: bool
+    created: datetime_utc
+
+
 class Competitor(BaseModelORM):
-    """Identidad de competidor administrada por un tenant (``managed_by_club_id``)."""
+    """Identidad de competidor administrada por un tenant (``managed_by_club_id``).
+
+    Los datos de clasificacion (``date_of_birth``, ``sex``, ``belt_id``) son nuables y no
+    sustituyen a la afiliacion: el club que representa el competidor es una relacion temporal
+    (``competitors_x_sports_clubs``), no una columna de esta tabla.
+    """
 
     id: CompetitorId
     display_name: str
@@ -134,6 +169,9 @@ class Competitor(BaseModelORM):
     managed_by_club_id: ClubId | None = None
     created: datetime_utc
     updated_at: datetime_utc | None = None
+    date_of_birth: date | None = None
+    sex: CompetitorSex | None = None
+    belt_id: BeltId | None = None
 
 
 class CompetitorNameHistory(BaseModelORM):
@@ -180,6 +218,8 @@ class TournamentRegistration(BaseModelORM):
     superseded_by_registration_id: TournamentRegistrationId | None = None
     created: datetime_utc
     updated_at: datetime_utc | None = None
+    declared_weight_kg: Decimal | None = None
+    modality: Modality | None = None
 
 
 class RegistrationDraftData(BaseModelORM):

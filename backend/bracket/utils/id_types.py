@@ -1,5 +1,6 @@
 from typing import NewType
 
+BeltId = NewType("BeltId", int)
 ClubId = NewType("ClubId", int)
 CompetitorId = NewType("CompetitorId", int)
 CompetitorXSportsClubId = NewType("CompetitorXSportsClubId", int)

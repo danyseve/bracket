@@ -16,9 +16,11 @@ from sqlalchemy.sql.sqltypes import (
     ARRAY,
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Enum,
     Float,
+    Numeric,
     SmallInteger,
     Text,
 )
@@ -33,6 +35,39 @@ clubs = Table(
     Column("id", BigInteger, primary_key=True, index=True, autoincrement=True),
     Column("name", String, nullable=False, index=True),
     Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    # Logo opcional del club (S4.8a-1). Mismo patron que `tournaments.logo_path` y
+    # `teams.logo_path`: en la base solo vive la ruta relativa; el fichero, en disco.
+    # Nulable a proposito: un club sin logo es un club valido.
+    Column("logo_path", String, nullable=True),
+)
+
+# Catalogo cerrado de cinturones (S4.8a-1). Es un catalogo de **datos**, no un enum de
+# PostgreSQL: el dominio puede crecer (nuevas escalas o cinturones) sin migrar el tipo.
+belts = Table(
+    "belts",
+    metadata,
+    Column("id", BigInteger, primary_key=True, index=True, autoincrement=True),
+    # Clave logica estable ("BLUE"). No es el texto visible: la UI localiza por `code`.
+    Column("code", String, nullable=False),
+    # Etiqueta canonica de respaldo (ingles). La traduccion vive en el frontend.
+    Column("label", String, nullable=False),
+    # Orden dentro de su escala: permite comprobar rangos ("azul o superior").
+    Column("rank", Integer, nullable=False),
+    Column(
+        "scope",
+        Enum(
+            "JUVENILE",
+            "ADULT",
+            name="belt_scope",
+        ),
+        nullable=False,
+    ),
+    Column("active", Boolean, nullable=False, server_default="t", index=True),
+    Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
+    # El mismo color (WHITE) existe en la escala juvenil y en la adulta: la clave natural es
+    # (scope, code) y el orden solo se compara dentro de la misma escala.
+    UniqueConstraint("scope", "code", name="uq_belts_scope_code"),
+    UniqueConstraint("scope", "rank", name="uq_belts_scope_rank"),
 )
 
 tournaments = Table(
@@ -102,6 +137,50 @@ stage_items = Table(
         BigInteger,
         ForeignKey("courts.id", ondelete="SET NULL"),
         nullable=True,
+    ),
+    # Reglas de clasificacion de la categoria (S4.8a-1). `NULL` significa "sin restriccion
+    # conocida": un cuadro legacy sigue siendo valido y no se le inventa ninguna regla. Solo
+    # se declaran aqui los criterios que la clasificacion necesita de verdad.
+    Column(
+        "sex_constraint",
+        Enum(
+            "MALE",
+            "FEMALE",
+            "MIXED",
+            name="sex_constraint",
+        ),
+        nullable=True,
+    ),
+    Column("belt_min_id", BigInteger, ForeignKey("belts.id", ondelete="RESTRICT"), nullable=True),
+    Column("belt_max_id", BigInteger, ForeignKey("belts.id", ondelete="RESTRICT"), nullable=True),
+    Column("age_min", Integer, nullable=True),
+    Column("age_max", Integer, nullable=True),
+    Column("weight_min_kg", Numeric(5, 2), nullable=True),
+    Column("weight_max_kg", Numeric(5, 2), nullable=True),
+    Column(
+        "modality",
+        Enum(
+            "GI",
+            "NO_GI",
+            name="modality",
+        ),
+        nullable=True,
+    ),
+    # Limites inclusivos (min <= peso <= max): lo que la base puede garantizar por si misma.
+    # La coherencia de rangos de cinturon (misma escala y min <= max) es cruzada entre filas
+    # del catalogo y la comprueba la capa de dominio, no un CHECK.
+    CheckConstraint(
+        "(age_min IS NULL OR age_min >= 0)"
+        " AND (age_max IS NULL OR age_max >= 0)"
+        " AND (age_min IS NULL OR age_max IS NULL OR age_min <= age_max)",
+        name="ck_stage_items_age_range",
+    ),
+    CheckConstraint(
+        "(weight_min_kg IS NULL OR (weight_min_kg > 0 AND weight_min_kg <= 300))"
+        " AND (weight_max_kg IS NULL OR (weight_max_kg > 0 AND weight_max_kg <= 300))"
+        " AND (weight_min_kg IS NULL OR weight_max_kg IS NULL"
+        " OR weight_min_kg <= weight_max_kg)",
+        name="ck_stage_items_weight_range",
     ),
 )
 
@@ -375,6 +454,20 @@ competitors = Table(
     ),
     Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
     Column("updated_at", DateTimeTZ, nullable=True),
+    # Datos basicos de clasificacion (S4.8a-1), todos nulables: los competidores existentes
+    # conservan lo que se sabe de ellos y no se rellena ningun dato deportivo inventado.
+    # La edad es **derivada** (fecha de nacimiento contra el inicio del torneo), no se guarda.
+    Column("date_of_birth", Date, nullable=True),
+    Column(
+        "sex",
+        Enum(
+            "MALE",
+            "FEMALE",
+            name="competitor_sex",
+        ),
+        nullable=True,
+    ),
+    Column("belt_id", BigInteger, ForeignKey("belts.id", ondelete="RESTRICT"), nullable=True),
     Index("ix_competitors_display_name_normalized", func.lower(func.btrim(text("display_name")))),
 )
 
@@ -538,6 +631,23 @@ tournament_registrations = Table(
     Column("verified_at", DateTimeTZ, nullable=True),
     Column("created", DateTimeTZ, nullable=False, server_default=func.now()),
     Column("updated_at", DateTimeTZ, nullable=True),
+    # Peso declarado y modalidad de esta inscripcion (S4.8a-1). El peso cambia de un torneo a
+    # otro, asi que vive aqui y **no** como atributo permanente del competidor. La unidad es el
+    # kilogramo y el limite superior (300 kg) es el mismo del dominio.
+    Column("declared_weight_kg", Numeric(5, 2), nullable=True),
+    Column(
+        "modality",
+        Enum(
+            "GI",
+            "NO_GI",
+            name="modality",
+        ),
+        nullable=True,
+    ),
+    CheckConstraint(
+        "declared_weight_kg IS NULL OR (declared_weight_kg > 0 AND declared_weight_kg <= 300)",
+        name="ck_tournament_registrations_declared_weight",
+    ),
     CheckConstraint(
         "(representation = 'CLUB') = (sports_club_id IS NOT NULL)",
         name="ck_tournament_registrations_representation",
