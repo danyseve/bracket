@@ -74,6 +74,26 @@ class BracketReadinessBlocker(StrEnum):
     REGISTRATION_INCONSISTENT = "REGISTRATION_INCONSISTENT"
     #: El torneo ya tiene un cuadro generado que **no** se puede regenerar (actividad encima).
     BRACKET_ALREADY_EXISTS = "BRACKET_ALREADY_EXISTS"
+    # --- S4.8a-3 §9: codigos del motor de clasificacion, **anadidos al final** para no
+    # reordenar los bloqueos existentes (el orden del vocabulario es el de la respuesta). ---
+    #: La categoria exige edad y el competidor no tiene fecha de nacimiento.
+    MISSING_DATE_OF_BIRTH = "MISSING_DATE_OF_BIRTH"
+    #: La categoria exige sexo y el competidor no lo tiene declarado.
+    MISSING_SEX = "MISSING_SEX"
+    #: La categoria exige cinturon y el competidor no tiene cinturon.
+    MISSING_BELT = "MISSING_BELT"
+    #: La categoria exige peso y la inscripcion no declara peso.
+    MISSING_WEIGHT = "MISSING_WEIGHT"
+    #: La categoria exige modalidad y la inscripcion no la declara.
+    MISSING_MODALITY = "MISSING_MODALITY"
+    #: Ninguna categoria del torneo admite esta inscripcion.
+    NO_COMPATIBLE_CATEGORY = "NO_COMPATIBLE_CATEGORY"
+    #: La clave de categoria elegida no resuelve a una categoria del torneo.
+    CATEGORY_NOT_RESOLVED = "CATEGORY_NOT_RESOLVED"
+    #: Un dato disponible incumple una restriccion explicita de la categoria.
+    CATEGORY_INCOMPATIBLE = "CATEGORY_INCOMPATIBLE"
+    #: Configuracion incoherente de la propia categoria (rango de cinturon imposible).
+    INVALID_CATEGORY_BELT_RANGE = "INVALID_CATEGORY_BELT_RANGE"
 
 
 #: Orden canonico de la respuesta: el de la declaracion del vocabulario, nunca el del SQL.
@@ -107,11 +127,25 @@ class RegistrationReadinessRow:  # pylint: disable=too-many-instance-attributes
     affiliation_id: CompetitorXSportsClubId | None
     affiliation_competitor_id: CompetitorId | None
     affiliation_sports_club_id: SportsClubId | None
+    #: Bloqueos del motor de clasificacion (§9). Vacio significa que la categoria elegida es
+    #: resoluble y compatible (o que la inscripcion no tiene nada que clasificar todavia).
+    classification_blockers: tuple[BracketReadinessBlocker, ...] = ()
+    #: Hubo un override de categoria OWNER valido y auditado (§8): el bloqueo no cuenta.
+    overridden: bool = False
 
     @property
     def is_current(self) -> bool:
         """Vigente: ni corregida ni sustituida por una correccion (definicion de S1)."""
         return self.status != _CORRECTED and not self.superseded
+
+    @property
+    def counts_toward_minimum(self) -> bool:
+        """Cuenta para el minimo de la categoria (§9): clasificable o con override OWNER.
+
+        Una confirmada con bloqueos de clasificacion no es un participante clasificable; un
+        override OWNER valido y auditado la vuelve contable aunque la categoria no encaje.
+        """
+        return not self.classification_blockers or self.overridden
 
 
 @dataclass(frozen=True)
@@ -274,7 +308,12 @@ def _row_blockers(
     if category_blocker is not None:
         blockers.append(category_blocker)
 
-    return tuple(blockers)
+    # §9: los bloqueos del motor de clasificacion pesan como los demas, salvo que un override
+    # OWNER valido y auditado los haya legitimado.
+    if row.classification_blockers and not row.overridden:
+        blockers.extend(row.classification_blockers)
+
+    return tuple(sorted(set(blockers), key=lambda blocker: _BLOCKER_ORDER[blocker]))
 
 
 def _counted_issues(
@@ -296,12 +335,15 @@ def _category_readiness(group: _CategoryGroup, *, tenant_club_id: ClubId) -> Cat
         for blocker in _row_blockers(row, tenant_club_id=tenant_club_id):
             counts[blocker] = counts.get(blocker, 0) + 1
 
+    # §9: solo cuentan las confirmadas clasificables (o con override OWNER). Una confirmada
+    # cuya clasificacion no resuelve no es un participante del cuadro.
+    counted = tuple(row for row in group.rows if row.counts_toward_minimum)
     issues: list[ReadinessIssue] = []
-    if len(group.rows) < MINIMUM_ENTRANTS:
+    if len(counted) < MINIMUM_ENTRANTS:
         issues.append(
             ReadinessIssue(
                 code=BracketReadinessBlocker.CATEGORY_NOT_ENOUGH_COMPETITORS,
-                count=len(group.rows),
+                count=len(counted),
                 category_key=category_key,
                 required_minimum=MINIMUM_ENTRANTS,
             )
@@ -312,7 +354,7 @@ def _category_readiness(group: _CategoryGroup, *, tenant_club_id: ClubId) -> Cat
     return CategoryReadiness(
         category_key=category_key,
         category_label=label,
-        confirmed_count=len(group.rows),
+        confirmed_count=len(counted),
         required_minimum=MINIMUM_ENTRANTS,
         issues=tuple(sorted(issues, key=_issue_sort_key)),
     )
