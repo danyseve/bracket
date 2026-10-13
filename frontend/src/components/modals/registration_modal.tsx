@@ -5,6 +5,8 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import F3ErrorAlert from '@components/f3/f3_error_alert';
+import { parseDeclaredWeightKg, weightInputError } from '@components/utils/f3_classification';
+import { MODALITIES, Modality } from '@components/utils/f3_competitor_contract';
 import {
   CATEGORY_LABEL_MAX_LENGTH,
   RegistrationCreateBody,
@@ -19,11 +21,15 @@ export interface SelectOption {
 }
 
 /**
- * Alta de una inscripción (S4.1 §5).
+ * Alta de una inscripción (S4.1 §5 + S4.8a-4 §8/§9).
  *
- * El organizador elige competidor y categoría. La **clave interna** de la categoría se deriva de la
- * etiqueta y se muestra en secundario: es un detalle técnico que no se le debe pedir, pero tampoco
- * se le oculta si luego lo ve en otro sitio.
+ * El organizador elige competidor y categoría, y declara el **peso** (kg, admite decimales, §8) y la
+ * **modalidad** (Gi / No-Gi, §9). La clave interna de la categoría se deriva de la etiqueta y se
+ * muestra en secundario: es un detalle técnico que no se le debe pedir, pero tampoco se le oculta.
+ *
+ * Ni el peso ni la modalidad son obligatorios aquí: el backend no los exige para inscribir (§18) y
+ * el motor de clasificación decide después qué falta (`MISSING_WEIGHT`, `MISSING_MODALITY`). Por eso
+ * la modalidad no fuerza un valor inventado y el peso vacío no bloquea el envío.
  *
  * Solo se ofrecen competidores activos: el backend rechaza inscribir a un competidor dado de baja
  * (`CompetitorNotSelectableError`), así que la interfaz no ofrece esa puerta.
@@ -54,6 +60,8 @@ export default function RegistrationModal({
     initialValues: {
       competitor_id: '',
       category_label: '',
+      declared_weight_kg: '',
+      modality: '',
     },
     validate: {
       competitor_id: (value) => (value !== '' ? null : t('f3_registration_competitor_required')),
@@ -66,6 +74,10 @@ export default function RegistrationModal({
           return t('f3_registration_category_too_long');
         }
         return isValidCategoryKey(key) ? null : t('f3_registration_category_invalid');
+      },
+      declared_weight_kg: (value) => {
+        const errorKey = weightInputError(value);
+        return errorKey == null ? null : t(errorKey);
       },
     },
   });
@@ -84,6 +96,8 @@ export default function RegistrationModal({
             representation: 'INDEPENDENT',
             category_key: categoryKeyFromLabel(values.category_label),
             category_label: values.category_label.trim(),
+            declared_weight_kg: parseDeclaredWeightKg(values.declared_weight_kg),
+            modality: values.modality === '' ? null : (values.modality as Modality),
             reason_code: 'PLANNED_ENTRY',
           });
         })}
@@ -104,6 +118,25 @@ export default function RegistrationModal({
             description={t('f3_registration_category_description')}
             maxLength={CATEGORY_LABEL_MAX_LENGTH}
             {...form.getInputProps('category_label')}
+          />
+
+          <TextInput
+            label={t('f3_registration_weight_label')}
+            description={t('f3_registration_weight_description')}
+            placeholder="kg"
+            inputMode="decimal"
+            {...form.getInputProps('declared_weight_kg')}
+          />
+
+          <Select
+            clearable
+            label={t('f3_registration_modality_label')}
+            description={t('f3_registration_modality_description')}
+            data={MODALITIES.map((modality) => ({
+              value: modality,
+              label: t(`f3_registration_modality_${modality.toLowerCase()}`),
+            }))}
+            {...form.getInputProps('modality')}
           />
 
           {derivedKey !== '' ? (

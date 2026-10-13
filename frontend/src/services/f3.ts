@@ -8,6 +8,8 @@ import {
   competitorIndependenceUrl,
   CompetitorProfileBody,
   competitorProfileUrl,
+  RegistrationClassification,
+  registrationClassificationUrl,
   SportsClub,
   sportsClubLogoUrl,
   sportsClubsUrl,
@@ -33,6 +35,7 @@ import {
   registrationsQuery,
   RegistrationStatus,
   registrationsUrl,
+  registrationUrl,
   RegistrationWindow,
   registrationWindowUrl,
   StageItemCourtBody,
@@ -139,6 +142,35 @@ export function getCompetitorSportsProfile(
     club_id == null || club_id === -1 || competitor_id === -1
       ? null
       : competitorUrl(club_id, competitor_id),
+    fetcher
+  );
+}
+
+/** Inscripción concreta (S4.8a-4 §10): origen del peso y la modalidad declarados. */
+export function getRegistration(
+  tournament_id: number,
+  registration_id: number
+): SWRResponse<Registration> {
+  return useSWR(
+    tournament_id === -1 || registration_id === -1
+      ? null
+      : registrationUrl(tournament_id, registration_id),
+    fetcher
+  );
+}
+
+/**
+ * Clasificación de una inscripción (S4.8a-4 §10), solo lectura. La calcula el motor del backend:
+ * el frontend nunca reproduce sus reglas, solo muestra el veredicto.
+ */
+export function getRegistrationClassification(
+  tournament_id: number,
+  registration_id: number
+): SWRResponse<RegistrationClassification> {
+  return useSWR(
+    tournament_id === -1 || registration_id === -1
+      ? null
+      : registrationClassificationUrl(tournament_id, registration_id),
     fetcher
   );
 }

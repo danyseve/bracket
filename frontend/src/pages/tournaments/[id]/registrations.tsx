@@ -3,6 +3,7 @@ import {
   Card,
   Grid,
   Group,
+  Modal,
   Pagination,
   Select,
   Skeleton,
@@ -19,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import F3ErrorAlert from '@components/f3/f3_error_alert';
 import ReadinessPanel from '@components/f3/readiness_panel';
 import ReasonModal from '@components/f3/reason_modal';
+import RegistrationClassificationPanel from '@components/f3/registration_classification_panel';
 import RegistrationWindowCard from '@components/f3/registration_window_card';
 import { RegistrationStatusBadge } from '@components/f3/status_badge';
 import RegistrationModal, { SelectOption } from '@components/modals/registration_modal';
@@ -72,6 +74,7 @@ export default function RegistrationsPage() {
   const [organizerActions, setOrganizerActions] = useState(false);
   const [failure, setFailure] = useState<F3Failure | null>(null);
   const [createOpened, setCreateOpened] = useState(false);
+  const [classificationTarget, setClassificationTarget] = useState<Registration | null>(null);
   const [actionTarget, setActionTarget] = useState<{
     registration: Registration;
     action: RegistrationAction;
@@ -299,6 +302,14 @@ export default function RegistrationsPage() {
                       </Table.Td>
                       <Table.Td>
                         <Group gap="xs">
+                          <Button
+                            variant="subtle"
+                            size="compact-sm"
+                            color="gray"
+                            onClick={() => setClassificationTarget(registration)}
+                          >
+                            {t('classification_open_button')}
+                          </Button>
                           {visible.length === 0 ? (
                             <Text size="xs" c="dimmed">
                               {t('registrations_no_actions')}
@@ -366,6 +377,25 @@ export default function RegistrationsPage() {
         inflight={inflight}
         error={failure}
       />
+
+      <Modal
+        opened={classificationTarget != null}
+        onClose={() => setClassificationTarget(null)}
+        size="lg"
+        title={
+          classificationTarget != null
+            ? `${t('classification_modal_title')} · ${classificationTarget.competitor_name_snapshot}`
+            : t('classification_modal_title')
+        }
+      >
+        {classificationTarget != null ? (
+          <RegistrationClassificationPanel
+            tournament_id={tournamentData.id}
+            registration_id={classificationTarget.id}
+            club_id={club_id}
+          />
+        ) : null}
+      </Modal>
 
       <ReasonModal
         opened={actionTarget != null}

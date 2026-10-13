@@ -62,6 +62,9 @@ const COMPONENT_SOURCES = [
   '../src/components/f3/competitor_sports_profile.tsx',
   '../src/components/modals/competitor_modal.tsx',
   '../src/components/modals/registration_modal.tsx',
+  // S4.8a-4 — peso, modalidad y clasificación del organizador
+  '../src/components/utils/f3_classification.ts',
+  '../src/components/f3/registration_classification_panel.tsx',
   '../src/pages/tournaments/[id]/competitors.tsx',
   '../src/pages/tournaments/[id]/registrations.tsx',
   '../src/pages/tournaments/[id]/brackets.tsx',

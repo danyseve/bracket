@@ -5,10 +5,12 @@
  * del release F3. Aquí viven las rutas, los cuerpos, los vocabularios y las reglas de transición que
  * la UI **no** puede inventar: la interfaz solo ofrece lo que el backend acepta.
  *
- * El módulo no importa nada (ni React, ni axios, ni i18next) para que los tests puedan ejercerlo sin
- * red y sin navegador. Los textos visibles son claves de traducción, nunca frases: el copy vive en
- * `public/locales`.
+ * El módulo no importa nada **en tiempo de ejecución** (ni React, ni axios, ni i18next; el único
+ * `import` es de tipos, que se borra) para que los tests puedan ejercerlo sin red y sin navegador.
+ * Los textos visibles son claves de traducción, nunca frases: el copy vive en `public/locales`.
  */
+
+import type { Modality } from './f3_competitor_contract.ts';
 
 /** Cabecera del protocolo de idempotencia (S3.3b). No se muestra al usuario. */
 export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
@@ -62,6 +64,10 @@ export interface Registration {
   sports_club_id: number | null;
   category_key: string | null;
   category_label: string | null;
+  /** Peso declarado en kg (S4.8a-4 §8). Pydantic serializa `Decimal` como cadena; puede ser nulo. */
+  declared_weight_kg: string | null;
+  /** Modalidad declarada (S4.8a-4 §9): `GI`/`NO_GI`, o nulo si no se declara. */
+  modality: Modality | null;
   competitor_name_snapshot: string;
   sports_club_name_snapshot: string | null;
   status: RegistrationStatus;
@@ -144,6 +150,10 @@ export interface RegistrationCreateBody {
   category_label: string;
   /** Academia representada: obligatoria si `representation` es `CLUB`, ausente si es `INDEPENDENT`. */
   sports_club_id?: number | null;
+  /** Peso declarado en kg (S4.8a-4 §8): decimal `>0` y `<=300`, u omitido si no se declara. */
+  declared_weight_kg?: string | null;
+  /** Modalidad (S4.8a-4 §9): `GI`/`NO_GI`, u omitida si no se declara. */
+  modality?: Modality | null;
   reason_code?: string | null;
 }
 

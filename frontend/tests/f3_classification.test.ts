@@ -18,13 +18,6 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  CLASSIFICATION_BLOCKER_FALLBACK_KEY,
-  CLASSIFICATION_WARNING_FALLBACK_KEY,
-  MODALITIES,
-  classificationBlockerKey,
-  classificationWarningKey,
-} from '../src/components/utils/f3_competitor_contract.ts';
-import {
   MODALITY_KEYS,
   WEIGHT_MAX_KG,
   classificationBlockerKeys,
@@ -35,6 +28,19 @@ import {
   preselectedCategoryKey,
   weightInputError,
 } from '../src/components/utils/f3_classification.ts';
+import type {
+  ClassificationBlocker,
+  ClassificationCategoryVerdict,
+  ClassificationWarning,
+  RegistrationClassification,
+} from '../src/components/utils/f3_competitor_contract.ts';
+import {
+  CLASSIFICATION_BLOCKER_FALLBACK_KEY,
+  CLASSIFICATION_WARNING_FALLBACK_KEY,
+  MODALITIES,
+  classificationBlockerKey,
+  classificationWarningKey,
+} from '../src/components/utils/f3_competitor_contract.ts';
 
 const LOCALES_DIR = new URL('../public/locales/', import.meta.url);
 const LOCALES = ['de', 'el', 'en', 'es', 'fa', 'fr', 'it', 'ja', 'nl', 'pt', 'sv', 'zh'];
@@ -53,8 +59,12 @@ function loadLocale(language: string): Record<string, string> {
 function verdict(
   category_key: string,
   category_label: string,
-  extra: { compatible?: boolean; blockers?: string[]; warnings?: string[] } = {}
-) {
+  extra: {
+    compatible?: boolean;
+    blockers?: ClassificationBlocker[];
+    warnings?: ClassificationWarning[];
+  } = {}
+): ClassificationCategoryVerdict {
   return {
     category_key,
     category_label,
@@ -145,7 +155,7 @@ test('con una sola categoría compatible se preselecciona esa categoría (§14)'
 test('con varias compatibles NO se elige la primera y se avisa (§14)', () => {
   const a = verdict('si:5', 'Gi -76 kg');
   const b = verdict('si:6', 'Gi -82 kg');
-  const classification = {
+  const classification: RegistrationClassification = {
     compatible_categories: [a, b],
     recommended_category: null,
     blockers: [],
