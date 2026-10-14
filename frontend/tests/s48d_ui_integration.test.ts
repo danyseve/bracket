@@ -1,5 +1,5 @@
 /**
- * Integración de UI de la fase S4.8d: competidores, inscripciones, categorías, academias y cinturones.
+ * Integración de UI de la fase S4.8d: competidores, inscripciones, categorías, clubes y cinturones.
  *
  * Estos tests protegen exactamente los fallos que se vieron en producción:
  *
@@ -10,7 +10,7 @@
  *    correcta son los `stage_items` del torneo, con la clave contractual `si:<stage_item_id>`;
  * 3. el perfil deportivo no mostraba la edad (derivada) y no se ofrecía el catálogo del proyecto
  *    (Blanco · Azul · Violeta · Marrón · Negro);
- * 4. el logo no se podía tocar en ninguna pantalla de academias.
+ * 4. el logo no se podía tocar en ninguna pantalla de clubes.
  *
  * Igual que el resto de la suite: sin DOM y sin red. Los helpers puros se ejercen de verdad y los
  * cableados se comprueban por fuente.
@@ -283,30 +283,33 @@ test('la opción del competidor compone nombre · cinturón · edad sin inventar
   );
 });
 
-/* ------------------------------------------------------- 6. academias y logo (§2/§5) -------------- */
+/* ------------------------------------------------------- 6. clubes y logo (§2/§5) -------------- */
 
-test('existe una pantalla de academias cableada a los endpoints reales', () => {
-  const page = source('../src/pages/tournaments/[id]/academies.tsx');
-  assert.ok(page.includes('getSportsClubs(club_id)'), 'el listado sale del endpoint de academias');
+test('existe una pantalla de clubes cableada a los endpoints reales', () => {
+  const page = source('../src/pages/tournaments/[id]/clubs.tsx');
+  assert.ok(
+    page.includes('getSportsClubs(club_id, true)'),
+    'la gestión lista el endpoint de clubes incluyendo los dados de baja'
+  );
   assert.ok(page.includes('<SportsClubLogo'), 'reutiliza el control de logo existente');
   assert.ok(page.includes('canManage={organizerActions}'), 'la escritura va tras el gate de UI');
   assert.ok(page.includes('onChanged'), 'el listado se refresca tras cambiar el logo');
 });
 
-test('las academias están enlazadas en la navegación del torneo', () => {
+test('los clubes están enlazadas en la navegación del torneo', () => {
   const links = source('../src/components/navbar/_main_links.tsx');
-  assert.ok(links.includes('/academies'), 'sin enlace en el menú la pantalla no se descubre');
-  assert.ok(links.includes("t('f3_academies_title')"));
+  assert.ok(links.includes('/clubs'), 'sin enlace en el menú la pantalla no se descubre');
+  assert.ok(links.includes("t('f3_clubs_title')"));
 });
 
 /* ------------------------------------------------------- 7. i18n ---------------------------------- */
 
 test('las claves nuevas existen, no están vacías y mantienen sus marcadores', () => {
   const keys = [
-    'f3_academies_title',
-    'f3_academies_description',
-    'f3_academies_empty_title',
-    'f3_academies_empty_description',
+    'f3_clubs_title',
+    'f3_clubs_description',
+    'f3_clubs_empty_title',
+    'f3_clubs_empty_description',
     'f3_registration_preview_title',
     'f3_registration_preview_hint',
     'f3_profile_age_label',
@@ -358,7 +361,7 @@ const SUMMARY_CONTEXT = {
   independentLabel: 'Independiente',
 };
 
-test('la etiqueta del competidor añade la academia real o «Independiente»', () => {
+test('la etiqueta del competidor añadel club real o «Independiente»', () => {
   const context = {
     referenceDate: '2026-10-13',
     beltLabel: () => 'Azul',
@@ -387,11 +390,11 @@ test('la etiqueta del competidor añade la academia real o «Independiente»', (
   );
 });
 
-test('un club sin nombre no se pinta: nada de academias inventadas', () => {
+test('un club sin nombre no se pinta: nada de clubes inventadas', () => {
   assert.equal(
     affiliationLabel({ affiliation_mode: 'CLUB', sports_club_name: '   ' }),
     null,
-    'sin nombre no hay academia que mostrar'
+    'sin nombre no hay club que mostrar'
   );
   assert.equal(affiliationLabel({ affiliation_mode: 'CLUB', sports_club_name: null }), null);
   assert.equal(
@@ -565,8 +568,8 @@ test('los avisos del motor tienen clave propia y no bloquean', () => {
 test('la modal consulta la previa, pinta el veredicto y no decide compatibilidad', () => {
   const modal = source('../src/components/modals/registration_modal.tsx');
   assert.ok(
-    modal.includes('loadPreview({'),
-    'la previa se pide al cambiar competidor/peso/modalidad'
+    modal.includes('const loader = loadPreviewRef.current;') && modal.includes('void loader({'),
+    'la previa se pide con el lector vigente del ref al cambiar competidor/peso/modalidad'
   );
   assert.ok(modal.includes('competitor_id: Number(competitorId)'));
   assert.ok(modal.includes('declared_weight_kg: parseDeclaredWeightKg(weightInput)'));

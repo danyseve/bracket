@@ -26,7 +26,7 @@ Las escrituras quedan detras de la puerta de S3.6b (``F3_WRITE_ENABLED``): con l
 responden ``503 F3_WRITE_DISABLED`` antes de reservar la clave de idempotencia, bloquear filas,
 escribir dominio o auditar. Las lecturas siguen publicandose con la bandera apagada.
 
-Lo que estas rutas **no** hacen: gestionar academias ni afiliaciones, ni tocar el ciclo de vida de
+Lo que estas rutas **no** hacen: gestionar clubes ni afiliaciones, ni tocar el ciclo de vida de
 la inscripcion. Los errores del dominio se traducen al catalogo de S3.3d (§11) **por codigo**, con
 detalles fijos que nunca repiten el valor recibido.
 """
@@ -313,7 +313,7 @@ async def list_competitors_endpoint(
     )
     # Afiliacion primaria abierta de **toda la pagina** en una sola consulta: la lista publica el
     # estado actual de cada competidor sin N+1 (S4.8d §3). Un competidor que no aparece ahi no tiene
-    # afiliacion abierta y se proyecta como INDEPENDENT sin academia: no se adivina ninguna.
+    # afiliacion abierta y se proyecta como INDEPENDENT sin club: no se adivina ninguna.
     affiliations = {
         row.competitor_id: row
         for row in await get_open_primary_affiliations(
@@ -359,7 +359,7 @@ async def list_competitor_affiliations_endpoint(
     """Afiliaciones del competidor (S4.8a-3 §3), de solo lectura.
 
     Por defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la
-    academia actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se
+    club actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se
     busca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant
     responde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni
     operacion de dominio que repetir.
@@ -612,7 +612,7 @@ async def assign_affiliation_endpoint(
     request: Request,
     context: ActorContext = Depends(actor_context_for_club),
 ) -> CompetitorAffiliationResponse:
-    """Abre una afiliacion vigente con una academia del tenant (OWNER-only)."""
+    """Abre una afiliacion vigente con un club del tenant (OWNER-only)."""
     _assert_context_matches_route(context, club_id)
 
     async def operation() -> OperationOutcome:

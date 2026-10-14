@@ -1,11 +1,11 @@
-"""Afiliacion del competidor con una academia (S4.8a-3 §3, LAB ONLY).
+"""Afiliacion del competidor con un club (S4.8a-3 §3, LAB ONLY).
 
 Opera sobre la tabla ya existente ``competitors_x_sports_clubs`` (modelo
 :class:`CompetitorXSportsClub`): no se crea esquema nuevo de afiliacion.
 
 Cuatro operaciones internas, **sin HTTP todavia**:
 
-* :func:`assign_affiliation` — abre una afiliacion vigente con una academia del tenant;
+* :func:`assign_affiliation` — abre una afiliacion vigente con un club del tenant;
 * :func:`promote_affiliation` — cambia la afiliacion primaria (cierra la anterior y abre esta);
 * :func:`close_affiliation` — cierra una afiliacion poniendo ``valid_to``;
 * :func:`go_independent` — cierra **todas** las afiliaciones vigentes (el competidor pasa a
@@ -64,7 +64,7 @@ _ENTITY = "competitor"
 _ACTION: DomainChangeLogAction = "UPDATE"
 _REASON_CODE = "AFFILIATION_CHANGE"
 _AFFILIATION_NOT_FOUND = "la afiliacion no existe para este competidor"
-_CLUB_NOT_SELECTABLE = "la academia no existe, no esta activa o no es del tenant"
+_CLUB_NOT_SELECTABLE = "el club no existe, no esta activa o no es del tenant"
 
 
 async def _authorize(context: ActorContext) -> None:
@@ -82,7 +82,7 @@ async def _require_competitor(context: ActorContext, competitor_id: CompetitorId
 
 
 async def _validate_club(context: ActorContext, sports_club_id: SportsClubId) -> None:
-    """La academia tiene que existir, estar activa y ser del tenant del contexto."""
+    """El club tiene que existir, estar activa y ser del tenant del contexto."""
     club = await get_sports_club(sports_club_id, tenant_club_id=context.tenant_club_id)
     if club is None or not club.active:
         raise InvalidCompetitorDataError(_CLUB_NOT_SELECTABLE)
@@ -109,7 +109,7 @@ async def _audit(
 async def assign_affiliation(
     context: ActorContext, competitor_id: CompetitorId, *, sports_club_id: SportsClubId
 ) -> CompetitorXSportsClub:
-    """Abre una afiliacion vigente con la academia indicada.
+    """Abre una afiliacion vigente con el club indicada.
 
     La primera afiliacion vigente del competidor queda **primaria**; las siguientes nacen no
     primarias. El club se valida (existe, activo, del tenant) y el competidor tiene que ser del

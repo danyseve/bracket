@@ -145,8 +145,8 @@ export interface SportsClubChoice {
 }
 
 /**
- * Opciones del selector de club: las academias disponibles seguido de la opción «Independiente».
- * La UI nunca acepta texto libre para el club; el valor viaja como el `id` de la academia o como el
+ * Opciones del selector de club: los clubes disponibles seguido de la opción «Independiente».
+ * La UI nunca acepta texto libre para el club; el valor viaja como el `id` del club o como el
  * centinela de independiente.
  */
 export function sportsClubOptions(clubs: readonly SportsClub[]): SportsClubChoice[] {
@@ -160,7 +160,7 @@ export function sportsClubOptions(clubs: readonly SportsClub[]): SportsClubChoic
   ];
 }
 
-/** Academia vigente de un competidor: la afiliación sin `valid_to` (la respuesta por defecto). */
+/** Club vigente de un competidor: la afiliación sin `valid_to` (la respuesta por defecto). */
 export function currentSportsClubId(
   affiliations: readonly { sports_club_id: number; valid_to?: string | null }[]
 ): number | null {
@@ -329,7 +329,7 @@ export const DERIVED_AGE_LABEL_KEY = 'f3_profile_age_label';
  */
 export const COMPETITION_BELT_SCOPES: BeltScope[] = ['ADULT'];
 
-/* ------------------------------------------------------------- logo de academia (§7) ------------ */
+/* ------------------------------------------------------------- logo de club (§7) ------------ */
 
 /** Iniciales para el fallback del logo: hasta dos letras, en mayúscula. Vacío si no hay nombre. */
 export function logoInitials(name: string | null | undefined): string {
@@ -444,10 +444,10 @@ export function competitorCreateBody(
 }
 
 /**
- * Academia que hay que asignar tras el alta, o `null` si no hay ninguna que asignar.
+ * Club que hay que asignar tras el alta, o `null` si no hay ninguna que asignar.
  *
  * Un competidor **nace sin afiliación**: elegir «Independiente» en el alta no es una escritura (no hay
- * nada que deshacer), y elegir una academia es la única acción de afiliación del flujo (§5/§6).
+ * nada que deshacer), y elegir un club es la única acción de afiliación del flujo (§5/§6).
  */
 export function affiliationSportsClubId(action: AffiliationAction): number | null {
   return action.kind === 'assign' ? action.sports_club_id : null;

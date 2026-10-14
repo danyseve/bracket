@@ -2,7 +2,7 @@
 
 Cuatro operaciones internas, **sin HTTP todavia**:
 
-* :func:`create_competitor` — alta de identidad (puede existir sin academia);
+* :func:`create_competitor` — alta de identidad (puede existir sin club);
 * :func:`update_competitor_display_name` — cambio controlado de datos basicos;
 * :func:`deactivate_competitor` — baja logica (``competitors.active = false``);
 * :func:`activate_competitor` — reactivacion de una identidad dada de baja
@@ -200,7 +200,7 @@ async def create_competitor(
     reason_code: str | None = None,
     reason_note: str | None = None,
 ) -> Competitor:
-    """Alta de identidad. El competidor puede no tener academia y se audita como ``CREATE``.
+    """Alta de identidad. El competidor puede no tener club y se audita como ``CREATE``.
 
     El perfil deportivo (S4.8a-3 §2) es opcional: sin el, los tres campos quedan en ``NULL``. Lo
     que si se envia se valida contra el catalogo antes de escribir y se anota en la auditoria por

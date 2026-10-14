@@ -14,7 +14,7 @@
  * El test `frontend/tests/i18n_locales.test.ts` recalcula el hash sobre los ficheros de locales y
  * falla si alguno cambia sin actualizar la constante: así el versionado no puede quedarse atrás.
  */
-export const LOCALES_REVISION = 'ea1b157f1b39';
+export const LOCALES_REVISION = 'faccc5c2b409';
 
 export const i18nInitOptions = {
   fallbackLng: 'en',

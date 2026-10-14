@@ -9,11 +9,11 @@
  *
  * Reglas:
  *
- * - nunca inventa datos: si falta el cinturón, la fecha de nacimiento o el nombre de la academia, el
+ * - nunca inventa datos: si falta el cinturón, la fecha de nacimiento o el nombre del club, el
  *   dato simplemente no aparece;
  * - `affiliation_mode: 'INDEPENDENT'` se dice **explícitamente** («Independiente»), no se omite: es
  *   información, no ausencia de dato;
- * - la academia representada **no** se compone aquí ni viaja a la clasificación previa: la
+ * - el club representado **no** se compone aquí ni viaja a la clasificación previa: la
  *   representación pertenece a la inscripción y se elige en el alta.
  */
 import type { CompetitorSex } from './f3_competitor_contract.ts';
@@ -37,7 +37,7 @@ export interface CompetitorOptionLabelContext {
   ageLabel: (age: number) => string;
   /**
    * Etiqueta de «Independiente» (§4). Un competidor afiliado a un club se pinta con el nombre real
-   * de la academia, no con una etiqueta genérica; sin esta etiqueta, `INDEPENDENT` no se pinta.
+   * del club, no con una etiqueta genérica; sin esta etiqueta, `INDEPENDENT` no se pinta.
    */
   independentLabel?: string;
 }
@@ -63,10 +63,10 @@ export interface CompetitorSummaryRow {
 export const COMPETITOR_LABEL_SEPARATOR = ' · ';
 
 /**
- * Etiqueta de la afiliación actual: el nombre de la academia, «Independiente», o `null` cuando el
+ * Etiqueta de la afiliación actual: el nombre del club, «Independiente», o `null` cuando el
  * listado no publica afiliación (no se deduce ninguna).
  *
- * Un `CLUB` sin nombre no se pinta: mejor vacío que una academia inventada.
+ * Un `CLUB` sin nombre no se pinta: mejor vacío que un club inventada.
  */
 export function affiliationLabel(
   competitor: Pick<CompetitorOptionSource, 'affiliation_mode' | 'sports_club_name'>,

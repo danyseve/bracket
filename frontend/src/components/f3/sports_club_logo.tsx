@@ -29,7 +29,7 @@ const LOGO_LIMITS: LogoLimits = {
 };
 
 /**
- * Logo de la academia (S4.8a-4 §7).
+ * Logo del club (S4.8a-4 §7).
  *
  * Pintado con **fallback**: si hay `logo_path` se muestra la imagen; si no, las iniciales del nombre
  * y, si tampoco hay nombre, un icono neutro. Nunca queda un hueco roto.

@@ -9,7 +9,7 @@ import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 
 import i18n from '../i18n';
 import { BracketSpotlight } from './components/modals/spotlight';
@@ -21,8 +21,8 @@ import CreateAccountPage from './pages/create_account';
 import CreateDemoAccountPage from './pages/demo';
 import LoginPage from './pages/login';
 import PasswordResetPage from './pages/password_reset';
-import AcademiesPage from './pages/tournaments/[id]/academies';
 import BracketsPage from './pages/tournaments/[id]/brackets';
+import TournamentClubsPage from './pages/tournaments/[id]/clubs';
 import CompetitorsPage from './pages/tournaments/[id]/competitors';
 import DashboardSchedulePage from './pages/tournaments/[id]/dashboard';
 import DashboardNotFoundPage from './pages/tournaments/[id]/dashboard/dashboard_404';
@@ -99,7 +99,8 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="results" element={<ResultsPage />} />
                   <Route path="competitors" element={<CompetitorsPage />} />
-                  <Route path="academies" element={<AcademiesPage />} />
+                  <Route path="clubs" element={<TournamentClubsPage />} />
+                  <Route path="academies" element={<Navigate to="../clubs" replace />} />
                   <Route path="registrations" element={<RegistrationsPage />} />
                   <Route path="brackets" element={<BracketsPage />} />
                   <Route path="tatamis" element={<TatamisPage />} />

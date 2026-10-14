@@ -2,12 +2,13 @@
  * P2.8C/F3C-S4.8g — consolidación de UX del dominio BJJ (LAB FIRST, sin despliegue de producción).
  *
  * La fase no toca el motor legacy ni la base de datos: cambia qué superficies ve el organizador.
- * Estos tests fijan las decisiones para que no se deshagan solas:
+ * Estos tests fijan las decisiones para que no se deshagan solas. S4.8g-2 corrige el vocabulario:
+ * la entidad deportiva visible es **Club** (la organizacion/tenant es otra pantalla):
  *
  *  - el menú del torneo enseña el flujo BJJ y esconde jugadores/equipos tras «avanzado» (§3);
- *  - `Club / Academia` es el término deportivo visible y las organizaciones son otra pantalla (§6/§9);
- *  - la ruta `/tournaments/:id/academies` está registrada y ya no cae en el 404 (§7);
- *  - el alta es un solo flujo con datos deportivos y Club / Academia, con edad derivada (§4/§5/§10);
+ *  - `Club`/`Clubes` es el término deportivo visible y las organizaciones son otra pantalla (§6/§9);
+ *  - la ruta `/tournaments/:id/clubs` está registrada y `academies` redirige allí (§5/§7);
+ *  - el alta es un solo flujo con datos deportivos y Club, con edad derivada (§4/§5/§10);
  *  - el alta usa las APIs existentes (crear + afiliar) sin inventar endpoints (§15);
  *  - el éxito parcial se dice y se puede completar, no se oculta (§5).
  */
@@ -39,7 +40,7 @@ const NAV = source('../src/components/navbar/_main_links.tsx');
 const MAIN = source('../src/main.tsx');
 const COMPETITORS_PAGE = source('../src/pages/tournaments/[id]/competitors.tsx');
 const WIZARD = source('../src/components/f3/competitor_create_wizard.tsx');
-const ACADEMIES_PAGE = source('../src/pages/tournaments/[id]/academies.tsx');
+const TOURNAMENT_CLUBS_PAGE = source('../src/pages/tournaments/[id]/clubs.tsx');
 const CLUBS_PAGE = source('../src/pages/clubs.tsx');
 
 /** Bloque `TournamentLinks` completo (el menú del torneo, no el superior). */
@@ -90,7 +91,7 @@ test('S4.8g: el menú normal no enseña jugadores ni equipos y los deja tras «a
   assert.match(TOURNAMENT_LINKS, /f3_nav_legacy_badge/, 'cada enlace legacy lleva su distintivo');
 });
 
-test('S4.8g: el menú normal enseña el flujo BJJ en el orden acordado', () => {
+test('S4.8g-2: el menú normal enseña el flujo BJJ en el orden acordado, con Clubes', () => {
   const labels = [...MAIN_MENU.matchAll(/t\('([a-z0-9_]+)'\)/g)].map((match) => match[1]);
 
   assert.deepEqual(
@@ -98,7 +99,7 @@ test('S4.8g: el menú normal enseña el flujo BJJ en el orden acordado', () => {
     [
       'stage_title',
       'competitors_title',
-      'f3_academies_title',
+      'f3_clubs_title',
       'registrations_title',
       'brackets_title',
       'tatamis_title',
@@ -114,7 +115,7 @@ test('S4.8g: el menú normal enseña el flujo BJJ en el orden acordado', () => {
   assert.deepEqual(hrefs, [
     '/stages',
     '/competitors',
-    '/academies',
+    '/clubs',
     '/registrations',
     '/brackets',
     '/tatamis',
@@ -125,34 +126,38 @@ test('S4.8g: el menú normal enseña el flujo BJJ en el orden acordado', () => {
   ]);
 });
 
-/* --------------------------------------------------------- §7 · ruta Club / Academia registrada */
+/* --------------------------------------------------------------- §5/§7 · ruta Clubes y redirect */
 
-test('S4.8g: la ruta de Club / Academia está registrada y no cae en el 404', () => {
-  assert.match(MAIN, /import AcademiesPage from '\.\/pages\/tournaments\/\[id\]\/academies';/);
-  assert.match(MAIN, /<Route path="academies" element=\{<AcademiesPage \/>\} \/>/);
+test('S4.8g-2: la ruta de Clubes está registrada y `academies` redirige sin romper el enlace', () => {
+  assert.match(MAIN, /import TournamentClubsPage from '\.\/pages\/tournaments\/\[id\]\/clubs';/);
+  assert.match(MAIN, /<Route path="clubs" element=\{<TournamentClubsPage \/>\} \/>/);
+  assert.match(
+    MAIN,
+    /<Route path="academies" element=\{<Navigate to="\.\.\/clubs" replace \/>\} \/>/,
+    'el deep link antiguo sigue vivo como redirección'
+  );
 
   // La ruta vive dentro del torneo y antes del comodín: nada la eclipsa.
-  const academiesIndex = MAIN.indexOf('path="academies"');
+  const clubsIndex = MAIN.indexOf('path="clubs"');
   const tournamentIndex = MAIN.indexOf('path=":id"');
   const notFoundIndex = MAIN.indexOf('path="*"');
-  assert.ok(
-    tournamentIndex >= 0 && academiesIndex > tournamentIndex,
-    'academies va dentro del torneo'
-  );
-  assert.ok(notFoundIndex < 0 || academiesIndex < notFoundIndex, 'el comodín no debe taparla');
+  assert.ok(tournamentIndex >= 0 && clubsIndex > tournamentIndex, 'clubs va dentro del torneo');
+  assert.ok(notFoundIndex < 0 || clubsIndex < notFoundIndex, 'el comodín no debe taparla');
 
   // Y el enlace del menú apunta exactamente ahí.
-  assert.match(TOURNAMENT_LINKS, /link: `\$\{tm_prefix\}\/academies`/);
+  assert.match(TOURNAMENT_LINKS, /link: `\$\{tm_prefix\}\/clubs`/);
 
-  // No es un marcador de posición: la pantalla existente lista y gestiona el logo del tenant.
-  assert.match(ACADEMIES_PAGE, /getSportsClubs\(club_id/);
-  assert.match(ACADEMIES_PAGE, /SportsClubLogo/);
+  // No es un marcador de posición: la pantalla lista, crea, edita y gestiona el logo del club.
+  assert.match(TOURNAMENT_CLUBS_PAGE, /getSportsClubs\(club_id/);
+  assert.match(TOURNAMENT_CLUBS_PAGE, /SportsClubLogo/);
+  assert.match(TOURNAMENT_CLUBS_PAGE, /createSportsClub\(/);
+  assert.match(TOURNAMENT_CLUBS_PAGE, /updateSportsClub\(/);
 });
 
-/* --------------------------------------------- §6/§9 · Club / Academia frente a organizaciones */
+/* ------------------------------------------------------- §6/§9 · Club frente a organizaciones */
 
-test('S4.8g: la UI deportiva dice Club / Academia y no vocabulario técnico', async () => {
-  assert.match(TOURNAMENT_LINKS, /t\('f3_academies_title'\)/);
+test('S4.8g-2: la UI deportiva dice Club y no vocabulario técnico', async () => {
+  assert.match(TOURNAMENT_LINKS, /t\('f3_clubs_title'\)/);
 
   // El vocabulario técnico del dominio (SportsClub, tenant, managed_by…) no se enseña como copy: los
   // símbolos del código sí pueden nombrarlo (`getSportsClubs`), la interfaz no.
@@ -160,6 +165,7 @@ test('S4.8g: la UI deportiva dice Club / Academia y no vocabulario técnico', as
     ['menú', NAV],
     ['competidores', COMPETITORS_PAGE],
     ['alta', WIZARD],
+    ['clubes', TOURNAMENT_CLUBS_PAGE],
   ] as const) {
     assert.doesNotMatch(
       text,
@@ -171,10 +177,10 @@ test('S4.8g: la UI deportiva dice Club / Academia y no vocabulario técnico', as
   const es = await translate('es');
   const en = await translate('en');
   for (const key of [
-    'f3_academies_title',
+    'f3_clubs_title',
     'f3_profile_club_label',
     'f3_profile_club_description',
-    'f3_academies_description',
+    'f3_clubs_description',
   ]) {
     for (const text of [String(es.t(key)), String(en.t(key))]) {
       assert.doesNotMatch(
@@ -186,21 +192,22 @@ test('S4.8g: la UI deportiva dice Club / Academia y no vocabulario técnico', as
   }
 });
 
-test('S4.8g: la pantalla de organizaciones no se llama «clubes»', async () => {
+test('S4.8g-2: la pantalla de organizaciones sigue siendo «Mis organizaciones»', async () => {
   assert.match(CLUBS_PAGE, /t\('f3_organizations_title'\)/);
-  assert.doesNotMatch(CLUBS_PAGE, /t\('clubs_title'\)/);
+  assert.doesNotMatch(CLUBS_PAGE, /t\('f3_clubs_title'\)/);
 
   const es = await translate('es');
   const en = await translate('en');
   assert.equal(es.t('f3_organizations_title'), 'Mis organizaciones');
   assert.equal(en.t('f3_organizations_title'), 'My organizations');
-  assert.equal(es.t('f3_academies_title'), 'Club / Academia');
-  assert.notEqual(es.t('f3_academies_title'), es.t('f3_organizations_title'));
+  assert.equal(es.t('f3_clubs_title'), 'Clubes');
+  assert.equal(en.t('f3_clubs_title'), 'Clubs');
+  assert.notEqual(es.t('f3_clubs_title'), es.t('f3_organizations_title'));
 });
 
 /* --------------------------------------------------- §4/§5 · alta de competidor en un solo flujo */
 
-test('S4.8g: el alta pide datos deportivos y Club / Academia en un flujo de dos pasos', () => {
+test('S4.8g: el alta pide datos deportivos y el Club en un flujo de dos pasos', () => {
   for (const key of [
     'f3_competitor_name_label',
     'f3_profile_dob_label',
@@ -216,7 +223,7 @@ test('S4.8g: el alta pide datos deportivos y Club / Academia en un flujo de dos 
   }
 
   assert.match(WIZARD, /BeltSelect/, 'el alta pide el cinturón');
-  assert.match(WIZARD, /SportsClubSelect/, 'el alta pide el Club / Academia');
+  assert.match(WIZARD, /SportsClubSelect/, 'el alta pide el Club');
   assert.match(WIZARD, /COMPETITION_BELT_SCOPES/, 'el alta ofrece la escala adulto');
   assert.match(WIZARD, /data-create-step=\{step\}/, 'el paso es observable');
 
@@ -282,7 +289,7 @@ test('S4.8g: el alta se apoya en las APIs y el protocolo de escritura existentes
   assert.doesNotMatch(WIZARD, /@services/, 'el componente de alta no conoce la capa de servicios');
 });
 
-test('S4.8g: «Independiente» no escribe y elegir academia sí', () => {
+test('S4.8g: «Independiente» no escribe y elegir club sí', () => {
   assert.equal(affiliationSportsClubId(affiliationAction(null, SPORTS_CLUB_INDEPENDENT)), null);
   assert.equal(affiliationSportsClubId(affiliationAction(null, '12')), 12);
   assert.equal(affiliationAction(null, SPORTS_CLUB_INDEPENDENT).kind, 'none');
@@ -315,7 +322,7 @@ test('S4.8g: el éxito parcial se dice con el nombre y se puede completar', () =
 
 /* ------------------------------------------------------------------- §10 · listado de competidores */
 
-test('S4.8g: el listado muestra edad, sexo, cinturón, Club / Academia y estado', () => {
+test('S4.8g: el listado muestra edad, sexo, cinturón, Club y estado', () => {
   for (const key of [
     'competitors_age_column',
     'competitors_sex_column',
@@ -376,13 +383,14 @@ test('S4.8g: el copy nuevo resuelve en es/en y mantiene «Violeta»', async () =
   assert.equal(es.t('f3_profile_dob_none'), 'Sin fecha');
   assert.equal(es.t('f3_belt_purple'), 'Violeta');
   assert.equal(es.t('competitors_age_column'), 'Edad');
-  assert.equal(es.t('competitors_club_column'), 'Club / Academia');
+  assert.equal(es.t('competitors_club_column'), 'Club');
   assert.equal(es.t('f3_nav_legacy_badge'), 'legacy');
 
   const partial = String(es.t('f3_competitor_create_partial_failure', { name: 'Ana López' }));
   assert.match(partial, /Ana López/);
   assert.doesNotMatch(partial, /\{\{/, 'el aviso parcial no debe enseñar marcadores crudos');
-  assert.match(partial, /Club \/ Academia/);
+  assert.match(partial, /Club/);
+  assert.doesNotMatch(partial, /Academia/, 'el aviso ya no nombra la academia');
 
   const summary = String(en.t('f3_competitor_create_summary', { name: 'Ana Lopez' }));
   assert.match(summary, /Ana Lopez/);

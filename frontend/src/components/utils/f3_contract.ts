@@ -61,8 +61,8 @@ export type BracketReadinessBlocker =
  *
  * Desde S4.8d §3 la **misma** respuesta publica además la afiliación **actual** del competidor
  * (`affiliation_mode`, `sports_club_id`, `sports_club_name`), que es lo único que hace falta para
- * mostrar "academia / independiente" en el desplegable sin una consulta por competidor. Es el
- * estado actual, no una decisión: la academia representada de cada inscripción se sigue eligiendo en
+ * mostrar "club / independiente" en el desplegable sin una consulta por competidor. Es el
+ * estado actual, no una decisión: el club representado de cada inscripción se sigue eligiendo en
  * el alta. `INDEPENDENT` con los dos campos en `null` = sin afiliación abierta.
  */
 export interface Competitor {
@@ -177,7 +177,7 @@ export interface RegistrationCreateBody {
   representation: RegistrationRepresentation;
   category_key: string;
   category_label: string;
-  /** Academia representada: obligatoria si `representation` es `CLUB`, ausente si es `INDEPENDENT`. */
+  /** Club representada: obligatoria si `representation` es `CLUB`, ausente si es `INDEPENDENT`. */
   sports_club_id?: number | null;
   /** Peso declarado en kg (S4.8a-4 §8): decimal `>0` y `<=300`, u omitido si no se declara. */
   declared_weight_kg?: string | null;

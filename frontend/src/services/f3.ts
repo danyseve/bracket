@@ -15,8 +15,11 @@ import {
   registrationClassificationPreviewUrl,
   registrationClassificationUrl,
   SportsClub,
+  SportsClubCreateBody,
   sportsClubLogoUrl,
   sportsClubsUrl,
+  SportsClubUpdateBody,
+  sportsClubUrl,
 } from '@components/utils/f3_competitor_contract';
 import {
   BracketReadiness,
@@ -129,12 +132,18 @@ export function getBelts(club_id: number | null): SWRResponse<Belt[]> {
   return useSWR(club_id == null || club_id === -1 ? null : beltsUrl(club_id), fetcher);
 }
 
-/** Academias del club (S4.8a-4 §6): población real del selector de club. */
-export function getSportsClubs(club_id: number | null): SWRResponse<SportsClub[]> {
-  return useSWR(club_id == null || club_id === -1 ? null : sportsClubsUrl(club_id), fetcher);
+/** Clubes del club (S4.8a-4 §6): población real del selector de club. */
+export function getSportsClubs(
+  club_id: number | null,
+  includeInactive = false
+): SWRResponse<SportsClub[]> {
+  return useSWR(
+    club_id == null || club_id === -1 ? null : sportsClubsUrl(club_id, includeInactive),
+    fetcher
+  );
 }
 
-/** Afiliaciones del competidor (S4.8a-4 §6): precarga la academia vigente. */
+/** Afiliaciones del competidor (S4.8a-4 §6): precarga el club vigente. */
 export function getCompetitorAffiliations(
   club_id: number | null,
   competitor_id: number
@@ -342,7 +351,7 @@ export async function updateCompetitorProfile(
   );
 }
 
-/** Asigna una academia al competidor (S4.8a-4 §6): solo el `sports_club_id` destino. */
+/** Asigna un club al competidor (S4.8a-4 §6): solo el `sports_club_id` destino. */
 export async function assignAffiliation(
   club_id: number,
   competitor_id: number,
@@ -374,7 +383,7 @@ export async function goIndependent(
 }
 
 /**
- * Sube, reemplaza (con fichero) o quita (sin fichero) el logo de la academia (S4.8a-4 §7). El
+ * Sube, reemplaza (con fichero) o quita (sin fichero) el logo del club (S4.8a-4 §7). El
  * backend valida tipo y tamaño por contenido; la UI valida antes solo como UX.
  */
 export async function setSportsClubLogo(
@@ -389,6 +398,33 @@ export async function setSportsClubLogo(
   }
   return write(() =>
     createAxios().post(sportsClubLogoUrl(club_id, sports_club_id), form, idempotentHeaders(key))
+  );
+}
+
+/**
+ * Da de alta un club del tenant (S4.8g-2 §7/§14). El club es reutilizable: no se crea uno por
+ * torneo ni por competidor. Escritura F3 con `Idempotency-Key`.
+ */
+export async function createSportsClub(
+  club_id: number,
+  body: SportsClubCreateBody,
+  key: string
+): Promise<F3WriteOutcome<SportsClub>> {
+  return write(() => createAxios().post(sportsClubsUrl(club_id), body, idempotentHeaders(key)));
+}
+
+/**
+ * Renombra y/o activa-desactiva un club (S4.8g-2 §7/§14). Escritura F3 con `Idempotency-Key`: el
+ * backend conserva el historico de nombres y no borra filas.
+ */
+export async function updateSportsClub(
+  club_id: number,
+  sports_club_id: number,
+  body: SportsClubUpdateBody,
+  key: string
+): Promise<F3WriteOutcome<SportsClub>> {
+  return write(() =>
+    createAxios().patch(sportsClubUrl(club_id, sports_club_id), body, idempotentHeaders(key))
   );
 }
 

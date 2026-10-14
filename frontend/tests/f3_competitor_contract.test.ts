@@ -1,6 +1,6 @@
 /**
  * Contrato frontend de la unidad S4.8a-4: perfil deportivo del competidor, catalogo de cinturones,
- * modalidad, peso declarado, clasificacion (blockers/warnings) y logo de academia; mas la
+ * modalidad, peso declarado, clasificacion (blockers/warnings) y logo de club; mas la
  * separacion de privacidad (§20) entre el contrato del organizador y el publico.
  *
  * Ejercen modulos puros (sin red, sin navegador, sin DOM). Fuente de verdad, no supuesta:
@@ -144,7 +144,7 @@ test('las rutas del contrato son las del OpenAPI de a-3', () => {
 
 /* ------------------------------------------------------------------------------ logo de club */
 
-test('el logo de academia acepta PNG/JPEG/WEBP y como maximo 2 MB', () => {
+test('el logo de club acepta PNG/JPEG/WEBP y como maximo 2 MB', () => {
   assert.equal(CLUB_LOGO_MAX_BYTES, 2 * 1024 * 1024);
   assert.deepEqual(CLUB_LOGO_MIME_TYPES, ['image/png', 'image/jpeg', 'image/webp']);
   assert.deepEqual(CLUB_LOGO_EXTENSIONS, ['.png', '.jpg', '.jpeg', '.webp']);
@@ -173,7 +173,7 @@ test('la proyeccion publica descarta el perfil deportivo y el peso declarado', (
     tournament_id: 7,
     competitor_name_snapshot: 'Ana',
     category_label: 'Gi -63 kg',
-    sports_club_name_snapshot: 'Academia X',
+    sports_club_name_snapshot: 'Club X',
     declared_weight_kg: '62.50',
     modality: 'GI',
   };

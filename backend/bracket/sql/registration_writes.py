@@ -17,7 +17,7 @@ Tres reglas heredadas de S2:
   real. ``DRAFT``, ``CONFIRMED`` y ``WITHDRAWN`` ocupan el mismo hueco; solo las
   filas ``CORRECTED`` quedan fuera del indice.
 
-Las guardas de lectura de este modulo (torneo del tenant, academia representable,
+Las guardas de lectura de este modulo (torneo del tenant, club representable,
 etiqueta ya congelada para una ``category_key``) existen para que la capa de dominio
 pueda dar un error de negocio en vez de un fallo de clave foranea.
 
@@ -90,10 +90,10 @@ _REGISTRATION_IN_TENANT = (
     "WHERE t.id = tr.tournament_id AND t.club_id = :tenant_club_id)"
 )
 
-# Elegibilidad de una transicion hacia un estado vigente: la academia representada y el
+# Elegibilidad de una transicion hacia un estado vigente: el club representado y el
 # competidor tienen que seguir activos. Es **defensa en profundidad dentro de la propia
 # sentencia**; la serializacion real de la carrera la hacen las lecturas ``FOR SHARE`` de
-# la capa de dominio (RS-9, RS-10), en el orden competidor -> academia.
+# la capa de dominio (RS-9, RS-10), en el orden competidor -> club.
 _ELIGIBILITY_GUARDS = """
             AND (
                 tr.sports_club_id IS NULL
@@ -255,10 +255,10 @@ async def sql_confirm_registration(
     ``WHERE``), no en un ``SELECT`` previo: una confirmacion repetida o simultanea
     afecta a cero filas en vez de a dos. No toca ningun snapshot.
 
-    La segunda condicion cierra la carrera de la regla A5: si la academia representada
+    La segunda condicion cierra la carrera de la regla A5: si el club representado
     se desactiva entre la lectura del dominio y esta sentencia, la confirmacion no
     ocurre. Un independiente (``sports_club_id IS NULL``) no depende de ninguna
-    academia.
+    club.
 
     La tercera hace lo mismo con la regla S3.1a: un competidor dado de baja entre el
     borrador y la confirmacion impide la transicion. Un alta sin identidad
@@ -484,22 +484,22 @@ async def sql_close_registrations(
 async def sql_selectable_sports_club(
     sports_club_id: SportsClubId, *, for_share: bool = False
 ) -> SportsClub | None:
-    """Academia representable: existe y esta activa.
+    """Club representable: existe y esta activa.
 
     **No se filtra por tenant a proposito**: una inscripcion puede representar a una
-    academia de otro tenant o de plataforma (``docs/21`` v3 §6.2/§12.4), y de la
-    academia solo se lee el nombre para el snapshot. ``None`` unifica "no existe" y
+    club de otro tenant o de plataforma (``docs/21`` v3 §6.2/§12.4), y de la
+    club solo se lee el nombre para el snapshot. ``None`` unifica "no existe" y
     "no esta activa": el error de dominio no revela cual de las dos cosas pasa.
 
     ``for_share`` añade ``FOR SHARE`` (RS-10): es el bloqueo que toma la confirmacion para
-    que la elegibilidad de la academia quede serializada con su desactivacion **dentro de
+    que la elegibilidad del club quede serializada con su desactivacion **dentro de
     su transaccion**. La baja (``UPDATE sports_clubs SET active = false``) toma
     ``FOR NO KEY UPDATE``, que si conflictua con ``FOR SHARE``; cuando el ``FOR SHARE``
     espera a que la baja comitee, PostgreSQL reevalua la condicion sobre la version
     actualizada y la fila deja de aparecer (cero filas, sin ventana). ``FOR KEY SHARE`` no
     serviria: es compatible con ``FOR NO KEY UPDATE``. El alta y la edicion de borrador no
-    bloquean: solo comprueban, y un borrador que represente una academia dada de baja sigue
-    siendo editable (aunque no confirmable) hasta que la academia se reactive.
+    bloquean: solo comprueban, y un borrador que represente un club dado de baja sigue
+    siendo editable (aunque no confirmable) hasta que el club se reactive.
     """
     lock = " FOR SHARE" if for_share else ""
     query = f"""
@@ -516,7 +516,7 @@ async def sql_selectable_competitor(
 ) -> Competitor | None:
     """Competidor elegible como identidad: del tenant **y** activo (S3.1a).
 
-    A diferencia de la academia representada (que puede ser de otro tenant), la identidad
+    A diferencia del club representado (que puede ser de otro tenant), la identidad
     personal solo puede salir del tenant del contexto, y la baja logica la deshabilita para
     altas nuevas. Pertenencia y estado se comprueban en la propia sentencia, no con un
     ``SELECT`` previo. ``None`` unifica "no existe", "es de otro club" y "esta dado de baja":

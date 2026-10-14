@@ -60,7 +60,7 @@ const COMPONENT_SOURCES = [
   '../src/components/f3/sports_club_select.tsx',
   '../src/components/f3/sports_club_logo.tsx',
   '../src/components/f3/competitor_sports_profile.tsx',
-  // S4.8g — alta de competidor en un solo flujo (dos pasos, con Club / Academia)
+  // S4.8g — alta de competidor en un solo flujo (dos pasos, con Club)
   '../src/components/f3/competitor_create_wizard.tsx',
   '../src/components/modals/competitor_modal.tsx',
   '../src/components/modals/registration_modal.tsx',
@@ -71,10 +71,10 @@ const COMPONENT_SOURCES = [
   '../src/pages/tournaments/[id]/registrations.tsx',
   '../src/pages/tournaments/[id]/brackets.tsx',
   '../src/pages/tournaments/[id]/tatamis.tsx',
-  // S4.8d — integración de UI: catálogo de categorías, opciones de inscripción y academias
+  // S4.8d — integración de UI: catálogo de categorías, opciones de inscripción y clubes
   '../src/components/utils/f3_category_catalog.ts',
   '../src/components/utils/f3_registration_options.ts',
-  '../src/pages/tournaments/[id]/academies.tsx',
+  '../src/pages/tournaments/[id]/clubs.tsx',
 ];
 
 /** Los 12 idiomas que publica el proyecto. */

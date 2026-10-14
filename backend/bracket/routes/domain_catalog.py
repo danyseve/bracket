@@ -1,7 +1,7 @@
 """Rutas HTTP F3 de lectura de los catalogos del club (S4.8a-4a, LAB ONLY).
 
 Lecturas que faltaban para que el frontend de a-4 pueda cargar el **catalogo real de cinturones**,
-listar las **academias** (sports clubs) del tenant y (en ``domain_competitors.py``) leer la
+listar las **clubes** (sports clubs) del tenant y (en ``domain_competitors.py``) leer la
 afiliacion vigente de un competidor. No se anade ningun concepto de dominio nuevo: cada ruta es la
 traduccion de un lector ya existente de ``bracket/sql/domain_reads.py``.
 
@@ -14,7 +14,7 @@ Contrato de esta capa:
   club puede leer (OWNER y COLLABORATOR -> 200; anonimo -> 401; actor de otro club -> 401, que es
   la denegacion indistinguible de ``actor_context_for_club``). No se relaja ni se cambia el RBAC de
   ninguna otra ruta;
-* el ambito del tenant se aplica **dentro** del SQL (academias por ``tenant_club_id``), nunca
+* el ambito del tenant se aplica **dentro** del SQL (clubes por ``tenant_club_id``), nunca
   despues de leer. El catalogo de cinturones es de **plataforma** y no lleva ambito de tenant: la
   ruta exige pertenecer al club por coherencia con el resto de lecturas bajo ``/clubs/...``;
 * la respuesta es una proyeccion publica (``BeltResponse``, ``SportsClubResponse``), nunca la fila
@@ -75,15 +75,13 @@ async def list_belts_endpoint(
 @router.get("/clubs/{club_id}/sports-clubs", response_model=list[SportsClubResponse])
 async def list_sports_clubs_endpoint(
     club_id: ClubId,
-    include_inactive: bool = Query(
-        False, description="Incluir tambien las academias dadas de baja."
-    ),
+    include_inactive: bool = Query(False, description="Incluir tambien los clubes dados de baja."),
     context: ActorContext = Depends(actor_context_for_club),
 ) -> list[SportsClubResponse]:
-    """Academias del club del tenant de la ruta, con su logo ya persistido.
+    """Clubes del club del tenant de la ruta, con su logo ya persistido.
 
     La consulta se acota al tenant **dentro** del SQL (``tenant_club_id``) y no incluye las de
-    plataforma (``tenant_club_id`` NULL): una academia de otro tenant no existe para esta ruta. Por
+    plataforma (``tenant_club_id`` NULL): un club de otro tenant no existe para esta ruta. Por
     defecto solo las activas; con ``include_inactive=True`` se anaden las dadas de baja.
     """
     _assert_context_matches_route(context, club_id)

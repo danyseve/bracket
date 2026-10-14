@@ -6,7 +6,7 @@ Contrato (``docs/23`` §5, ``docs/24`` §S1):
   Crear competidores, inscribir, corregir, importar CSV o hacer backfill es S2+.
 * **Aislamiento por tenant.** Toda funcion exige el ``tenant_club_id`` del
   llamante y lo aplica *dentro* de la consulta SQL (competidores por
-  ``managed_by_club_id``, academias por ``tenant_club_id``, inscripciones por el
+  ``managed_by_club_id``, clubes por ``tenant_club_id``, inscripciones por el
   ``club_id`` del torneo). No hay ninguna consulta sin ambito de tenant y no se
   filtra en Python despues de leer de mas.
 * **Sin deduplicacion por nombre.** Las busquedas por nombre devuelven *todas*
@@ -21,7 +21,7 @@ Contrato (``docs/23`` §5, ``docs/24`` §S1):
   NULL). Con ``include_superseded=True`` se incluyen, y
   :func:`get_registration_revision_chain` devuelve la cadena completa.
 * **Snapshots e historico.** Las inscripciones devuelven el nombre del competidor
-  y de la academia tal como estaban al inscribirse; los historiales de nombre se
+  y del club tal como estaban al inscribirse; los historiales de nombre se
   consultan con :func:`get_competitor_name_history` y
   :func:`get_sports_club_name_history`.
 * **Acceso minimo a PII.** No se seleccionan identificadores de usuario ni notas
@@ -76,7 +76,7 @@ async def get_belt(belt_id: BeltId) -> Belt | None:
     """Cinturon del catalogo por id.
 
     El catalogo ``belts`` es de **plataforma** (S4.8a-1): describe la escala deportiva, no
-    pertenece a ninguna academia y lo comparten todos los tenants, asi que esta lectura no lleva
+    pertenece a ningun club y lo comparten todos los tenants, asi que esta lectura no lleva
     ambito de tenant. Devuelve tambien los retirados (``active = false``): quien valida decide si
     el estado lo inhabilita.
     """
@@ -90,7 +90,7 @@ async def get_belt(belt_id: BeltId) -> Belt | None:
 async def list_belts(*, include_inactive: bool = False) -> list[Belt]:
     """Catalogo de cinturones de plataforma (S4.8a-1).
 
-    Es una tabla **de plataforma**: no pertenece a ninguna academia y la comparten todos los
+    Es una tabla **de plataforma**: no pertenece a ningun club y la comparten todos los
     tenants, asi que esta lectura no lleva ambito de tenant. El orden es total y estable (escala y
     rango) y por defecto solo devuelve los vigentes; con ``include_inactive=True`` incluye tambien
     los retirados, que quien valida decide si el estado inhabilita.
@@ -160,7 +160,7 @@ def _escape_like(value: str) -> str:
 async def get_sports_clubs_for_tenant(
     tenant_club_id: ClubId, *, include_inactive: bool = False
 ) -> list[SportsClub]:
-    """Academias del tenant. No incluye las de plataforma (``tenant_club_id`` NULL)."""
+    """Clubes del tenant. No incluye las de plataforma (``tenant_club_id`` NULL)."""
     query = (
         f"SELECT {_SPORTS_CLUB_COLUMNS} FROM sports_clubs s"
         " WHERE s.tenant_club_id = :tenant_club_id"
@@ -174,7 +174,7 @@ async def get_sports_clubs_for_tenant(
 
 
 async def get_platform_sports_clubs(*, include_inactive: bool = False) -> list[SportsClub]:
-    """Academias de plataforma (``tenant_club_id`` NULL): catalogo compartido de lectura."""
+    """Clubes de plataforma (``tenant_club_id`` NULL): catalogo compartido de lectura."""
     query = f"SELECT {_SPORTS_CLUB_COLUMNS} FROM sports_clubs s WHERE s.tenant_club_id IS NULL"
     if not include_inactive:
         query += " AND s.active IS TRUE"
@@ -187,7 +187,7 @@ async def get_platform_sports_clubs(*, include_inactive: bool = False) -> list[S
 async def get_sports_club(
     sports_club_id: SportsClubId, *, tenant_club_id: ClubId
 ) -> SportsClub | None:
-    """Academia del tenant por id. Devuelve ``None`` si es de otro tenant o no existe."""
+    """Club del tenant por id. Devuelve ``None`` si es de otro tenant o no existe."""
     query = f"""
         SELECT {_SPORTS_CLUB_COLUMNS} FROM sports_clubs s
         WHERE s.id = :sports_club_id AND s.tenant_club_id = :tenant_club_id
@@ -201,7 +201,7 @@ async def get_sports_club(
 async def get_sports_club_name_history(
     sports_club_id: SportsClubId, *, tenant_club_id: ClubId
 ) -> list[SportsClubNameHistory]:
-    """Historial de nombres de la academia, de mas antiguo a mas reciente."""
+    """Historial de nombres del club, de mas antiguo a mas reciente."""
     query = """
         SELECT h.id, h.sports_club_id, h.name, h.valid_from, h.valid_to
         FROM sports_clubs_name_history h
@@ -369,16 +369,16 @@ async def get_open_primary_affiliations(
 ) -> list[OpenPrimaryAffiliation]:
     """Afiliacion primaria abierta de cada competidor pedido, en **una** consulta (S4.8d §3).
 
-    Existe para que el listado de competidores pueda publicar la academia actual sin una consulta
+    Existe para que el listado de competidores pueda publicar el club actual sin una consulta
     por fila. La alternativa (leer las afiliaciones de cada competidor con
     :func:`get_competitor_affiliations`) seria un N+1 y, ademas, leeria el historial entero para
     quedarse con una fila.
 
     Solo devuelve las filas **abiertas** (``valid_to IS NULL``) y **primarias**: la situacion actual
     del competidor. Un competidor sin primaria abierta **no aparece** en el resultado, y quien lo
-    consume lo interpreta como "sin afiliacion": aqui no se inventa ninguna academia ni se cae al
+    consume lo interpreta como "sin afiliacion": aqui no se inventa ningun club ni se cae al
     historial. El ``JOIN`` con ``sports_clubs`` es interior a proposito: la proyeccion publica un
-    club con nombre, asi que una academia inexistente no se publica a medias.
+    club con nombre, asi que un club inexistente no se publica a medias.
 
     El ambito del tenant va en el ``JOIN`` con ``competitors``, no despues de leer: los id de otro
     club no se pueden proyectar. ``DISTINCT ON`` + orden por vigencia deja como mucho una fila por
@@ -615,3 +615,32 @@ async def get_affiliation(
         query=query, values={"affiliation_id": affiliation_id, "tenant_club_id": tenant_club_id}
     )
     return CompetitorXSportsClub.model_validate(dict(record._mapping)) if record else None
+
+
+async def find_sports_club_by_normalized_name(
+    *,
+    tenant_club_id: ClubId,
+    name: str,
+    exclude_sports_club_id: SportsClubId | None = None,
+) -> SportsClub | None:
+    """Club del tenant cuyo nombre normalizado coincide (S4.8g-2 §8), o ``None``.
+
+    Es la proteccion contra un **duplicado obvio dentro del mismo tenant**, no una unicidad global:
+    no hay ``UNIQUE(name)`` ni constraint nueva (la identidad real es ``sports_club_id``), y dos
+    organizaciones distintas pueden tener clubes con el mismo nombre. La comparacion usa
+    ``lower(btrim(name))``, que es exactamente el indice ``ix_sports_clubs_name_normalized`` que ya
+    existe, y el ambito va dentro del SQL.
+    """
+    query = f"""
+        SELECT {_SPORTS_CLUB_COLUMNS} FROM sports_clubs s
+        WHERE s.tenant_club_id = :tenant_club_id
+          AND lower(btrim(s.name)) = lower(btrim(:name))
+    """
+    values: dict[str, object] = {"tenant_club_id": tenant_club_id, "name": name}
+    if exclude_sports_club_id is not None:
+        query += " AND s.id <> :exclude_sports_club_id"
+        values["exclude_sports_club_id"] = exclude_sports_club_id
+    query += " ORDER BY s.id LIMIT 1"
+
+    record = await database.fetch_one(query=query, values=values)
+    return SportsClub.model_validate(dict(record._mapping)) if record is not None else None

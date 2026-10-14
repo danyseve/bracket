@@ -45,7 +45,7 @@ import {
  *   independencia (`POST .../independence`), nunca con texto libre y sin tocar el histórico de
  *   inscripciones.
  *
- * Los catálogos (cinturones, academias) y la afiliación vigente se leen del backend; la UI no
+ * Los catálogos (cinturones, clubes) y la afiliación vigente se leen del backend; la UI no
  * inventa orden de cinturones ni reglas de edad, y sólo escribe lo que cambió de verdad.
  */
 export default function CompetitorSportsProfile({
@@ -53,14 +53,14 @@ export default function CompetitorSportsProfile({
   onClose,
   club_id,
   competitor,
-  canManageAcademy = false,
+  canManageClub = false,
   onSaved,
 }: {
   opened: boolean;
   onClose: () => void;
   club_id: number | null;
   competitor: CompetitorProfileTarget | null;
-  canManageAcademy?: boolean;
+  canManageClub?: boolean;
   onSaved?: () => void;
 }) {
   const { t } = useTranslation();
@@ -260,7 +260,7 @@ export default function CompetitorSportsProfile({
         <SportsClubLogo
           sportsClub={selectedClub}
           club_id={club_id}
-          canManage={canManageAcademy}
+          canManage={canManageClub}
           onChanged={() => {
             void swrClubs.mutate();
           }}

@@ -246,14 +246,19 @@ def test_upgrade_adds_the_optional_logo_and_the_two_new_audit_pairs(migration_la
 
 
 def test_upgrade_is_repeatable_and_leaves_a_single_head(migration_lab: Engine) -> None:
-    """Reaplicar la revision es inocuo y la cadena queda con una sola cabeza."""
+    """Reaplicar la revision es inocuo y la cadena queda con una sola cabeza.
+
+    La cabeza puede ser posterior a esta fase: la prueba protege el invariante (una sola cabeza y la
+    base en ella), no el nombre concreto de la revision de S4.8a-3.
+    """
+    _alembic("upgrade", REVISION)
     _alembic("upgrade", REVISION)
     _alembic("upgrade", "head")
 
-    assert _scalar(migration_lab, "SELECT version_num FROM alembic_version") == REVISION
     heads = [line.strip() for line in _alembic("heads").splitlines() if line.strip()]
     assert len(heads) == 1, heads
-    assert heads[0].split()[0] == REVISION
+    head_revision = heads[0].split()[0]
+    assert _scalar(migration_lab, "SELECT version_num FROM alembic_version") == head_revision
 
 
 def test_downgrade_retires_exactly_what_the_upgrade_added(migration_lab: Engine) -> None:

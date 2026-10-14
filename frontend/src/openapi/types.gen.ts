@@ -359,7 +359,7 @@ export type ClubsResponse = {
 /**
  * CompetitorAffiliationBody
  *
- * Cuerpo de la asignacion de afiliacion: **solo** la academia destino.
+ * Cuerpo de la asignacion de afiliacion: **solo** el club destino.
  *
  * No hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion
  * vigente del competidor) y cambiar la primaria es una ruta de accion propia.
@@ -424,8 +424,8 @@ export type CompetitorAffiliationsResponse = {
  *
  * Alta de identidad: nombre, perfil deportivo opcional y motivo del alta.
  *
- * No hay campo de academia: en el dominio certificado (S2) un competidor puede existir
- * sin academia y la afiliacion no es un dato de entrada del alta.
+ * No hay campo de club: en el dominio certificado (S2) un competidor puede existir
+ * sin club y la afiliacion no es un dato de entrada del alta.
  *
  * El perfil deportivo (S4.8a-3 §2) es **opcional**: un cliente anterior a S4.8a sigue dando de
  * alta identidades sin enviarlo y los tres campos quedan en ``NULL``. No hay valor por defecto
@@ -479,15 +479,15 @@ export type CompetitorLifecycleBody = {
  *
  * Competidor de la lista **mas su afiliacion actual** (S4.8d §3, solo lectura).
  *
- * Es la unica forma de que el formulario de inscripcion pueda mostrar "academia / independiente"
+ * Es la unica forma de que el formulario de inscripcion pueda mostrar "club / independiente"
  * sin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el
  * mismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.
  *
  * ``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)
  * para que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio
- * certificado la academia representada se **elige** en el alta, y esto solo evita que el usuario
+ * certificado el club representado se **elige** en el alta, y esto solo evita que el usuario
  * tenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa "sin afiliacion
- * abierta": no se deduce ni se inventa ninguna academia.
+ * abierta": no se deduce ni se inventa ningun club.
  */
 export type CompetitorListItem = {
   /**
@@ -1709,7 +1709,7 @@ export type RegistrationCategoryBody = {
  * Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d §2).
  *
  * Solo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay
- * ``representation``, ni academia, ni motivos, ni ``status``: nada de eso interviene en la
+ * ``representation``, ni club, ni motivos, ni ``status``: nada de eso interviene en la
  * compatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de
  * los dos campos declarados es un atributo permanente del competidor: el peso es de **esta**
  * inscripcion.
@@ -2130,9 +2130,37 @@ export type SingleTeamResponse = {
 };
 
 /**
+ * SportsClubCreateBody
+ *
+ * Alta de un club del tenant: nombre, estado inicial y motivo.
+ *
+ * ``active`` es opcional y por defecto ``True``: es el estado natural de un club recien dado de
+ * alta. No hay campo de logo: el logo se sube despues por su propia ruta (S4.8a-3 §4), de forma
+ * que el alta nunca depende de un fichero binario.
+ */
+export type SportsClubCreateBody = {
+  /**
+   * Active
+   */
+  active: boolean;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
+};
+
+/**
  * SportsClubResponse
  *
- * Proyeccion publica de una academia: identidad minima y logo opcional.
+ * Proyeccion publica de un club: identidad minima y logo opcional.
  */
 export type SportsClubResponse = {
   /**
@@ -2151,6 +2179,34 @@ export type SportsClubResponse = {
    * Name
    */
   name: string;
+};
+
+/**
+ * SportsClubUpdateBody
+ *
+ * Edicion de un club del tenant: renombrado y/o cambio de estado.
+ *
+ * Los dos campos son **opcionales** y solo se aplica lo que viaja: renombrar no obliga a reenviar
+ * el estado y viceversa. Un cuerpo sin ``name`` ni ``active`` no es un no-op silencioso: la capa
+ * de dominio lo rechaza como peticion invalida.
+ */
+export type SportsClubUpdateBody = {
+  /**
+   * Active
+   */
+  active: boolean | null;
+  /**
+   * Name
+   */
+  name: string | null;
+  /**
+   * Reason Code
+   */
+  reason_code: string | null;
+  /**
+   * Reason Note
+   */
+  reason_note: string | null;
 };
 
 /**
@@ -3774,7 +3830,7 @@ export type ListSportsClubsEndpointClubsClubIdSportsClubsGetData = {
     /**
      * Include Inactive
      *
-     * Incluir tambien las academias dadas de baja.
+     * Incluir tambien los clubes dados de baja.
      */
     include_inactive?: boolean;
   };
@@ -3802,6 +3858,74 @@ export type ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses = {
 
 export type ListSportsClubsEndpointClubsClubIdSportsClubsGetResponse =
   ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses[keyof ListSportsClubsEndpointClubsClubIdSportsClubsGetResponses];
+
+export type CreateSportsClubEndpointClubsClubIdSportsClubsPostData = {
+  body: SportsClubCreateBody;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/sports-clubs';
+};
+
+export type CreateSportsClubEndpointClubsClubIdSportsClubsPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type CreateSportsClubEndpointClubsClubIdSportsClubsPostError =
+  CreateSportsClubEndpointClubsClubIdSportsClubsPostErrors[keyof CreateSportsClubEndpointClubsClubIdSportsClubsPostErrors];
+
+export type CreateSportsClubEndpointClubsClubIdSportsClubsPostResponses = {
+  /**
+   * Successful Response
+   */
+  201: SportsClubResponse;
+};
+
+export type CreateSportsClubEndpointClubsClubIdSportsClubsPostResponse =
+  CreateSportsClubEndpointClubsClubIdSportsClubsPostResponses[keyof CreateSportsClubEndpointClubsClubIdSportsClubsPostResponses];
+
+export type UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchData = {
+  body: SportsClubUpdateBody;
+  path: {
+    /**
+     * Club Id
+     */
+    club_id: number;
+    /**
+     * Sports Club Id
+     */
+    sports_club_id: number;
+  };
+  query?: never;
+  url: '/clubs/{club_id}/sports-clubs/{sports_club_id}';
+};
+
+export type UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchError =
+  UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchErrors[keyof UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchErrors];
+
+export type UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchResponses = {
+  /**
+   * Successful Response
+   */
+  200: SportsClubResponse;
+};
+
+export type UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchResponse =
+  UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchResponses[keyof UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchResponses];
 
 export type SetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPostData = {
   body?: BodySetSportsClubLogoEndpointClubsClubIdSportsClubsSportsClubIdLogoPost;

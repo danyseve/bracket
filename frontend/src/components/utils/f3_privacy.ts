@@ -40,7 +40,7 @@ export interface PublicRegistrationSource {
   sports_club_name_snapshot: string | null;
 }
 
-/** Ficha pública de una inscripción: nombre, categoría y academia; nada del perfil ni del peso. */
+/** Ficha pública de una inscripción: nombre, categoría y club; nada del perfil ni del peso. */
 export interface PublicRegistration {
   id: number;
   tournament_id: number;

@@ -34,16 +34,18 @@ REGISTRATIONS_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_registratio
 COMPETITORS_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_competitors.py"
 STAGE_ITEM_COURT_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_stage_item_court.py"
 SCHEDULE_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_schedule.py"
+SPORTS_CLUBS_MODULE = BACKEND_ROOT / "bracket" / "routes" / "domain_sports_clubs.py"
 
 #: Consumidores autorizados del adaptador: el propio adaptador, el router F3 de inscripciones
-#: (S3.4a), el de competidores (S3.7a) y el de tatami (S4.2). La lista es cerrada y explicita:
-#: cualquier otro modulo que mencione el adaptador rompe el guard.
+#: (S3.4a), el de competidores (S3.7a), el de tatami (S4.2) y el del club deportivo (S4.8g-2). La
+#: lista es cerrada y explicita: cualquier otro modulo que mencione el adaptador rompe el guard.
 AUTHORIZED_CONSUMERS = (
     ADAPTER_MODULE,
     REGISTRATIONS_MODULE,
     COMPETITORS_MODULE,
     STAGE_ITEM_COURT_MODULE,
     SCHEDULE_MODULE,
+    SPORTS_CLUBS_MODULE,
 )
 
 

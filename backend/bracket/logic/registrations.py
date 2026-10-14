@@ -24,11 +24,11 @@ Reglas del contrato (``docs/26`` §2-§9; decisiones aprobadas el 2026-10-04):
   mismo error: no se filtra su existencia.
 * El competidor es una identidad del tenant, o ``None`` (identidad desconocida): en
   ese caso el nombre de origen es obligatorio y queda congelado como snapshot.
-* La academia representada se **elige** (jamas se deduce de la afiliacion primaria) y
-  tiene que estar activa; una participacion ``INDEPENDENT`` no lleva academia.
+* El club representado se **elige** (jamas se deduce de la afiliacion primaria) y
+  tiene que estar activa; una participacion ``INDEPENDENT`` no lleva club.
 * ``category_key`` es una clave estable (slug en minusculas) y ``category_label``
   queda congelada por clave dentro del torneo. Nada de deduplicar por nombre.
-* Los snapshots de nombre del competidor y de la academia **se derivan** al escribir;
+* Los snapshots de nombre del competidor y del club **se derivan** al escribir;
   solo la inscripcion sin identidad acepta el nombre desde el payload.
 * Un borrador es editable; una inscripcion ``CONFIRMED`` no se toca en sitio (la
   correccion auditada es S6). Ninguna escritura cambia el estado en silencio.
@@ -47,11 +47,11 @@ Ciclo de vida (S3.2, ``docs/26`` §12-§16):
 * Solo se admite la matriz aprobada de transiciones: cualquier otra combinacion de estado
   de origen y operacion da :class:`InvalidRegistrationStateError`. Repetir una retirada o
   una descalificacion es un no-op que **no** escribe un segundo evento de auditoria.
-* La retirada nunca exige competidor ni academia activos (es la salida de un borrador
+* La retirada nunca exige competidor ni club activos (es la salida de un borrador
   bloqueado); no toca snapshots, clave de categoria ni resultados, y no integra nada con
   el cuadro ya generado (esa sincronizacion es S4/S5).
-* La readmision revalida competidor y academia con los mismos bloqueos compartidos que la
-  confirmacion, en el orden fijado (competidor -> academia), y conserva los snapshots ya
+* La readmision revalida competidor y club con los mismos bloqueos compartidos que la
+  confirmacion, en el orden fijado (competidor -> club), y conserva los snapshots ya
   materializados. La plaza sigue ocupada por la misma fila en el indice unico.
 * El motivo es obligatorio y no vacio en las tres operaciones nuevas.
 
@@ -67,7 +67,7 @@ Ventana de inscripcion (S3.4c, ``docs/26`` §39-§40):
   ``domain_change_log``, que ya es la fuente de auditoria.
 * La ventana gobierna **solo el alta de inscripciones nuevas**. Confirmar, retirar, readmitir
   y descalificar siguen permitidas despues del cierre: son operaciones sobre inscripciones que
-  ya existen y su unico juez sigue siendo la elegibilidad (competidor y academia activos) mas
+  ya existen y su unico juez sigue siendo la elegibilidad (competidor y club activos) mas
   la matriz de transiciones. Cerrar inscripciones no congela el cuadro.
 * El cierre manual manda sobre el plazo: un torneo cerrado a mano sigue cerrado aunque su plazo
   no haya vencido, y limpiar el plazo despues no reabre nada. Reabrir no existe en esta fase.
@@ -207,7 +207,7 @@ class InvalidRegistrationDataError(RegistrationDomainError):
 
 
 class SportsClubNotSelectableError(InvalidRegistrationDataError):
-    """La academia representada no existe o no esta activa: no es elegible."""
+    """El club representado no existe o no esta activa: no es elegible."""
 
 
 class CompetitorNotSelectableError(InvalidRegistrationDataError):
@@ -345,20 +345,20 @@ def _resolve_category(data: RegistrationDraftData) -> tuple[str | None, str | No
 async def _resolve_representation(
     data: RegistrationDraftData,
 ) -> tuple[SportsClubId | None, str | None]:
-    """Academia representada explicita y activa, o participacion independiente sin academia."""
+    """Club representada explicita y activa, o participacion independiente sin club."""
     if data.representation == "INDEPENDENT":
         if data.sports_club_id is not None:
             raise InvalidRegistrationDataError(
-                "una participacion independiente no lleva academia representada"
+                "una participacion independiente no lleva club representado"
             )
         return None, None
     if data.sports_club_id is None:
         raise InvalidRegistrationDataError(
-            "representar una academia exige indicar cual: no se deduce de la afiliacion"
+            "representar un club exige indicar cual: no se deduce de la afiliacion"
         )
     sports_club = await registration_writes.sql_selectable_sports_club(data.sports_club_id)
     if sports_club is None:
-        raise SportsClubNotSelectableError("la academia representada no existe o no esta activa")
+        raise SportsClubNotSelectableError("el club representado no existe o no esta activa")
     return sports_club.id, sports_club.name
 
 
@@ -415,12 +415,12 @@ async def _resolve_affiliation(
     data: RegistrationDraftData,
     sports_club_id: SportsClubId | None,
 ) -> CompetitorXSportsClubId | None:
-    """La afiliacion, si se indica, tiene que ser del competidor y de la academia representada."""
+    """La afiliacion, si se indica, tiene que ser del competidor y del club representado."""
     if data.affiliation_id is None:
         return None
     if data.competitor_id is None or data.representation != "CLUB" or sports_club_id is None:
         raise InvalidRegistrationDataError(
-            "una afiliacion solo tiene sentido con competidor verificado y academia representada"
+            "una afiliacion solo tiene sentido con competidor verificado y club representado"
         )
     affiliations = await get_competitor_affiliations(
         data.competitor_id, tenant_club_id=context.tenant_club_id, include_history=True
@@ -430,7 +430,7 @@ async def _resolve_affiliation(
         for affiliation in affiliations
     ):
         raise InvalidRegistrationDataError(
-            "la afiliacion no pertenece al competidor o no corresponde a la academia representada"
+            "la afiliacion no pertenece al competidor o no corresponde al club representado"
         )
     return data.affiliation_id
 
@@ -761,23 +761,23 @@ async def _assert_registered_competitor_active(
         )
 
 
-async def _assert_represented_academy_active(registration: TournamentRegistration) -> None:
-    """Regla A5 al confirmar: una inscripcion nueva no representa una academia inactiva.
+async def _assert_represented_club_active(registration: TournamentRegistration) -> None:
+    """Regla A5 al confirmar: una inscripcion nueva no representa un club inactivo.
 
-    Se comprueba al escribir el borrador **y** al confirmarlo: una academia puede
+    Se comprueba al escribir el borrador **y** al confirmarlo: un club puede
     desactivarse entre las dos operaciones. El FK de ``sports_club_id`` es ``RESTRICT``
-    (una academia con inscripciones no se borra), asi que desactivarla es la unica
+    (un club con inscripciones no se borra), asi que desactivarla es la unica
     forma de dejar de ser representable. El error no distingue "no existe" de "no esta
     activa", y el borrador no se pierde: sigue editable.
 
-    La lectura toma ``FOR SHARE`` (RS-10) para que la elegibilidad de la academia quede
+    La lectura toma ``FOR SHARE`` (RS-10) para que la elegibilidad del club quede
     serializada con su desactivacion dentro de la transaccion de confirmacion: quien da de
-    baja la academia espera a que la confirmacion termine, y si la baja gana la carrera,
+    bajal club espera a que la confirmacion termine, y si la baja gana la carrera,
     esta comprobacion ya no ve la fila. Es el **segundo** eslabon del orden de bloqueo:
     se adquiere despues del competidor (RS-9) y antes de modificar la inscripcion, y ese
-    orden —competidor, academia, inscripcion— es el que deben respetar las operaciones
+    orden —competidor, club, inscripcion— es el que deben respetar las operaciones
     futuras que necesiten los dos recursos. Una participacion independiente
-    (``sports_club_id`` nulo) no bloquea ninguna academia porque no depende de ninguna.
+    (``sports_club_id`` nulo) no bloquea ningun club porque no depende de ninguna.
     """
     if registration.sports_club_id is None:
         return
@@ -786,7 +786,7 @@ async def _assert_represented_academy_active(registration: TournamentRegistratio
     )
     if selectable is None:
         raise SportsClubNotSelectableError(
-            "la academia representada dejo de estar activa: el borrador sigue editable"
+            "el club representado dejo de estar activa: el borrador sigue editable"
         )
 
 
@@ -815,7 +815,7 @@ async def confirm_registration(
         if current.status != "DRAFT":
             raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
         await _assert_registered_competitor_active(current, context)
-        await _assert_represented_academy_active(current)
+        await _assert_represented_club_active(current)
 
         confirmed = await registration_writes.sql_confirm_registration(
             registration_id=registration_id, tenant_club_id=context.tenant_club_id
@@ -830,9 +830,9 @@ async def confirm_registration(
             if after.status != "DRAFT":
                 raise InvalidRegistrationStateError("solo un borrador se puede confirmar")
             # Sigue siendo un borrador del tenant: lo unico que puede haber impedido la
-            # sentencia es que la academia representada o el competidor dejaran de estar activos.
+            # sentencia es que el club representado o el competidor dejaran de estar activos.
             await _assert_registered_competitor_active(after, context)
-            await _assert_represented_academy_active(after)
+            await _assert_represented_club_active(after)
             raise InvalidRegistrationStateError(
                 "no se pudo confirmar el borrador: vuelve a intentarlo"
             )
@@ -904,7 +904,7 @@ async def withdraw_registration(
 ) -> TournamentRegistration:
     """O5: retirada de una inscripcion (``DRAFT|CONFIRMED -> WITHDRAWN``).
 
-    Un borrador lo retira OWNER o COLLABORATOR y **sin** exigir competidor ni academia
+    Un borrador lo retira OWNER o COLLABORATOR y **sin** exigir competidor ni club
     activos: es la salida de un borrador bloqueado por una baja. Una inscripcion ya
     confirmada (plaza ocupada, snapshots congelados) solo la retira OWNER.
 
@@ -968,8 +968,8 @@ async def reinstate_registration(
 
     Es una **confirmacion en sitio**: la fila es la misma —por eso la plaza sigue siendo
     suya en el indice unico— y revalida exactamente lo mismo que
-    :func:`confirm_registration`: competidor y academia activos, con los bloqueos
-    compartidos en el orden fijado (competidor -> academia), mas las mismas guardas SQL.
+    :func:`confirm_registration`: competidor y club activos, con los bloqueos
+    compartidos en el orden fijado (competidor -> club), mas las mismas guardas SQL.
     Los snapshots no se regeneran: los materializados en su momento siguen siendo validos.
 
     Consecuencia buscada: readmitir una inscripcion que se retiro **siendo borrador** no la
@@ -996,7 +996,7 @@ async def reinstate_registration(
 
         # Misma elegibilidad, y mismo orden de bloqueo, que una confirmacion inicial.
         await _assert_registered_competitor_active(current, context)
-        await _assert_represented_academy_active(current)
+        await _assert_represented_club_active(current)
 
         reinstated = await registration_writes.sql_update_registration_status(
             registration_id=registration_id,
@@ -1017,9 +1017,9 @@ async def reinstate_registration(
                     "solo una inscripcion retirada se puede readmitir"
                 )
             # Sigue retirada: lo unico que puede haber impedido la sentencia es que el
-            # competidor o la academia dejaran de estar activos.
+            # competidor o el club dejaran de estar activos.
             await _assert_registered_competitor_active(after, context)
-            await _assert_represented_academy_active(after)
+            await _assert_represented_club_active(after)
             raise InvalidRegistrationStateError(
                 "no se pudo readmitir la inscripcion: vuelve a intentarlo"
             )

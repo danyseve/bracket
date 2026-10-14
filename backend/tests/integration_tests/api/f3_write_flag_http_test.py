@@ -64,6 +64,8 @@ EXPECTED_GUARDED: Final = (
     "POST /clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/close",
     "POST /clubs/{club_id}/competitors/{competitor_id}/affiliations/{affiliation_id}/primary",
     "POST /clubs/{club_id}/competitors/{competitor_id}/independence",
+    "POST /clubs/{club_id}/sports-clubs",
+    "PATCH /clubs/{club_id}/sports-clubs/{sports_club_id}",
     "POST /clubs/{club_id}/sports-clubs/{sports_club_id}/logo",
 )
 

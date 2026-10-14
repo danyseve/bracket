@@ -211,8 +211,8 @@ export function TournamentLinks({ tournament_id }: any) {
     },
     {
       icon: IconBuildingStore,
-      label: capitalize(t('f3_academies_title')),
-      link: `${tm_prefix}/academies`,
+      label: capitalize(t('f3_clubs_title')),
+      link: `${tm_prefix}/clubs`,
     },
     {
       icon: IconClipboardList,

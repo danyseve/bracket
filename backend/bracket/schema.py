@@ -380,7 +380,7 @@ rankings = Table(
 )
 
 # --------------------------------------------------------------------------------------
-# F3A — Fundamentos del modelo de dominio (Competitor / Academia / Inscripcion).
+# F3A — Fundamentos del modelo de dominio (Competitor / Club / Inscripcion).
 #
 # Aditivo y sin backfill: ninguna tabla existente cambia de significado.
 # ``clubs`` sigue siendo el tenant/organizacion, ``players`` la participacion legacy por
@@ -398,11 +398,11 @@ sports_clubs = Table(
     Column("id", BigInteger, primary_key=True, index=True),
     Column("name", String, nullable=False),
     Column("active", Boolean, nullable=False, server_default="t", index=True),
-    # Logo opcional de la academia (S4.8a-3 §4). Mismo patron que tournaments/teams: en
-    # la base solo vive la ruta relativa; el fichero, en disco. Nulable: una academia sin
+    # Logo opcional del club (S4.8a-3 §4). Mismo patron que tournaments/teams: en
+    # la base solo vive la ruta relativa; el fichero, en disco. Nulable: un club sin
     # logo es valida.
     Column("logo_path", String, nullable=True),
-    # Tenant/organizacion que administra el registro. NULL = academia sin cuenta
+    # Tenant/organizacion que administra el registro. NULL = club sin cuenta
     # administrativa (solo mantenible por un administrador de plataforma).
     Column(
         "tenant_club_id",
@@ -713,7 +713,10 @@ _REASON_CODES: tuple[str, ...] = (
     "ADMINISTRATIVE",
     "AFFILIATION_CHANGE",
     "CATEGORY_CHANGE",
+    "CLUB_ACTIVE_CHANGE",
+    "CLUB_CREATE",
     "CLUB_LOGO_CHANGE",
+    "CLUB_RENAME",
     "DATA_CORRECTION",
     "DATA_ERROR",
     "DATA_VERIFIED",
@@ -761,7 +764,10 @@ _REASON_CODE_ACTION_PAIRS: tuple[tuple[str, str, str], ...] = (
     ("tournament_registration", "DISQUALIFY", "RULE_VIOLATION"),
     ("tournament_registration", "DISQUALIFY", "ELIGIBILITY"),
     ("tournament_registration", "DISQUALIFY", "ADMINISTRATIVE"),
+    ("sports_club", "CREATE", "CLUB_CREATE"),
+    ("sports_club", "UPDATE", "CLUB_ACTIVE_CHANGE"),
     ("sports_club", "UPDATE", "CLUB_LOGO_CHANGE"),
+    ("sports_club", "UPDATE", "CLUB_RENAME"),
 )
 _REASON_CODE_CATALOG_CHECK = (
     "reason_code IS NULL OR reason_code IN ("

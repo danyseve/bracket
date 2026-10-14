@@ -281,7 +281,7 @@ def _row_blockers(
 
     Un borrador no se juzga aqui: ya bloquea por si mismo mientras este pendiente. Lo que la base
     de datos ya garantiza con un ``CHECK`` (identidad verificada sin competidor, representacion de
-    club sin academia o sin snapshot) **no** se repite aqui: no se puede incumplir, y comprobarlo
+    club sin club o sin snapshot) **no** se repite aqui: no se puede incumplir, y comprobarlo
     seria codigo muerto (``docs/26`` §42.6).
     """
     blockers: list[BracketReadinessBlocker] = []

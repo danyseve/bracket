@@ -542,7 +542,7 @@
       },
       "CompetitorAffiliationBody": {
         "additionalProperties": false,
-        "description": "Cuerpo de la asignacion de afiliacion: **solo** la academia destino.\n\nNo hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion\nvigente del competidor) y cambiar la primaria es una ruta de accion propia.",
+        "description": "Cuerpo de la asignacion de afiliacion: **solo** el club destino.\n\nNo hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion\nvigente del competidor) y cambiar la primaria es una ruta de accion propia.",
         "properties": {
           "sports_club_id": {
             "title": "Sports Club Id",
@@ -627,7 +627,7 @@
       },
       "CompetitorCreateBody": {
         "additionalProperties": false,
-        "description": "Alta de identidad: nombre, perfil deportivo opcional y motivo del alta.\n\nNo hay campo de academia: en el dominio certificado (S2) un competidor puede existir\nsin academia y la afiliacion no es un dato de entrada del alta.\n\nEl perfil deportivo (S4.8a-3 \u00a72) es **opcional**: un cliente anterior a S4.8a sigue dando de\nalta identidades sin enviarlo y los tres campos quedan en ``NULL``. No hay valor por defecto\ndeportivo: no se inventa cinturon, sexo ni fecha.",
+        "description": "Alta de identidad: nombre, perfil deportivo opcional y motivo del alta.\n\nNo hay campo de club: en el dominio certificado (S2) un competidor puede existir\nsin club y la afiliacion no es un dato de entrada del alta.\n\nEl perfil deportivo (S4.8a-3 \u00a72) es **opcional**: un cliente anterior a S4.8a sigue dando de\nalta identidades sin enviarlo y los tres campos quedan en ``NULL``. No hay valor por defecto\ndeportivo: no se inventa cinturon, sexo ni fecha.",
         "properties": {
           "belt_id": {
             "anyOf": [
@@ -735,7 +735,7 @@
         "type": "object"
       },
       "CompetitorListItem": {
-        "description": "Competidor de la lista **mas su afiliacion actual** (S4.8d \u00a73, solo lectura).\n\nEs la unica forma de que el formulario de inscripcion pueda mostrar \"academia / independiente\"\nsin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el\nmismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.\n\n``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)\npara que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio\ncertificado la academia representada se **elige** en el alta, y esto solo evita que el usuario\ntenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa \"sin afiliacion\nabierta\": no se deduce ni se inventa ninguna academia.",
+        "description": "Competidor de la lista **mas su afiliacion actual** (S4.8d \u00a73, solo lectura).\n\nEs la unica forma de que el formulario de inscripcion pueda mostrar \"club / independiente\"\nsin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el\nmismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.\n\n``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)\npara que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio\ncertificado el club representado se **elige** en el alta, y esto solo evita que el usuario\ntenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa \"sin afiliacion\nabierta\": no se deduce ni se inventa ningun club.",
         "properties": {
           "active": {
             "title": "Active",
@@ -3020,7 +3020,7 @@
       },
       "RegistrationClassificationPreviewBody": {
         "additionalProperties": false,
-        "description": "Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d \u00a72).\n\nSolo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay\n``representation``, ni academia, ni motivos, ni ``status``: nada de eso interviene en la\ncompatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de\nlos dos campos declarados es un atributo permanente del competidor: el peso es de **esta**\ninscripcion.\n\n``declared_weight_kg`` y ``modality`` son opcionales a proposito: el formulario puede preguntar\nla previa mientras todavia no los ha rellenado, y el motor responde entonces ``MISSING_WEIGHT``\no ``MISSING_MODALITY``. Eso es informacion para el UI, no un error de la peticion. Un valor\npresente, en cambio, se valida con las mismas reglas que un alta (peso ``> 0`` y ``<= 300``,\nmodalidad ``GI`` o ``NO_GI``) y un valor invalido se rechaza igual que alli.",
+        "description": "Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d \u00a72).\n\nSolo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay\n``representation``, ni club, ni motivos, ni ``status``: nada de eso interviene en la\ncompatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de\nlos dos campos declarados es un atributo permanente del competidor: el peso es de **esta**\ninscripcion.\n\n``declared_weight_kg`` y ``modality`` son opcionales a proposito: el formulario puede preguntar\nla previa mientras todavia no los ha rellenado, y el motor responde entonces ``MISSING_WEIGHT``\no ``MISSING_MODALITY``. Eso es informacion para el UI, no un error de la peticion. Un valor\npresente, en cambio, se valida con las mismas reglas que un alta (peso ``> 0`` y ``<= 300``,\nmodalidad ``GI`` o ``NO_GI``) y un valor invalido se rechaza igual que alli.",
         "properties": {
           "competitor_id": {
             "title": "Competitor Id",
@@ -3807,8 +3807,53 @@
         "title": "SingleTeamResponse",
         "type": "object"
       },
+      "SportsClubCreateBody": {
+        "additionalProperties": false,
+        "description": "Alta de un club del tenant: nombre, estado inicial y motivo.\n\n``active`` es opcional y por defecto ``True``: es el estado natural de un club recien dado de\nalta. No hay campo de logo: el logo se sube despues por su propia ruta (S4.8a-3 \u00a74), de forma\nque el alta nunca depende de un fichero binario.",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "name",
+          "active",
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "SportsClubCreateBody",
+        "type": "object"
+      },
       "SportsClubResponse": {
-        "description": "Proyeccion publica de una academia: identidad minima y logo opcional.",
+        "description": "Proyeccion publica de un club: identidad minima y logo opcional.",
         "properties": {
           "active": {
             "title": "Active",
@@ -3841,6 +3886,64 @@
           "logo_path"
         ],
         "title": "SportsClubResponse",
+        "type": "object"
+      },
+      "SportsClubUpdateBody": {
+        "additionalProperties": false,
+        "description": "Edicion de un club del tenant: renombrado y/o cambio de estado.\n\nLos dos campos son **opcionales** y solo se aplica lo que viaja: renombrar no obliga a reenviar\nel estado y viceversa. Un cuerpo sin ``name`` ni ``active`` no es un no-op silencioso: la capa\nde dominio lo rechaza como peticion invalida.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Note"
+          }
+        },
+        "required": [
+          "name",
+          "active",
+          "reason_code",
+          "reason_note"
+        ],
+        "title": "SportsClubUpdateBody",
         "type": "object"
       },
       "StageActivateBody": {
@@ -5940,7 +6043,7 @@
     },
     "/clubs/{club_id}/competitors/{competitor_id}/affiliations": {
       "get": {
-        "description": "Afiliaciones del competidor (S4.8a-3 \u00a73), de solo lectura.\n\nPor defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la\nacademia actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se\nbusca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant\nresponde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni\noperacion de dominio que repetir.\n\nLa proyeccion es la **existente** ``CompetitorAffiliationsResponse``, la misma que devuelve el\npaso a independiente: aqui solo se publica. No se toca la proyeccion certificada S3.7a\n(``CompetitorResponse``).",
+        "description": "Afiliaciones del competidor (S4.8a-3 \u00a73), de solo lectura.\n\nPor defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la\nclub actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se\nbusca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant\nresponde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni\noperacion de dominio que repetir.\n\nLa proyeccion es la **existente** ``CompetitorAffiliationsResponse``, la misma que devuelve el\npaso a independiente: aqui solo se publica. No se toca la proyeccion certificada S3.7a\n(``CompetitorResponse``).",
         "operationId": "list_competitor_affiliations_endpoint_clubs__club_id__competitors__competitor_id__affiliations_get",
         "parameters": [
           {
@@ -6007,7 +6110,7 @@
         ]
       },
       "post": {
-        "description": "Abre una afiliacion vigente con una academia del tenant (OWNER-only).",
+        "description": "Abre una afiliacion vigente con un club del tenant (OWNER-only).",
         "operationId": "assign_affiliation_endpoint_clubs__club_id__competitors__competitor_id__affiliations_post",
         "parameters": [
           {
@@ -6471,7 +6574,7 @@
     },
     "/clubs/{club_id}/sports-clubs": {
       "get": {
-        "description": "Academias del club del tenant de la ruta, con su logo ya persistido.\n\nLa consulta se acota al tenant **dentro** del SQL (``tenant_club_id``) y no incluye las de\nplataforma (``tenant_club_id`` NULL): una academia de otro tenant no existe para esta ruta. Por\ndefecto solo las activas; con ``include_inactive=True`` se anaden las dadas de baja.",
+        "description": "Clubes del club del tenant de la ruta, con su logo ya persistido.\n\nLa consulta se acota al tenant **dentro** del SQL (``tenant_club_id``) y no incluye las de\nplataforma (``tenant_club_id`` NULL): un club de otro tenant no existe para esta ruta. Por\ndefecto solo las activas; con ``include_inactive=True`` se anaden las dadas de baja.",
         "operationId": "list_sports_clubs_endpoint_clubs__club_id__sports_clubs_get",
         "parameters": [
           {
@@ -6484,13 +6587,13 @@
             }
           },
           {
-            "description": "Incluir tambien las academias dadas de baja.",
+            "description": "Incluir tambien los clubes dados de baja.",
             "in": "query",
             "name": "include_inactive",
             "required": false,
             "schema": {
               "default": false,
-              "description": "Incluir tambien las academias dadas de baja.",
+              "description": "Incluir tambien los clubes dados de baja.",
               "title": "Include Inactive",
               "type": "boolean"
             }
@@ -6530,6 +6633,129 @@
         "summary": "List Sports Clubs Endpoint",
         "tags": [
           "Catalog"
+        ]
+      },
+      "post": {
+        "description": "Alta de un club del tenant de la ruta. Exige ``Idempotency-Key`` y relacion OWNER.\n\nNo hay deduplicacion por nombre global (\u00a78): solo se rechaza (409) un duplicado obvio **dentro\ndel mismo tenant**. Dos organizaciones distintas pueden tener clubes con el mismo nombre.",
+        "operationId": "create_sports_club_endpoint_clubs__club_id__sports_clubs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SportsClubCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SportsClubResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Sports Club Endpoint",
+        "tags": [
+          "Sports Clubs"
+        ]
+      }
+    },
+    "/clubs/{club_id}/sports-clubs/{sports_club_id}": {
+      "patch": {
+        "description": "Renombra y/o activa/desactiva un club del tenant. Exige ``Idempotency-Key`` y OWNER.\n\nUn club de otro tenant responde 404 igual que uno inexistente, y no hay borrado fisico:\ndesactivar (``active=false``) es el flujo normal de retirada.",
+        "operationId": "update_sports_club_endpoint_clubs__club_id__sports_clubs__sports_club_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "club_id",
+            "required": true,
+            "schema": {
+              "title": "Club Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sports_club_id",
+            "required": true,
+            "schema": {
+              "title": "Sports Club Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SportsClubUpdateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SportsClubResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Update Sports Club Endpoint",
+        "tags": [
+          "Sports Clubs"
         ]
       }
     },

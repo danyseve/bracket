@@ -3,7 +3,7 @@
  *
  * Ejerce los helpers puros que usa la UI de verdad (sin DOM, sin red) y comprueba, por fuente, que
  * los componentes se cablean a los **contratos reales** del backend: catálogo de cinturones
- * (`GET /clubs/:club_id/belts`), academias (`GET /clubs/:club_id/sports-clubs`), perfil, afiliación,
+ * (`GET /clubs/:club_id/belts`), clubes (`GET /clubs/:club_id/sports-clubs`), perfil, afiliación,
  * independencia y logo.
  *
  * Reglas que estos tests protegen: `MIXED` no es sexo de competidor, el orden de cinturones sale del
@@ -114,7 +114,7 @@ test('los campos del catálogo viajan en la opción (id, scale, code, rank)', ()
 
 /* ------------------------------------------------------------------------------------ club (§6) */
 
-test('el selector de club ofrece las academias reales más la opción independiente', () => {
+test('el selector de club ofrece los clubes reales más la opción independiente', () => {
   const clubs = [
     { id: 3, name: 'Lotus', active: true, logo_path: 'static/sports-club-logos/a.png' },
     { id: 8, name: 'Kodokan', active: true, logo_path: null },
@@ -129,7 +129,7 @@ test('el selector de club ofrece las academias reales más la opción independie
   assert.equal(options[2].name, null);
 });
 
-test('la academia vigente es la afiliación sin valid_to', () => {
+test('el club vigente es la afiliación sin valid_to', () => {
   assert.equal(
     currentSportsClubId([
       { sports_club_id: 3, valid_to: '2025-01-01T00:00:00Z' },
@@ -193,7 +193,7 @@ test('la fecha «hoy» se compone en local, sin desplazar por zona horaria', () 
   assert.equal(toIsoDate(new Date(2026, 0, 3)), '2026-01-03');
 });
 
-/* ------------------------------------------------------------------- logo de academia (§7) ------ */
+/* ------------------------------------------------------------------- logo de club (§7) ------ */
 
 test('el logo cae a iniciales o icono neutro cuando no hay fichero', () => {
   assert.equal(logoInitials('Lotus Jiu Jitsu'), 'LJ');

@@ -30,8 +30,8 @@ from bracket import schema
 from bracket.logic import audit_reasons, competitors, registrations, sports_clubs
 from bracket.sql import domain_writes
 
-# (modulo, funcion, entidad, accion, exige codigo explicito). Las once operaciones que escriben
-# auditoria hoy: cuatro en competidores, seis en inscripciones y una en academias.
+# (modulo, funcion, entidad, accion, exige codigo explicito). Las doce operaciones que escriben
+# auditoria hoy: cuatro en competidores, seis en inscripciones y tres en clubes deportivos.
 AUDIT_OPERATIONS: tuple[tuple[Any, str, str, str, bool], ...] = (
     (competitors, "create_competitor", audit_reasons.SCOPE_COMPETITOR, "CREATE", False),
     (
@@ -61,6 +61,13 @@ AUDIT_OPERATIONS: tuple[tuple[Any, str, str, str, bool], ...] = (
         audit_reasons.SCOPE_SPORTS_CLUB,
         "UPDATE",
         True,
+    ),
+    (
+        sports_clubs,
+        "create_sports_club",
+        audit_reasons.SCOPE_SPORTS_CLUB,
+        "CREATE",
+        False,
     ),
 )
 
@@ -119,7 +126,7 @@ def _triples(sql: str) -> set[tuple[str, str, str]]:
 def test_catalog_covers_exactly_the_audited_operations() -> None:
     written = {(scope, action) for _, _, scope, action, _ in AUDIT_OPERATIONS}
 
-    assert len(AUDIT_OPERATIONS) == 11
+    assert len(AUDIT_OPERATIONS) == 12
     assert set(audit_reasons.CATALOG) == written, "el catalogo no cubre exactamente esas parejas"
     for _, _, scope, action, _ in AUDIT_OPERATIONS:
         assert audit_reasons.allowed_codes(scope=scope, action=action)

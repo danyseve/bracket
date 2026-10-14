@@ -53,8 +53,8 @@ class CompetitorRequestModel(BaseModel):
 class CompetitorCreateBody(CompetitorRequestModel):
     """Alta de identidad: nombre, perfil deportivo opcional y motivo del alta.
 
-    No hay campo de academia: en el dominio certificado (S2) un competidor puede existir
-    sin academia y la afiliacion no es un dato de entrada del alta.
+    No hay campo de club: en el dominio certificado (S2) un competidor puede existir
+    sin club y la afiliacion no es un dato de entrada del alta.
 
     El perfil deportivo (S4.8a-3 §2) es **opcional**: un cliente anterior a S4.8a sigue dando de
     alta identidades sin enviarlo y los tres campos quedan en ``NULL``. No hay valor por defecto
@@ -138,15 +138,15 @@ class CompetitorResponse(BaseModel):
 class CompetitorListItem(CompetitorResponse):
     """Competidor de la lista **mas su afiliacion actual** (S4.8d §3, solo lectura).
 
-    Es la unica forma de que el formulario de inscripcion pueda mostrar "academia / independiente"
+    Es la unica forma de que el formulario de inscripcion pueda mostrar "club / independiente"
     sin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el
     mismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.
 
     ``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)
     para que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio
-    certificado la academia representada se **elige** en el alta, y esto solo evita que el usuario
+    certificado el club representado se **elige** en el alta, y esto solo evita que el usuario
     tenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa "sin afiliacion
-    abierta": no se deduce ni se inventa ninguna academia.
+    abierta": no se deduce ni se inventa ningun club.
     """
 
     affiliation_mode: RegistrationRepresentation
@@ -179,7 +179,7 @@ class CompetitorListResponse(BaseModel):
 
 
 class CompetitorAffiliationBody(CompetitorRequestModel):
-    """Cuerpo de la asignacion de afiliacion: **solo** la academia destino.
+    """Cuerpo de la asignacion de afiliacion: **solo** el club destino.
 
     No hay campos de estado: si nace primaria lo decide el servidor (es la primera afiliacion
     vigente del competidor) y cambiar la primaria es una ruta de accion propia.

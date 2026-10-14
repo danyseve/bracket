@@ -13,7 +13,7 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import F3ErrorAlert from '@components/f3/f3_error_alert';
@@ -76,7 +76,7 @@ const PREVIEW_DEBOUNCE_MS = 300;
  *
  * 1. elegir **competidor** (sólo activos: el backend rechaza inscribir a uno dado de baja);
  * 2. ver su **resumen**: nombre, fecha de nacimiento, edad derivada, sexo, cinturón y afiliación
- *    actual (academia o «Independiente») — todo de la lista del club, sin inventar nada;
+ *    actual (club o «Independiente») — todo de la lista del club, sin inventar nada;
  * 3. declarar **peso** (kg, admite decimales, §8) y **modalidad** (Gi / No-Gi, §9);
  * 4. pedir la **clasificación previa** al backend (`classification-preview`, solo lectura);
  * 5. ver **compatibles**, **recomendada**, **bloqueos** y **avisos** del motor;
@@ -133,6 +133,19 @@ export default function RegistrationModal({
 
   const [preview, setPreview] = useState<PreviewState>({ kind: 'idle' });
 
+  /**
+   * El lector de clasificación vive en un ref: la página lo inyecta como arrow inline
+   * («registrations.tsx»), de modo que su identidad cambia en cada render. Si el efecto de
+   * preview dependiera de él, cada «setPreview» regeneraría el arrow y volvería a lanzar el
+   * preview: bucle de render (React #185). El ref mantiene el lector vigente sin ser
+   * dependencia y no cambia qué se consulta ni cuándo (§4-§5).
+   */
+  const loadPreviewRef = useRef(loadPreview);
+  useEffect(() => {
+    loadPreviewRef.current = loadPreview;
+  });
+  const hasPreviewLoader = loadPreview != null;
+
   const form = useForm({
     initialValues: {
       competitor_id: '',
@@ -166,13 +179,24 @@ export default function RegistrationModal({
     },
   });
 
+  /**
+   * El formulario vive en un ref por el mismo motivo que el lector: `useForm` de Mantine devuelve
+   * un objeto nuevo en cada render (no es estable), y el efecto de preview lo usa al terminar la
+   * consulta. Sin el ref, `form` en las dependencias re-dispara el efecto en cada render.
+   */
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  });
+
   const competitorId = form.values.competitor_id;
   const weightInput = form.values.declared_weight_kg;
   const modalityInput = form.values.modality;
 
   // Clasificación previa (§4-§5): sólo cuando hay competidor y la página inyecta el lector.
   useEffect(() => {
-    if (loadPreview == null || competitorId === '') {
+    const loader = loadPreviewRef.current;
+    if (loader == null || competitorId === '') {
       setPreview({ kind: 'idle' });
       return;
     }
@@ -181,7 +205,7 @@ export default function RegistrationModal({
     setPreview({ kind: 'loading' });
 
     const timer = setTimeout(() => {
-      void loadPreview({
+      void loader({
         competitor_id: Number(competitorId),
         declared_weight_kg: parseDeclaredWeightKg(weightInput),
         modality: modalityInput === '' ? null : (modalityInput as Modality),
@@ -195,7 +219,7 @@ export default function RegistrationModal({
         }
         setPreview({ kind: 'ready', classification: outcome.data });
         // §6-§7: una sola compatible se preselecciona; con varias no se elige por el organizador.
-        form.setFieldValue('category_key', preselectedCategoryKey(outcome.data) ?? '');
+        formRef.current.setFieldValue('category_key', preselectedCategoryKey(outcome.data) ?? '');
       });
     }, PREVIEW_DEBOUNCE_MS);
 
@@ -203,7 +227,7 @@ export default function RegistrationModal({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [loadPreview, competitorId, weightInput, modalityInput, form]);
+  }, [hasPreviewLoader, competitorId, weightInput, modalityInput]);
 
   const classification = preview.kind === 'ready' ? preview.classification : null;
   const state = useMemo(

@@ -1,7 +1,7 @@
 /**
  * Contrato frontend del organizador para la unidad S4.8a-4: perfil deportivo del competidor,
  * catálogo de cinturones, modalidad, peso declarado, clasificación (blockers/warnings) y logo de
- * academia.
+ * club.
  *
  * Por qué un fichero nuevo y no `f3_contract.ts`: `f3_contract.ts` es el contrato del cliente ya
  * validado (S4.1) y no se reescribe; esta unidad añade las proyecciones de S4.8a-3 y se separa para
@@ -97,7 +97,7 @@ export interface CompetitorProfileBody {
   reason_note?: string | null;
 }
 
-/** Cuerpo de la asignación de afiliación: solo la academia destino (competitor_api.py:160). */
+/** Cuerpo de la asignación de afiliación: solo el club destino (competitor_api.py:160). */
 export interface CompetitorAffiliationBody {
   sports_club_id: number;
 }
@@ -252,7 +252,7 @@ export interface RegistrationCategoryBody {
  * Cuerpo de la **clasificación previa** al alta (S4.8d §2).
  *
  * Sólo los tres datos que deciden: el competidor y lo que se declara en el formulario. No viaja la
- * representación ni la academia (no intervienen en la compatibilidad deportiva) ni ningún estado: la
+ * representación ni el club (no intervienen en la compatibilidad deportiva) ni ningún estado: la
  * previa es precisamente antes de que exista la inscripción. Peso y modalidad pueden ir nulos
  * mientras el usuario todavía no los ha rellenado; el motor responderá `MISSING_WEIGHT` /
  * `MISSING_MODALITY`, que es información y no un error.
@@ -263,7 +263,7 @@ export interface RegistrationClassificationPreviewBody {
   modality: Modality | null;
 }
 
-/* --- logo de academia (domain_sports_clubs.py) ------------------------------------------------- */
+/* --- logo de club (domain_sports_clubs.py) ------------------------------------------------- */
 
 /** Tamaño máximo del logo (`MAX_LOGO_BYTES`, domain_sports_clubs.py:63). */
 export const CLUB_LOGO_MAX_BYTES = 2 * 1024 * 1024;
@@ -274,12 +274,34 @@ export const CLUB_LOGO_MIME_TYPES: string[] = ['image/png', 'image/jpeg', 'image
 /** Extensiones declaradas que el backend acepta y coteja con el tipo real. */
 export const CLUB_LOGO_EXTENSIONS: string[] = ['.png', '.jpg', '.jpeg', '.webp'];
 
-/** Proyección pública de una academia: identidad mínima y logo (sports_club_api.py). */
+/** Proyección pública de un club: identidad mínima y logo (sports_club_api.py). */
 export interface SportsClub {
   id: number;
   name: string;
   active: boolean;
   logo_path: string | null;
+}
+
+/**
+ * Cuerpo del alta de club (S4.8g-2 §7/§14). `name` es obligatorio; `active` nace en alta; los
+ * motivos de auditoria son opcionales (el backend resuelve el codigo por defecto del catalogo).
+ */
+export interface SportsClubCreateBody {
+  name: string;
+  active?: boolean;
+  reason_code?: string | null;
+  reason_note?: string | null;
+}
+
+/**
+ * Cuerpo de la edicion de club (S4.8g-2 §7/§14): solo viajan los campos que cambian. El backend
+ * mantiene el historico de nombres y no borra filas; con el mismo contenido no hay escritura.
+ */
+export interface SportsClubUpdateBody {
+  name?: string | null;
+  active?: boolean | null;
+  reason_code?: string | null;
+  reason_note?: string | null;
 }
 
 /* --- rutas (domain_competitors.py / domain_registrations.py / domain_sports_clubs.py) ---------- */
@@ -341,7 +363,7 @@ export function registrationClassificationPreviewUrl(tournament_id: number): str
   return `tournaments/${tournament_id}/registrations/classification-preview`;
 }
 
-/** Logo de academia: subir, reemplazar (con fichero) o quitar (sin fichero). */
+/** Logo de club: subir, reemplazar (con fichero) o quitar (sin fichero). */
 export function sportsClubLogoUrl(club_id: number, sports_club_id: number): string {
   return `clubs/${club_id}/sports-clubs/${sports_club_id}/logo`;
 }
@@ -355,9 +377,17 @@ export function beltsUrl(club_id: number): string {
 }
 
 /**
- * Academias del club (`GET /clubs/{club_id}/sports-clubs`, `list_sports_clubs_endpoint`,
+ * Clubes del club (`GET /clubs/{club_id}/sports-clubs`, `list_sports_clubs_endpoint`,
  * `routes/domain_catalog.py:75`). Solo lectura; el ámbito del tenant se aplica en el backend.
  */
-export function sportsClubsUrl(club_id: number): string {
-  return `clubs/${club_id}/sports-clubs`;
+export function sportsClubsUrl(club_id: number, includeInactive = false): string {
+  const base = `clubs/${club_id}/sports-clubs`;
+  // La gestión de Clubes necesita ver también los dados de baja (S4.8g-2 §7/§15); los selectores
+  // funcionales se quedan con el defecto del backend: solo activos.
+  return includeInactive ? `${base}?include_inactive=true` : base;
+}
+
+/** Club concreto (`PATCH /clubs/{club_id}/sports-clubs/{sports_club_id}`, S4.8g-2 §14). */
+export function sportsClubUrl(club_id: number, sports_club_id: number): string {
+  return `clubs/${club_id}/sports-clubs/${sports_club_id}`;
 }

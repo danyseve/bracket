@@ -6,10 +6,10 @@ import { SportsClub } from '@components/utils/f3_competitor_contract';
 import { SPORTS_CLUB_INDEPENDENT, sportsClubOptions } from '@components/utils/f3_sports_profile';
 
 /**
- * Selector de club / academia (S4.8a-4 §6).
+ * Selector de club / club (S4.8a-4 §6).
  *
  * Las opciones salen del backend (`GET /clubs/:club_id/sports-clubs`) más la opción «Independiente»:
- * nunca hay campo de texto libre. El valor viaja como el `id` de la academia o como el centinela
+ * nunca hay campo de texto libre. El valor viaja como el `id` del club o como el centinela
  * `independent`; el componente que lo usa decide el endpoint real de afiliación o independencia.
  */
 export default function SportsClubSelect({

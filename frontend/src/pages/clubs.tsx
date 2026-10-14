@@ -20,7 +20,7 @@ export default function ClubsPage() {
         <Grid.Col span="auto">
           {/*
             Esta pantalla es de **organizaciones** (el club/tenant con RBAC propio, S4.8g §9), no de las
-            academias deportivas del torneo: de ahí el nombre, para no confundirla con «Club / Academia».
+            clubes deportivas del torneo: de ahí el nombre, para no confundirla con «Club / Club».
           */}
           <Title>{capitalize(t('f3_organizations_title'))}</Title>
         </Grid.Col>

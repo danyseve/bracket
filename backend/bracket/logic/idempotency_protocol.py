@@ -21,7 +21,7 @@ Limites del contrato:
 * La operacion de dominio se ejecuta **dentro** de la transaccion del coordinador (su propia
   ``database.transaction()`` anida como ``SAVEPOINT``, no como transaccion independiente) y no puede
   hacer llamadas externas mientras el bloqueo esta tomado.
-* Orden de bloqueos: ``idempotency_key -> competitor -> academy -> registration``. La fila de la
+* Orden de bloqueos: ``idempotency_key -> competitor -> club -> registration``. La fila de la
   clave se toma siempre primero y quien espera por ella no tiene ningun otro bloqueo, asi que no
   puede cerrar un ciclo (RS-9/RS-10 intactos).
 * Semantica de caducidad (S3.3c-4, conservadora): una reserva caducada **no** se reutiliza, no se

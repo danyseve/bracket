@@ -105,7 +105,7 @@ test('la navegación del torneo enlaza las cuatro pantallas sin duplicar enlaces
   );
   assert.equal(new Set(hrefs).size, hrefs.length, 'hay enlaces duplicados en TournamentLinks');
   assert.ok(hrefs.includes('/players'), 'no se debe perder el enlace existente de jugadores');
-  assert.ok(hrefs.includes('/academies'), 'el enlace de Club / Academia debe apuntar a academies');
+  assert.ok(hrefs.includes('/clubs'), 'el enlace de Club debe apuntar a clubs');
   // S4.8g §3: el menú normal no enseña jugadores ni equipos; viven detrás del conmutador de avanzado.
   assert.match(tournamentLinks, /f3_nav_advanced_show/);
   assert.match(tournamentLinks, /f3_nav_advanced_hide/);

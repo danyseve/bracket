@@ -132,7 +132,7 @@ class CompetitorBasicDataUpdate(BaseModelORM):
 
 
 class SportsClub(BaseModelORM):
-    """Academia (``sports_clubs``). ``tenant_club_id`` NULL = academia de plataforma."""
+    """Club (``sports_clubs``). ``tenant_club_id`` NULL = club de plataforma."""
 
     id: SportsClubId
     name: str
@@ -197,7 +197,7 @@ class CompetitorNameHistory(BaseModelORM):
 
 
 class CompetitorXSportsClub(BaseModelORM):
-    """Afiliacion (vigente o historica) de un competidor con una academia."""
+    """Afiliacion (vigente o historica) de un competidor con un club."""
 
     id: CompetitorXSportsClubId
     competitor_id: CompetitorId
@@ -209,10 +209,10 @@ class CompetitorXSportsClub(BaseModelORM):
 
 
 class OpenPrimaryAffiliation(BaseModelORM):
-    """Afiliacion **primaria abierta** de un competidor, con el nombre actual de la academia.
+    """Afiliacion **primaria abierta** de un competidor, con el nombre actual del club.
 
     No es una tabla: es la proyeccion de lectura que necesita el listado de competidores (S4.8d §3)
-    para que el formulario pueda proponer la academia **sin** una consulta por competidor. El nombre
+    para que el formulario pueda proponer el club **sin** una consulta por competidor. El nombre
     sale de ``sports_clubs.name`` (el vigente), nunca del historial de nombres.
 
     Solo aparece un registro por competidor, y solo si tiene una fila abierta (``valid_to IS NULL``)
@@ -267,7 +267,7 @@ class RegistrationDraftData(BaseModelORM):
     * ``status``, ``revision``, ``corrects_registration_id``,
       ``superseded_by_registration_id``: los cambian las operaciones de ciclo de vida,
       nunca el payload;
-    * ``sports_club_name_snapshot``: se deriva de la academia elegida.
+    * ``sports_club_name_snapshot``: se deriva del club elegido.
 
     ``declared_weight_kg`` y ``modality`` (§4.8a-3 §5) son datos **de esta inscripcion**, no del
     competidor: el peso se declara por torneo y la modalidad distingue dos inscripciones distintas

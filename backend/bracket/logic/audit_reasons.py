@@ -86,7 +86,7 @@ __all__ = [
 SCOPE_COMPETITOR = "competitor"
 #: Entidad de auditoria de la inscripcion (``domain_change_log.entity``).
 SCOPE_REGISTRATION = "tournament_registration"
-#: Entidad de auditoria de la academia deportiva (``domain_change_log.entity``).
+#: Entidad de auditoria del club deportiva (``domain_change_log.entity``).
 #: Es una entidad de plataforma; su logo se audita desde S4.8a-3 §4.
 SCOPE_SPORTS_CLUB = "sports_club"
 
@@ -132,7 +132,12 @@ _CATALOG: dict[tuple[str, str], tuple[str, ...]] = {
         "ELIGIBILITY",
         "ADMINISTRATIVE",
     ),
-    (SCOPE_SPORTS_CLUB, "UPDATE"): ("CLUB_LOGO_CHANGE",),
+    (SCOPE_SPORTS_CLUB, "CREATE"): ("CLUB_CREATE",),
+    (SCOPE_SPORTS_CLUB, "UPDATE"): (
+        "CLUB_LOGO_CHANGE",
+        "CLUB_RENAME",
+        "CLUB_ACTIVE_CHANGE",
+    ),
 }
 
 #: Codigos admitidos por par (entidad, accion). Solo lectura.
@@ -188,7 +193,10 @@ CANONICAL_TEXTS: MappingProxyType[tuple[str, str, str], str] = MappingProxyType(
         ),
         (SCOPE_REGISTRATION, "DISQUALIFY", "ELIGIBILITY"): ("descalificacion por inelegibilidad"),
         (SCOPE_REGISTRATION, "DISQUALIFY", "ADMINISTRATIVE"): ("descalificacion administrativa"),
-        (SCOPE_SPORTS_CLUB, "UPDATE", "CLUB_LOGO_CHANGE"): "cambio de logo de la academia",
+        (SCOPE_SPORTS_CLUB, "CREATE", "CLUB_CREATE"): "alta de club deportivo",
+        (SCOPE_SPORTS_CLUB, "UPDATE", "CLUB_LOGO_CHANGE"): "cambio de logo del club",
+        (SCOPE_SPORTS_CLUB, "UPDATE", "CLUB_RENAME"): "renombrado de club deportivo",
+        (SCOPE_SPORTS_CLUB, "UPDATE", "CLUB_ACTIVE_CHANGE"): "cambio de estado del club deportivo",
     }
 )
 
@@ -204,6 +212,7 @@ DEFAULT_CODES: MappingProxyType[tuple[str, str], str] = MappingProxyType(
         (SCOPE_REGISTRATION, "CREATE"): "PLANNED_ENTRY",
         (SCOPE_REGISTRATION, "UPDATE"): "DATA_CORRECTION",
         (SCOPE_REGISTRATION, "CONFIRM"): "READY",
+        (SCOPE_SPORTS_CLUB, "CREATE"): "CLUB_CREATE",
     }
 )
 

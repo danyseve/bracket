@@ -1,6 +1,6 @@
 """Contratos HTTP de salida de los catalogos de lectura del club (S4.8a-4a, LAB ONLY).
 
-Proyecciones **explicitas**: no se reutiliza el modelo interno como respuesta. La academia
+Proyecciones **explicitas**: no se reutiliza el modelo interno como respuesta. El club
 (``SportsClubResponse``) ya vive en ``bracket/models/db/sports_club_api.py`` y se reutiliza tal
 cual; el cinturon se publica aqui porque hasta ahora solo existia la fila interna (``Belt``,
 ``bracket/models/db/domain.py``) y el lector ``get_belt`` (``bracket/sql/domain_reads.py``).

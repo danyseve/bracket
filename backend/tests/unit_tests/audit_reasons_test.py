@@ -78,7 +78,8 @@ APPROVED_CATALOG: dict[tuple[str, str], tuple[str, ...]] = {
         "ELIGIBILITY",
         "ADMINISTRATIVE",
     ),
-    ("sports_club", "UPDATE"): ("CLUB_LOGO_CHANGE",),
+    ("sports_club", "CREATE"): ("CLUB_CREATE",),
+    ("sports_club", "UPDATE"): ("CLUB_LOGO_CHANGE", "CLUB_RENAME", "CLUB_ACTIVE_CHANGE"),
 }
 
 
@@ -161,6 +162,7 @@ def test_default_codes_cover_exactly_the_optional_actions() -> None:
         ("tournament_registration", "CREATE"),
         ("tournament_registration", "UPDATE"),
         ("tournament_registration", "CONFIRM"),
+        ("sports_club", "CREATE"),
     }
 
 
@@ -509,6 +511,7 @@ def test_competitor_defaults_are_reproducible_by_the_catalog() -> None:
         ("tournament_registration", "CREATE"): "PLANNED_ENTRY",
         ("tournament_registration", "UPDATE"): "DATA_CORRECTION",
         ("tournament_registration", "CONFIRM"): "READY",
+        ("sports_club", "CREATE"): "CLUB_CREATE",
     }, "las defaults del catalogo son la unica fuente"
     for action, (code, text) in expected.items():
         reason = audit_reasons.build_audit_reason(scope="competitor", action=action)

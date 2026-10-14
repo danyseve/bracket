@@ -103,7 +103,7 @@ class RegistrationClassificationPreviewBody(RegistrationRequestModel):
     """Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d §2).
 
     Solo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay
-    ``representation``, ni academia, ni motivos, ni ``status``: nada de eso interviene en la
+    ``representation``, ni club, ni motivos, ni ``status``: nada de eso interviene en la
     compatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de
     los dos campos declarados es un atributo permanente del competidor: el peso es de **esta**
     inscripcion.

@@ -27,8 +27,8 @@ Reglas del contrato:
 * ``tenant_club_id``, ``actor_user_id`` y ``actor_label`` se resuelven en servidor desde el
   JWT y la base de datos; jamas se aceptan desde el payload, el rol del payload ni cabeceras
   manipulables que identifiquen usuario u organizacion.
-* ``clubs`` es el organizador (tenant); ``sports_clubs`` son las academias deportivas y
-  **no** son tenants: una academia puede aparecer como inscrita y seguir siendo ajena al
+* ``clubs`` es el organizador (tenant); ``sports_clubs`` son los clubes deportivas y
+  **no** son tenants: un club puede aparecer como inscrita y seguir siendo ajena al
   tenant del torneo.
 * Ambito por torneo: el tenant es ``tournaments.club_id`` leido de la base de datos, de modo
   que cambiar el ``tournament_id`` no permite acceso cruzado.

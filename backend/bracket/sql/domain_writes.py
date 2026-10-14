@@ -380,7 +380,7 @@ async def sql_insert_affiliation(
     sports_club_id: SportsClubId,
     is_primary: bool,
 ) -> CompetitorXSportsClub:
-    """Abre una afiliacion vigente del competidor con la academia.
+    """Abre una afiliacion vigente del competidor con el club.
 
     El competidor tiene que pertenecer al tenant (lo cierra el propio SQL); si no, se levanta
     :class:`DomainWriteScopeError` y la operacion revierte entera. ``valid_from`` usa
@@ -556,7 +556,7 @@ async def sql_close_all_open_affiliations(
     )
 
 
-# --- S4.8a-3 §4: logo de la academia -----------------------------------------------------------
+# --- S4.8a-3 §4: logo del club -----------------------------------------------------------
 
 _SPORTS_CLUB_WRITE_COLUMNS = "id, name, active, tenant_club_id, created, updated_at, logo_path"
 
@@ -567,9 +567,9 @@ async def sql_update_sports_club_logo(
     tenant_club_id: ClubId,
     logo_path: str | None,
 ) -> SportsClub | None:
-    """Fija o limpia la ruta relativa del logo de una academia del tenant.
+    """Fija o limpia la ruta relativa del logo de un club del tenant.
 
-    ``None`` si la academia no existe o no pertenece a ese tenant. ``logo_path=None`` borra la
+    ``None`` si el club no existe o no pertenece a ese tenant. ``logo_path=None`` borra la
     referencia (quitar el logo); el fichero en disco lo retira la capa de rutas despues.
     """
     query = f"""
@@ -587,3 +587,142 @@ async def sql_update_sports_club_logo(
         },
     )
     return SportsClub.model_validate(dict(result._mapping)) if result is not None else None
+
+
+async def sql_insert_sports_club(
+    *,
+    name: str,
+    tenant_club_id: ClubId,
+    active: bool = True,
+) -> SportsClub:
+    """Alta de un club del tenant (S4.8g-2 §14). El tenant sale del contexto autorizado.
+
+    No fija logo: el fichero y su ruta se gestionan en la ruta del logo (S4.8a-3 §4), de modo que
+    un alta nunca depende de un binario.
+    """
+    query = f"""
+        INSERT INTO sports_clubs (name, tenant_club_id, active, created)
+        VALUES (:name, :tenant_club_id, :active, NOW())
+        RETURNING {_SPORTS_CLUB_WRITE_COLUMNS}
+        """
+    result = await database.fetch_one(
+        query=query,
+        values={"name": name, "tenant_club_id": tenant_club_id, "active": active},
+    )
+    return SportsClub.model_validate(dict(assert_some(result)._mapping))
+
+
+async def sql_update_sports_club_profile(
+    *,
+    sports_club_id: SportsClubId,
+    tenant_club_id: ClubId,
+    name: str | None = None,
+    active: bool | None = None,
+) -> SportsClub | None:
+    """Renombra y/o cambia el estado del club del tenant. Solo escribe lo que se envia.
+
+    ``None`` si el club no existe o no pertenece a ese tenant. El ``SET`` se compone con los campos
+    presentes (no se usa ``COALESCE``: un parametro sin tipo obliga a adivinar el tipo en la base).
+    Sin campos no hay sentencia posible y se devuelve ``None``: la capa de dominio ya lo ha
+    rechazado antes, esto es solo defensa en profundidad.
+    """
+    assignments: list[str] = []
+    values: dict[str, object] = {
+        "sports_club_id": sports_club_id,
+        "tenant_club_id": tenant_club_id,
+    }
+    if name is not None:
+        assignments.append("name = :name")
+        values["name"] = name
+    if active is not None:
+        assignments.append("active = :active")
+        values["active"] = active
+    if not assignments:
+        return None
+
+    query = f"""
+        UPDATE sports_clubs
+        SET {", ".join(assignments)}, updated_at = NOW()
+        WHERE id = :sports_club_id AND tenant_club_id = :tenant_club_id
+        RETURNING {_SPORTS_CLUB_WRITE_COLUMNS}
+        """
+    result = await database.fetch_one(query=query, values=values)
+    return SportsClub.model_validate(dict(result._mapping)) if result is not None else None
+
+
+async def sql_close_open_sports_club_name_history(
+    *, sports_club_id: SportsClubId, tenant_club_id: ClubId
+) -> int:
+    """Cierra la entrada de nombre vigente del club (``valid_to IS NULL``). Devuelve cuantas cerro.
+
+    Mismo criterio que en el competidor: el cierre solo alcanza al club de ese tenant (``EXISTS``
+    contra ``sports_clubs``), usa ``clock_timestamp()`` en vez de ``NOW()`` —``NOW()`` es el inicio
+    de la transaccion— y aplica un suelo de un microsegundo sobre el ``valid_from`` de la propia
+    fila, de modo que ``ck_sports_clubs_name_history_range`` queda satisfecha por construccion.
+    """
+    query = """
+        WITH closed AS (
+            UPDATE sports_clubs_name_history
+            SET valid_to = GREATEST(
+                clock_timestamp(), valid_from + interval '1 microsecond'
+            )
+            WHERE sports_club_id = :sports_club_id
+              AND valid_to IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM sports_clubs
+                  WHERE sports_clubs.id = sports_clubs_name_history.sports_club_id
+                    AND sports_clubs.tenant_club_id = :tenant_club_id
+              )
+            RETURNING 1
+        )
+        SELECT count(*) FROM closed
+        """
+    return int(
+        await database.execute(
+            query=query,
+            values={"sports_club_id": sports_club_id, "tenant_club_id": tenant_club_id},
+        )
+        or 0
+    )
+
+
+async def sql_insert_sports_club_name_history(
+    *,
+    sports_club_id: SportsClubId,
+    tenant_club_id: ClubId,
+    name: str,
+    changed_by_user_id: UserId,
+) -> None:
+    """Abre una entrada de nombre del club. ``changed_by_user_id`` es el actor, no se proyecta.
+
+    Si el club no pertenece al tenant no se escribe nada y la operacion entera revierte. La tabla
+    ``sports_clubs_name_history`` ya existia en el esquema de F3A: esta fase no crea ni migra nada.
+    """
+    query = """
+        WITH inserted AS (
+            INSERT INTO sports_clubs_name_history
+                (sports_club_id, name, valid_from, valid_to, changed_by_user_id)
+            SELECT :sports_club_id, :name, clock_timestamp(), NULL, :changed_by_user_id
+            WHERE EXISTS (
+                SELECT 1 FROM sports_clubs
+                WHERE sports_clubs.id = :sports_club_id
+                  AND sports_clubs.tenant_club_id = :tenant_club_id
+            )
+            RETURNING 1
+        )
+        SELECT count(*) FROM inserted
+        """
+    inserted = int(
+        await database.execute(
+            query=query,
+            values={
+                "sports_club_id": sports_club_id,
+                "tenant_club_id": tenant_club_id,
+                "name": name,
+                "changed_by_user_id": changed_by_user_id,
+            },
+        )
+        or 0
+    )
+    if inserted != 1:
+        raise DomainWriteScopeError("el club no pertenece al tenant del contexto")

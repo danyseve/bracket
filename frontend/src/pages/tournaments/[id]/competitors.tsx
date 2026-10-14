@@ -91,7 +91,7 @@ export default function CompetitorsPage() {
     competitor: Competitor;
     active: boolean;
   } | null>(null);
-  // Fallo parcial del alta (§5): el competidor se creó pero quedó sin Club / Academia. Se conserva
+  // Fallo parcial del alta (§5): el competidor se creó pero quedó sin Club / Club. Se conserva
   // para decirlo con el nombre del competidor y poder completarlo desde el perfil.
   const [partialFailure, setPartialFailure] = useState<{
     name: string;
@@ -112,7 +112,7 @@ export default function CompetitorsPage() {
   const pages = count > 0 ? Math.ceil(count / PAGE_SIZE) : 1;
 
   // Catálogos de la superficie de personas (S4.8g §10/§5): cinturones, para traducir `belt_id` sin
-  // enseñar identificadores, y academias, para el paso 2 del alta.
+  // enseñar identificadores, y clubes, para el paso 2 del alta.
   const swrBelts = getBelts(club_id);
   const belts = swrBelts.data != null ? swrBelts.data : [];
   const swrSportsClubs = getSportsClubs(club_id);
@@ -166,7 +166,7 @@ export default function CompetitorsPage() {
     await swrCompetitors.mutate();
 
     // Paso 2: el alta nace sin afiliación, así que «Independiente» no es una escritura; elegir una
-    // academia sí lo es, y se hace con la acción de afiliación ya existente.
+    // club sí lo es, y se hace con la acción de afiliación ya existente.
     const sportsClubId = affiliationSportsClubId(affiliationAction(null, values.club_choice));
     if (sportsClubId == null) {
       showNotification({ color: 'green', message: t('competitors_create_success') });
@@ -185,7 +185,7 @@ export default function CompetitorsPage() {
       return;
     }
 
-    // Fallo parcial (§5): el competidor existe pero quedó sin Club / Academia. No se oculta el fallo
+    // Fallo parcial (§5): el competidor existe pero quedó sin Club / Club. No se oculta el fallo
     // ni se pierde el trabajo: se dice qué competidor es y se abre su perfil para completarlo.
     setPartialFailure({
       name: created.display_name,
@@ -507,7 +507,7 @@ export default function CompetitorsPage() {
         opened={profileTarget != null}
         onClose={() => setProfileTarget(null)}
         club_id={club_id}
-        canManageAcademy={organizerActions}
+        canManageClub={organizerActions}
         competitor={profileTarget}
         onSaved={() => {
           void swrCompetitors.mutate();

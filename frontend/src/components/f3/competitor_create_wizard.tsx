@@ -28,7 +28,7 @@ export interface CompetitorCreateValues {
   date_of_birth: string | null;
   sex: CompetitorSex | null;
   belt_id: number | null;
-  /** `id` de la academia elegida o el centinela de «Independiente»; nunca texto libre. */
+  /** `id` del club elegido o el centinela de «Independiente»; nunca texto libre. */
   club_choice: string;
 }
 
@@ -37,7 +37,7 @@ export interface CompetitorCreateValues {
  *
  * Dos pasos, una sola experiencia: el organizador no tiene que crear el nombre, cerrar, buscar la fila
  * y abrir el perfil para completar el resto. Paso 1 pide los datos deportivos (nombre, fecha de
- * nacimiento, sexo y cinturón); paso 2 pide el Club / Academia representado o «Independiente».
+ * nacimiento, sexo y cinturón); paso 2 pide el Club / Club representado o «Independiente».
  *
  * El componente **no escribe**: solo recoge valores y avisa. Quien lo usa decide la orquestación real
  * (`POST /clubs/:id/competitors` y, si procede, la afiliación) porque es ahí donde hay que distinguir

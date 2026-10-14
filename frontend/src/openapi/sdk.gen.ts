@@ -66,6 +66,9 @@ import type {
   CreateSinglePlayerTournamentsTournamentIdPlayersPostData,
   CreateSinglePlayerTournamentsTournamentIdPlayersPostErrors,
   CreateSinglePlayerTournamentsTournamentIdPlayersPostResponses,
+  CreateSportsClubEndpointClubsClubIdSportsClubsPostData,
+  CreateSportsClubEndpointClubsClubIdSportsClubsPostErrors,
+  CreateSportsClubEndpointClubsClubIdSportsClubsPostResponses,
   CreateStageItemTournamentsTournamentIdStageItemsPostData,
   CreateStageItemTournamentsTournamentIdStageItemsPostErrors,
   CreateStageItemTournamentsTournamentIdStageItemsPostResponses,
@@ -283,6 +286,9 @@ import type {
   UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutData,
   UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutErrors,
   UpdateRoundByIdTournamentsTournamentIdRoundsRoundIdPutResponses,
+  UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchData,
+  UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchErrors,
+  UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchResponses,
   UpdateStageItemInputTournamentsTournamentIdStageItemsStageItemIdInputsStageItemInputIdPutData,
   UpdateStageItemInputTournamentsTournamentIdStageItemsStageItemIdInputsStageItemInputIdPutErrors,
   UpdateStageItemInputTournamentsTournamentIdStageItemsStageItemIdInputsStageItemInputIdPutResponses,
@@ -540,7 +546,7 @@ export const activateCompetitorEndpointClubsClubIdCompetitorsCompetitorIdActivat
  * Afiliaciones del competidor (S4.8a-3 §3), de solo lectura.
  *
  * Por defecto devuelve **solo las vigentes** (``valid_to`` NULL) para que la UI precargue la
- * academia actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se
+ * club actual; con ``include_history=True`` se anade el historial ya cerrado. El competidor se
  * busca **acotado al tenant** (``_load_competitor``), asi que un competidor de otro tenant
  * responde el mismo 404 que uno inexistente. Leer no exige ``Idempotency-Key``: no hay reserva ni
  * operacion de dominio que repetir.
@@ -571,7 +577,7 @@ export const listCompetitorAffiliationsEndpointClubsClubIdCompetitorsCompetitorI
 /**
  * Assign Affiliation Endpoint
  *
- * Abre una afiliacion vigente con una academia del tenant (OWNER-only).
+ * Abre una afiliacion vigente con un club del tenant (OWNER-only).
  */
 export const assignAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsPost = <
   ThrowOnError extends boolean = false,
@@ -764,10 +770,10 @@ export const renameCompetitorEndpointClubsClubIdCompetitorsCompetitorIdRenamePos
 /**
  * List Sports Clubs Endpoint
  *
- * Academias del club del tenant de la ruta, con su logo ya persistido.
+ * Clubes del club del tenant de la ruta, con su logo ya persistido.
  *
  * La consulta se acota al tenant **dentro** del SQL (``tenant_club_id``) y no incluye las de
- * plataforma (``tenant_club_id`` NULL): una academia de otro tenant no existe para esta ruta. Por
+ * plataforma (``tenant_club_id`` NULL): un club de otro tenant no existe para esta ruta. Por
  * defecto solo las activas; con ``include_inactive=True`` se anaden las dadas de baja.
  */
 export const listSportsClubsEndpointClubsClubIdSportsClubsGet = <
@@ -784,6 +790,65 @@ export const listSportsClubsEndpointClubsClubIdSportsClubsGet = <
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/clubs/{club_id}/sports-clubs',
     ...options,
+  });
+
+/**
+ * Create Sports Club Endpoint
+ *
+ * Alta de un club del tenant de la ruta. Exige ``Idempotency-Key`` y relacion OWNER.
+ *
+ * No hay deduplicacion por nombre global (§8): solo se rechaza (409) un duplicado obvio **dentro
+ * del mismo tenant**. Dos organizaciones distintas pueden tener clubes con el mismo nombre.
+ */
+export const createSportsClubEndpointClubsClubIdSportsClubsPost = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<CreateSportsClubEndpointClubsClubIdSportsClubsPostData, ThrowOnError>
+) =>
+  (options.client ?? client).post<
+    CreateSportsClubEndpointClubsClubIdSportsClubsPostResponses,
+    CreateSportsClubEndpointClubsClubIdSportsClubsPostErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/sports-clubs',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Update Sports Club Endpoint
+ *
+ * Renombra y/o activa/desactiva un club del tenant. Exige ``Idempotency-Key`` y OWNER.
+ *
+ * Un club de otro tenant responde 404 igual que uno inexistente, y no hay borrado fisico:
+ * desactivar (``active=false``) es el flujo normal de retirada.
+ */
+export const updateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatch = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchData,
+    ThrowOnError
+  >
+) =>
+  (options.client ?? client).patch<
+    UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchResponses,
+    UpdateSportsClubEndpointClubsClubIdSportsClubsSportsClubIdPatchErrors,
+    ThrowOnError
+  >({
+    responseType: 'json',
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clubs/{club_id}/sports-clubs/{sports_club_id}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
 
 /**

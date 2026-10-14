@@ -22,7 +22,7 @@ Las dos escrituras de la ventana (plazo y cierre) son administrativas: **OWNER-o
 protocolo de idempotencia que el resto. No se anade ``reopen`` en esta fase: reabrir seria una
 operacion con su propio evento de auditoria, no un no-op.
 
-Lo que estas rutas **no** hacen: editar competidores o academias, generar el cuadro, ni relajar la
+Lo que estas rutas **no** hacen: editar competidores o clubes, generar el cuadro, ni relajar la
 autorizacion del dominio. Los errores del dominio se traducen al catalogo de S3.3d (§11) **por
 codigo**, con detalles fijos que nunca repiten el valor recibido.
 """
