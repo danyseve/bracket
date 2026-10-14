@@ -60,6 +60,8 @@ const COMPONENT_SOURCES = [
   '../src/components/f3/sports_club_select.tsx',
   '../src/components/f3/sports_club_logo.tsx',
   '../src/components/f3/competitor_sports_profile.tsx',
+  // S4.8g — alta de competidor en un solo flujo (dos pasos, con Club / Academia)
+  '../src/components/f3/competitor_create_wizard.tsx',
   '../src/components/modals/competitor_modal.tsx',
   '../src/components/modals/registration_modal.tsx',
   // S4.8a-4 — peso, modalidad y clasificación del organizador

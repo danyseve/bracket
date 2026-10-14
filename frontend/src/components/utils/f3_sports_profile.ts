@@ -403,3 +403,70 @@ export function logoFileError(file: LogoFileLike, limits: LogoLimits): string | 
   }
   return null;
 }
+
+/* ------------------------------------------------------- alta en un solo flujo (S4.8g §5) ------- */
+
+/** Datos del alta en un solo flujo: identidad visible + perfil declarado (§5). */
+export interface CompetitorCreateInput extends CompetitorSportsProfileValues {
+  display_name: string;
+}
+
+/**
+ * Cuerpo del alta de competidor **con el perfil declarado**.
+ *
+ * El backend ya acepta `date_of_birth`, `sex` y `belt_id` en el alta (`CompetitorCreateBody`), así que
+ * la UI no necesita encadenar un «alta» y un «reemplazo de perfil»: se pide una vez y se envía una vez.
+ * El motivo del alta llega como parámetro para que este módulo no importe valores de otros módulos en
+ * tiempo de ejecución (solo `import type`), igual que el resto del fichero.
+ */
+export function competitorCreateBody(
+  values: CompetitorCreateInput,
+  reason_code: string | null
+): {
+  display_name: string;
+  date_of_birth: string | null;
+  sex: CompetitorSex | null;
+  belt_id: number | null;
+  reason_code: string | null;
+  reason_note: string | null;
+} {
+  return {
+    display_name: values.display_name.trim(),
+    date_of_birth:
+      values.date_of_birth == null || values.date_of_birth.trim() === ''
+        ? null
+        : values.date_of_birth.trim(),
+    sex: values.sex,
+    belt_id: values.belt_id,
+    reason_code,
+    reason_note: null,
+  };
+}
+
+/**
+ * Academia que hay que asignar tras el alta, o `null` si no hay ninguna que asignar.
+ *
+ * Un competidor **nace sin afiliación**: elegir «Independiente» en el alta no es una escritura (no hay
+ * nada que deshacer), y elegir una academia es la única acción de afiliación del flujo (§5/§6).
+ */
+export function affiliationSportsClubId(action: AffiliationAction): number | null {
+  return action.kind === 'assign' ? action.sports_club_id : null;
+}
+
+/**
+ * Etiqueta visible de un cinturón por su `id`, para listados y resúmenes.
+ *
+ * `null` significa «no hay cinturón declarado» (o el catálogo todavía no ha llegado): quien pinta
+ * decide el texto de respaldo, nunca se inventa un cinturón ni se muestra el identificador.
+ */
+export function beltLabelForId(
+  belts: readonly Belt[],
+  belt_id: number | null,
+  lookup: (key: string) => string | null
+): string | null {
+  if (belt_id == null) {
+    return null;
+  }
+  const belt = belts.find((candidate) => candidate.id === belt_id);
+  return belt == null ? null : beltLabel(belt, lookup);
+}

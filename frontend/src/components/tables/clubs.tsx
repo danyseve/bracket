@@ -43,7 +43,7 @@ export default function ClubsTable({
       </Table.Tr>
     ));
 
-  if (rows.length < 1) return <EmptyTableInfo entity_name={t('clubs_title')} />;
+  if (rows.length < 1) return <EmptyTableInfo entity_name={t('f3_organizations_title')} />;
 
   return (
     <TableLayout>

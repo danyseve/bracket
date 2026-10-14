@@ -19,6 +19,9 @@ import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import CompetitorCreateWizard, {
+  CompetitorCreateValues,
+} from '@components/f3/competitor_create_wizard';
 import CompetitorSportsProfile from '@components/f3/competitor_sports_profile';
 import F3ErrorAlert from '@components/f3/f3_error_alert';
 import ReasonModal from '@components/f3/reason_modal';
@@ -32,15 +35,27 @@ import {
   Competitor,
 } from '@components/utils/f3_contract';
 import { F3Failure, describeF3Failure } from '@components/utils/f3_errors';
-import { CompetitorProfileTarget } from '@components/utils/f3_sports_profile';
+import {
+  CompetitorProfileTarget,
+  affiliationAction,
+  affiliationSportsClubId,
+  beltLabelForId,
+  competitorCreateBody,
+  derivedAge,
+  sexLabelKey,
+  toIsoDate,
+} from '@components/utils/f3_sports_profile';
 import { actionScope } from '@components/utils/f3_write';
 import useF3Write from '@components/utils/f3_write_hook';
 import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
 import TournamentLayout from '@pages/tournaments/_tournament_layout';
 import { getTournamentById } from '@services/adapter';
 import {
+  assignAffiliation,
   createCompetitor,
+  getBelts,
   getCompetitors,
+  getSportsClubs,
   renameCompetitor,
   setCompetitorActive,
 } from '@services/f3';
@@ -76,6 +91,12 @@ export default function CompetitorsPage() {
     competitor: Competitor;
     active: boolean;
   } | null>(null);
+  // Fallo parcial del alta (§5): el competidor se creó pero quedó sin Club / Academia. Se conserva
+  // para decirlo con el nombre del competidor y poder completarlo desde el perfil.
+  const [partialFailure, setPartialFailure] = useState<{
+    name: string;
+    failure: F3Failure | null;
+  } | null>(null);
 
   const { run, inflight } = useF3Write();
 
@@ -90,39 +111,94 @@ export default function CompetitorsPage() {
   const count = swrCompetitors.data != null ? swrCompetitors.data.count : 0;
   const pages = count > 0 ? Math.ceil(count / PAGE_SIZE) : 1;
 
-  async function handleCreate(displayName: string) {
+  // Catálogos de la superficie de personas (S4.8g §10/§5): cinturones, para traducir `belt_id` sin
+  // enseñar identificadores, y academias, para el paso 2 del alta.
+  const swrBelts = getBelts(club_id);
+  const belts = swrBelts.data != null ? swrBelts.data : [];
+  const swrSportsClubs = getSportsClubs(club_id);
+  const sportsClubs = swrSportsClubs.data != null ? swrSportsClubs.data : [];
+
+  const today = toIsoDate(new Date());
+
+  // i18next devuelve la propia clave cuando no hay traducción: ese caso usa el nombre del backend.
+  const lookup = (key: string): string | null => {
+    const translated = t(key);
+    return translated === key ? null : translated;
+  };
+
+  // Datos que faltan no son un error fatal (§10): se dice qué falta, en lugar de dejar el hueco.
+  const ageLabel = (dateOfBirth: string | null): string => {
+    const age = dateOfBirth != null ? derivedAge(dateOfBirth, today) : null;
+    return age != null ? t('f3_profile_age_value', { age }) : t('f3_profile_dob_none');
+  };
+  const sexLabel = (value: Competitor['sex']): string =>
+    value != null ? t(sexLabelKey(value)) : t('f3_sex_unspecified');
+  const beltColumnLabel = (beltId: number | null): string =>
+    beltLabelForId(belts, beltId, lookup) ?? t('f3_profile_belt_none');
+  const clubColumnLabel = (competitor: Competitor): string =>
+    competitor.sports_club_name != null
+      ? competitor.sports_club_name
+      : t('f3_club_independent_option');
+
+  async function handleCreate(values: CompetitorCreateValues) {
     if (club_id == null) {
       return;
     }
     setFailure(null);
-    const outcome = await run(actionScope(['competitor-create', club_id, displayName]), (key) =>
-      createCompetitor(
-        club_id,
-        { display_name: displayName, reason_code: COMPETITOR_CREATE_REASON_CODE },
-        key
-      )
+    setPartialFailure(null);
+    // Paso 1 del alta: identidad y perfil en una sola escritura (el backend acepta fecha, sexo y
+    // cinturón en el alta). No se inventan endpoints ni se duplican reglas del backend (§5/§15).
+    const outcome = await run(
+      actionScope(['competitor-create', club_id, values.display_name]),
+      (key) =>
+        createCompetitor(club_id, competitorCreateBody(values, COMPETITOR_CREATE_REASON_CODE), key)
     );
     if (outcome.status === 'ignored') {
       return;
     }
-    if (outcome.value != null && outcome.value.ok) {
-      setCreateOpened(false);
-      showNotification({ color: 'green', message: t('competitors_create_success') });
-      await swrCompetitors.mutate();
-      // El alta sólo pide el nombre: se encadena el perfil deportivo para que los campos que faltan
-      // (fecha de nacimiento, sexo, cinturón, academia) aparezcan en el mismo flujo (§3/§10).
-      const created = outcome.value.data;
-      setFailure(null);
-      setProfileTarget({
-        id: created.id,
-        display_name: created.display_name,
-        date_of_birth: null,
-        sex: null,
-        belt_id: null,
-      });
+    if (outcome.value == null || !outcome.value.ok) {
+      setFailure(outcome.value != null && !outcome.value.ok ? outcome.value.failure : null);
       return;
     }
-    setFailure(outcome.value != null && !outcome.value.ok ? outcome.value.failure : null);
+
+    const created = outcome.value.data;
+    setCreateOpened(false);
+    await swrCompetitors.mutate();
+
+    // Paso 2: el alta nace sin afiliación, así que «Independiente» no es una escritura; elegir una
+    // academia sí lo es, y se hace con la acción de afiliación ya existente.
+    const sportsClubId = affiliationSportsClubId(affiliationAction(null, values.club_choice));
+    if (sportsClubId == null) {
+      showNotification({ color: 'green', message: t('competitors_create_success') });
+      return;
+    }
+
+    const affiliation = await run(
+      actionScope(['competitor-affiliation', created.id, sportsClubId]),
+      (key) => assignAffiliation(club_id, created.id, sportsClubId, key)
+    );
+    if (affiliation.status === 'ignored') {
+      return;
+    }
+    if (affiliation.value != null && affiliation.value.ok) {
+      showNotification({ color: 'green', message: t('competitors_create_success') });
+      return;
+    }
+
+    // Fallo parcial (§5): el competidor existe pero quedó sin Club / Academia. No se oculta el fallo
+    // ni se pierde el trabajo: se dice qué competidor es y se abre su perfil para completarlo.
+    setPartialFailure({
+      name: created.display_name,
+      failure:
+        affiliation.value != null && !affiliation.value.ok ? affiliation.value.failure : null,
+    });
+    setProfileTarget({
+      id: created.id,
+      display_name: created.display_name,
+      date_of_birth: values.date_of_birth,
+      sex: values.sex,
+      belt_id: values.belt_id,
+    });
   }
 
   async function handleRename(displayName: string) {
@@ -250,11 +326,28 @@ export default function CompetitorsPage() {
       ) : null}
       <F3ErrorAlert failure={failure} />
 
+      {partialFailure != null ? (
+        <Card withBorder radius="md" padding="md" mt="md" data-create-partial-failure>
+          <Text fw={600}>{t('f3_competitor_create_partial_title')}</Text>
+          <Text size="sm" mt="xs">
+            {t('f3_competitor_create_partial_failure', { name: partialFailure.name })}
+          </Text>
+          <F3ErrorAlert failure={partialFailure.failure} />
+          <Button variant="light" size="compact-sm" mt="xs" onClick={() => setPartialFailure(null)}>
+            {t('f3_competitor_create_partial_dismiss')}
+          </Button>
+        </Card>
+      ) : null}
+
       <div style={{ overflowX: 'auto' }}>
         <Table striped highlightOnHover withTableBorder mt="md" data-competitors-table>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>{t('competitors_name_column')}</Table.Th>
+              <Table.Th>{t('competitors_age_column')}</Table.Th>
+              <Table.Th>{t('competitors_sex_column')}</Table.Th>
+              <Table.Th>{t('competitors_belt_column')}</Table.Th>
+              <Table.Th>{t('competitors_club_column')}</Table.Th>
               <Table.Th>{t('competitors_state_column')}</Table.Th>
               <Table.Th>{t('competitors_created_column')}</Table.Th>
               <Table.Th>{t('competitors_actions_column')}</Table.Th>
@@ -264,7 +357,7 @@ export default function CompetitorsPage() {
             {swrCompetitors.isLoading
               ? Array.from({ length: 5 }, (_, index) => (
                   <Table.Tr key={`skeleton-${index}`}>
-                    <Table.Td colSpan={4}>
+                    <Table.Td colSpan={8}>
                       <Skeleton height={20} />
                     </Table.Td>
                   </Table.Tr>
@@ -272,6 +365,18 @@ export default function CompetitorsPage() {
               : competitors.map((competitor) => (
                   <Table.Tr key={competitor.id} data-competitor-row={competitor.id}>
                     <Table.Td>{competitor.display_name}</Table.Td>
+                    <Table.Td data-competitor-age={competitor.id}>
+                      {ageLabel(competitor.date_of_birth)}
+                    </Table.Td>
+                    <Table.Td data-competitor-sex={competitor.id}>
+                      {sexLabel(competitor.sex)}
+                    </Table.Td>
+                    <Table.Td data-competitor-belt={competitor.id}>
+                      {beltColumnLabel(competitor.belt_id)}
+                    </Table.Td>
+                    <Table.Td data-competitor-club={competitor.id}>
+                      {clubColumnLabel(competitor)}
+                    </Table.Td>
                     <Table.Td>
                       <Badge
                         color={competitor.active ? 'green' : 'gray'}
@@ -351,13 +456,12 @@ export default function CompetitorsPage() {
         </Group>
       ) : null}
 
-      <CompetitorModal
+      <CompetitorCreateWizard
         opened={createOpened}
         onClose={() => setCreateOpened(false)}
         onSubmit={handleCreate}
-        title={t('competitors_create_title')}
-        description={t('competitors_create_description')}
-        confirmLabel={t('competitors_create_button')}
+        belts={belts}
+        clubs={sportsClubs}
         inflight={inflight}
         error={failure}
       />

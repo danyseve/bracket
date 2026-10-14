@@ -105,6 +105,12 @@ test('la navegación del torneo enlaza las cuatro pantallas sin duplicar enlaces
   );
   assert.equal(new Set(hrefs).size, hrefs.length, 'hay enlaces duplicados en TournamentLinks');
   assert.ok(hrefs.includes('/players'), 'no se debe perder el enlace existente de jugadores');
+  assert.ok(hrefs.includes('/academies'), 'el enlace de Club / Academia debe apuntar a academies');
+  // S4.8g §3: el menú normal no enseña jugadores ni equipos; viven detrás del conmutador de avanzado.
+  assert.match(tournamentLinks, /f3_nav_advanced_show/);
+  assert.match(tournamentLinks, /f3_nav_advanced_hide/);
+  assert.match(tournamentLinks, /f3_nav_legacy_section/);
+  assert.match(tournamentLinks, /f3_nav_legacy_badge/);
 });
 
 /* ---------------------------------------------------------------------------- competidores (§8) */
@@ -121,9 +127,13 @@ test('la pantalla de competidores cubre alta, listado, renombrado y ciclo de vid
     assert.match(competitors, new RegExp(`${call}\\(`), `competidores no usa ${call}`);
   }
 
-  // Alta como INDEPENDENT: el club representado no se inventa desde la interfaz.
+  // S4.8g §5: el alta es un solo flujo (wizard de dos pasos). La pantalla orquesta crear + afiliar,
+  // sigue sin inventar identificadores y trata el éxito parcial de forma explícita.
+  assert.match(competitors, /CompetitorCreateWizard/);
+  assert.match(competitors, /affiliationSportsClubId\(/);
+  assert.match(competitors, /f3_competitor_create_partial_failure/);
   assert.doesNotMatch(competitors, /sports_club_id/, 'la UI no debe enviar sports_club_id');
-  assert.match(competitors, /f3_registration_representation_notice|competitors_create_description/);
+  assert.doesNotMatch(competitors, /f3_registration_representation_notice/);
 
   // La identidad del listado sale del backend, sin estado paralelo (la query se compone en el servicio).
   assert.match(competitors, /getCompetitors\(club_id/);

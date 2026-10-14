@@ -18,7 +18,11 @@ export default function ClubsPage() {
     <Layout>
       <Grid justify="space-between">
         <Grid.Col span="auto">
-          <Title>{capitalize(t('clubs_title'))}</Title>
+          {/*
+            Esta pantalla es de **organizaciones** (el club/tenant con RBAC propio, S4.8g §9), no de las
+            academias deportivas del torneo: de ahí el nombre, para no confundirla con «Club / Academia».
+          */}
+          <Title>{capitalize(t('f3_organizations_title'))}</Title>
         </Grid.Col>
         <Grid.Col span="content" className={classes.fullWithMobile}>
           <ClubModal swrClubsResponse={swrClubsResponse} club={null} />

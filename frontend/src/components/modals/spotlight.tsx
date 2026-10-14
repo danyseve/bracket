@@ -32,7 +32,7 @@ export function BracketSpotlight() {
     },
     {
       id: 'clubs',
-      title: t('clubs_title'),
+      title: t('f3_organizations_title'),
       description: t('clubs_spotlight_description'),
       onClick: () => navigate('/clubs'),
       leftSection: <IconUsersGroup size="1.2rem" />,

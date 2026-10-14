@@ -21,6 +21,7 @@ import CreateAccountPage from './pages/create_account';
 import CreateDemoAccountPage from './pages/demo';
 import LoginPage from './pages/login';
 import PasswordResetPage from './pages/password_reset';
+import AcademiesPage from './pages/tournaments/[id]/academies';
 import BracketsPage from './pages/tournaments/[id]/brackets';
 import CompetitorsPage from './pages/tournaments/[id]/competitors';
 import DashboardSchedulePage from './pages/tournaments/[id]/dashboard';
@@ -98,6 +99,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="results" element={<ResultsPage />} />
                   <Route path="competitors" element={<CompetitorsPage />} />
+                  <Route path="academies" element={<AcademiesPage />} />
                   <Route path="registrations" element={<RegistrationsPage />} />
                   <Route path="brackets" element={<BracketsPage />} />
                   <Route path="tatamis" element={<TatamisPage />} />
