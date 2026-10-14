@@ -65,6 +65,7 @@ from bracket.models.db.competitor_api import (
     CompetitorAffiliationsResponse,
     CompetitorCreateBody,
     CompetitorLifecycleBody,
+    CompetitorListItem,
     CompetitorListResponse,
     CompetitorProfileBody,
     CompetitorRenameBody,
@@ -85,6 +86,7 @@ from bracket.sql.domain_reads import (
     get_affiliation,
     get_competitor,
     get_competitor_affiliations,
+    get_open_primary_affiliations,
     list_competitors,
 )
 from bracket.utils.id_types import ClubId, CompetitorId, CompetitorXSportsClubId
@@ -309,9 +311,20 @@ async def list_competitors_endpoint(
         display_name=display_name,
         include_inactive=include_inactive,
     )
+    # Afiliacion primaria abierta de **toda la pagina** en una sola consulta: la lista publica el
+    # estado actual de cada competidor sin N+1 (S4.8d §3). Un competidor que no aparece ahi no tiene
+    # afiliacion abierta y se proyecta como INDEPENDENT sin academia: no se adivina ninguna.
+    affiliations = {
+        row.competitor_id: row
+        for row in await get_open_primary_affiliations(
+            [row.id for row in competitors], tenant_club_id=context.tenant_club_id
+        )
+    }
     return CompetitorListResponse(
         count=count,
-        competitors=[CompetitorResponse.from_competitor(row) for row in competitors],
+        competitors=[
+            CompetitorListItem.from_competitor(row, affiliations.get(row.id)) for row in competitors
+        ],
     )
 
 

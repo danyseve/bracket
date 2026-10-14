@@ -67,6 +67,9 @@ COMPETITOR_FIELDS: Final = {
     "sex",
     "belt_id",
 }
+#: La afiliacion actual la publica **solo** el listado (S4.8d §3); el detalle sigue cerrado.
+AFFILIATION_FIELDS: Final = {"affiliation_mode", "sports_club_id", "sports_club_name"}
+COMPETITOR_LISTING_FIELDS: Final = COMPETITOR_FIELDS | AFFILIATION_FIELDS
 #: Proyeccion del listado.
 LIST_FIELDS: Final = {"count", "competitors"}
 #: Cuerpo con el que un club ajeno y un club inexistente deniegan: indistinguibles.
@@ -385,7 +388,8 @@ async def test_the_list_is_tenant_scoped_deterministic_and_counted(
     assert set(body) == LIST_FIELDS
     assert body["count"] == len(lab.active_names)
     assert [row["display_name"] for row in body["competitors"]] == list(lab.active_names)
-    assert all(set(row) == COMPETITOR_FIELDS for row in body["competitors"])
+    # El listado añade la afiliacion actual (S4.8d §3); el detalle sigue cerrado.
+    assert all(set(row) == COMPETITOR_LISTING_FIELDS for row in body["competitors"])
     # La identidad dada de baja y la del otro tenant no aparecen.
     names = [row["display_name"] for row in body["competitors"]]
     assert f"{lab.root_name}-baja" not in names

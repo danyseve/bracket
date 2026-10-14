@@ -510,11 +510,9 @@ test('las escrituras del servicio son idempotentes y las lecturas no lo son', ()
   const services = source(SERVICES);
 
   const callSites = [...services.matchAll(/createAxios\(\)\.(get|post|put|patch|delete)\(/g)];
-  const writes = callSites.filter(([, method]) => method !== 'get');
   const reads = [...services.matchAll(/useSWR\(/g)];
   const axiosGets = [...services.matchAll(/createAxios\(\)\.get\(/g)];
 
-  assert.ok(writes.length >= 5, 'se esperaban las escrituras de F3');
   assert.ok(reads.length >= 4, 'las lecturas de F3 van por SWR');
   assert.ok(axiosGets.length >= 1, 'la lectura por id usa el fetcher compartido');
 
@@ -522,6 +520,25 @@ test('las escrituras del servicio son idempotentes y las lecturas no lo son', ()
     const next = callSites.find((other) => other.index !== undefined && other.index > index);
     return services.slice(index, next?.index ?? services.length);
   };
+
+  // El POST de la clasificación **previa** (S4.8d §2) transporta cuerpo pero es funcionalmente de
+  // lectura: no crea inscripción, no escribe auditoría y no reserva clave de idempotencia. Es la
+  // única excepción por método y queda declarada aquí a propósito, para que ninguna otra escritura
+  // pueda colarse sin `Idempotency-Key`.
+  const isReadOnlyPost = (index: number) =>
+    bodyOf(index).includes('registrationClassificationPreviewUrl');
+
+  const writes = callSites.filter((site) => site[1] !== 'get' && !isReadOnlyPost(site.index!));
+
+  assert.ok(writes.length >= 5, 'se esperaban las escrituras de F3');
+
+  const readOnlyPosts = callSites.filter((site) => isReadOnlyPost(site.index!));
+  assert.equal(readOnlyPosts.length, 1, 'sólo la clasificación previa puede ser un POST sin clave');
+  assert.doesNotMatch(
+    bodyOf(readOnlyPosts[0].index!),
+    /idempotentHeaders/,
+    'la clasificación previa no debe llevar Idempotency-Key'
+  );
 
   for (const match of writes) {
     const index = match.index!;

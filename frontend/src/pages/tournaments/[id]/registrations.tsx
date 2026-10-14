@@ -25,6 +25,7 @@ import RegistrationWindowCard from '@components/f3/registration_window_card';
 import { RegistrationStatusBadge } from '@components/f3/status_badge';
 import RegistrationModal, { SelectOption } from '@components/modals/registration_modal';
 import { NoContent } from '@components/no_content/empty_table_info';
+import { tournamentCategoryOptions } from '@components/utils/f3_category_catalog';
 import {
   REGISTRATION_REASON_CODES,
   Registration,
@@ -37,21 +38,35 @@ import {
   windowAdmitsNewRegistrations,
 } from '@components/utils/f3_contract';
 import { F3Failure, describeF3Failure } from '@components/utils/f3_errors';
+import {
+  CompetitorSummaryContext,
+  CompetitorSummarySource,
+  competitorOptionLabel,
+} from '@components/utils/f3_registration_options';
+import { beltLabel, sexLabelKey, toIsoDate } from '@components/utils/f3_sports_profile';
 import { actionScope } from '@components/utils/f3_write';
 import useF3Write from '@components/utils/f3_write_hook';
 import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
 import TournamentLayout from '@pages/tournaments/_tournament_layout';
-import { getTournamentById } from '@services/adapter';
+import { getStages, getTournamentById } from '@services/adapter';
 import {
   changeRegistrationState,
   createRegistration,
+  getBelts,
   getBracketReadiness,
   getCompetitors,
   getRegistrationWindow,
   getRegistrations,
+  previewRegistrationClassification,
 } from '@services/f3';
 
 const PAGE_SIZE = 25;
+
+/**
+ * Tope de competidores del desplegable de inscripción. El backend valida `limit <= 100`
+ * (`bracket/utils/pagination.py:50`): pedir 200 devolvía 422 y dejaba el desplegable vacío.
+ */
+const COMPETITOR_PAGE_SIZE = 100;
 
 const STATUS_FILTERS: RegistrationStatus[] = ['DRAFT', 'CONFIRMED', 'WITHDRAWN', 'DISQUALIFIED'];
 
@@ -89,9 +104,13 @@ export default function RegistrationsPage() {
   });
   const swrWindow = getRegistrationWindow(tournamentData.id);
   const swrReadiness = getBracketReadiness(tournamentData.id);
+  // Catálogo real de categorías del torneo (stage_items). La readiness NO sirve para esto: sólo
+  // agrupa las inscripciones que ya existen, así que un torneo sin inscripciones publica [].
+  const swrStages = getStages(tournamentData.id);
+  const swrBelts = getBelts(club_id);
   const swrActiveCompetitors = getCompetitors(club_id, {
     include_inactive: false,
-    limit: 200,
+    limit: COMPETITOR_PAGE_SIZE,
     offset: 0,
   });
 
@@ -101,40 +120,61 @@ export default function RegistrationsPage() {
   const windowState = swrWindow.data != null ? swrWindow.data.state : null;
   const canRegister = windowState != null && windowAdmitsNewRegistrations(windowState);
 
+  // El desplegable de competidores muestra nombre · cinturón · edad derivada (§6). El cinturón sale
+  // del catálogo del club y la edad se calcula en el cliente: ninguno de los dos se envía.
+  const today = toIsoDate(new Date());
+  const beltsById = new Map((swrBelts.data ?? []).map((belt) => [belt.id, belt]));
+  const lookup = (key: string): string | null => {
+    const translated = t(key);
+    return translated === key ? null : translated;
+  };
+
   const competitorOptions: SelectOption[] =
     swrActiveCompetitors.data != null
       ? swrActiveCompetitors.data.competitors.map((competitor) => ({
           value: String(competitor.id),
-          label: competitor.display_name,
+          label: competitorOptionLabel(competitor, {
+            referenceDate: today,
+            beltLabel: (beltId) => {
+              const belt = beltsById.get(beltId);
+              return belt == null ? null : beltLabel(belt, lookup);
+            },
+            ageLabel: (age) => t('f3_profile_age_value', { age }),
+            independentLabel: t('f3_club_independent_option'),
+          }),
         }))
       : [];
 
-  const categoryOptions: SelectOption[] =
-    swrReadiness.data != null
-      ? swrReadiness.data.categories
-          .filter((category) => category.category_key != null)
-          .map((category) => ({
-            value: categoryDisplayName(category.category_key, category.category_label),
-            label: categoryDisplayName(category.category_key, category.category_label),
-          }))
-      : [];
+  // Resumen del competidor elegido en la modal (§4.2): mismos traductores que la etiqueta, más el
+  // nombre del sexo. La afiliación sale de la proyección del listado; si no viene, no se pinta.
+  const competitorSummaries: CompetitorSummarySource[] =
+    swrActiveCompetitors.data != null ? swrActiveCompetitors.data.competitors : [];
 
-  // Categorías reales del torneo con su **clave** como valor: candidatas al override (§16).
-  const classificationCategoryOptions: SelectOption[] =
-    swrReadiness.data != null
-      ? swrReadiness.data.categories
-          .filter((category) => category.category_key != null)
-          .map((category) => ({
-            value: category.category_key as string,
-            label: categoryDisplayName(category.category_key, category.category_label),
-          }))
-      : [];
+  const summaryContext: CompetitorSummaryContext = {
+    referenceDate: today,
+    beltLabel: (beltId) => {
+      const belt = beltsById.get(beltId);
+      return belt == null ? null : beltLabel(belt, lookup);
+    },
+    ageLabel: (age) => t('f3_profile_age_value', { age }),
+    independentLabel: t('f3_club_independent_option'),
+    sexLabel: (sex) => t(sexLabelKey(sex)),
+  };
+
+  const categoryOptions: SelectOption[] = tournamentCategoryOptions(
+    swrStages.data != null ? swrStages.data.data : null
+  ).map((category) => ({ value: category.category_key, label: category.label }));
+
+  // Mismas categorías reales, con la **clave contractual** (`si:<stage_item_id>`) como valor: es
+  // lo que compara el motor para decidir compatibilidad y lo que acepta el override (§16).
+  const classificationCategoryOptions: SelectOption[] = categoryOptions;
 
   async function refreshAll() {
     await Promise.all([
       swrRegistrations.mutate(),
       swrReadiness.mutate(),
       swrWindow.mutate(),
+      swrStages.mutate(),
       swrActiveCompetitors.mutate(),
     ]);
   }
@@ -384,6 +424,9 @@ export default function RegistrationsPage() {
         onClose={() => setCreateOpened(false)}
         onSubmit={handleCreate}
         competitorOptions={competitorOptions}
+        competitorDetails={competitorSummaries}
+        summaryContext={summaryContext}
+        loadPreview={(body) => previewRegistrationClassification(tournamentData.id, body)}
         categoryOptions={categoryOptions}
         inflight={inflight}
         error={failure}

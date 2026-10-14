@@ -18,6 +18,7 @@ y su orden contra el catalogo, lo que permite comparar rangos sin parsear el nom
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any, Final
 
 from bracket.database import database
@@ -28,8 +29,8 @@ from bracket.logic.classification.rules import (
     CompetitorFacts,
     RegistrationFacts,
 )
-from bracket.models.db.domain import BeltScope
-from bracket.utils.id_types import ClubId, TournamentId, TournamentRegistrationId
+from bracket.models.db.domain import BeltScope, Modality
+from bracket.utils.id_types import ClubId, CompetitorId, TournamentId, TournamentRegistrationId
 
 _CATEGORY_COLUMNS: Final[str] = """
         si.id AS stage_item_id,
@@ -155,5 +156,87 @@ async def get_registration_classification_input(
             status=row["registration_status"],
             superseded=bool(row["superseded"]),
             representation=row["representation"],
+        ),
+    )
+
+
+#: Torneo del tenant + competidor **vigente** del tenant con su cinturon resuelto, en una consulta.
+#: El competidor se une con sus tres condiciones (id, tenant y ``active``) dentro del ``ON``: asi
+#: una identidad de otro club o dada de baja deja la columna en ``NULL`` sin desaparecer la fila, y
+#: el torneo inexistente o de otro tenant se distingue del competidor no elegible.
+_SELECT_PREVIEW_FACTS: Final[str] = """
+    SELECT
+        t.start_time,
+        c.id AS eligible_competitor_id,
+        c.date_of_birth,
+        c.sex,
+        cb.scope AS belt_scope,
+        cb.rank AS belt_rank,
+        cb.code AS belt_code
+    FROM tournaments t
+    LEFT JOIN competitors c
+        ON c.id = :competitor_id
+        AND c.managed_by_club_id = :tenant_club_id
+        AND c.active IS TRUE
+    LEFT JOIN belts cb ON cb.id = c.belt_id
+    WHERE t.id = :tournament_id AND t.club_id = :tenant_club_id
+"""
+
+
+async def get_preview_classification_input(
+    tournament_id: TournamentId,
+    tenant_club_id: ClubId,
+    *,
+    competitor_id: CompetitorId,
+    declared_weight_kg: Decimal | None,
+    modality: Modality | None,
+) -> ClassificationInput | None:
+    """Entrada de clasificacion **antes de inscribir** (S4.8d §2), o ``None`` si no es clasificable.
+
+    Reutiliza las mismas piezas que la clasificacion de una inscripcion ya existente: las categorias
+    salen de :func:`get_classification_categories` y el cinturon se resuelve contra el catalogo, asi
+    que el motor puro juzga exactamente lo mismo en los dos caminos. Lo unico que cambia es de donde
+    viene lo declarado: aqui del cuerpo de la peticion (peso y modalidad), porque todavia no hay
+    fila de la que leerlo.
+
+    ``None`` unifica tres cosas que no se distinguen desde fuera: torneo inexistente, torneo de otro
+    tenant y competidor que no es una identidad **vigente** de ese tenant (la misma condicion que
+    :func:`~bracket.sql.registration_writes.sql_selectable_competitor` exige para un alta). El error
+    de la capa HTTP no revela cual de las tres pasa.
+
+    ``status`` viaja en ``None`` y ``category_key`` tambien: no hay inscripcion y la previa es
+    precisamente **antes** de elegir categoria. El motor responde con eso los ``MISSING_*`` que
+    correspondan, incluidos los del propio competidor, que aqui si son reales.
+
+    Es una lectura: no crea inscripcion, no escribe auditoria y no reserva idempotencia.
+    """
+    record = await database.fetch_one(
+        query=_SELECT_PREVIEW_FACTS,
+        values={
+            "tournament_id": tournament_id,
+            "tenant_club_id": tenant_club_id,
+            "competitor_id": competitor_id,
+        },
+    )
+    if record is None or record["eligible_competitor_id"] is None:
+        return None
+    row = record._mapping
+    categories = await get_classification_categories(tournament_id, tenant_club_id)
+    return ClassificationInput(
+        tournament_id=tournament_id,
+        start_time=row["start_time"],
+        categories=categories,
+        competitor=CompetitorFacts(
+            date_of_birth=row["date_of_birth"],
+            sex=row["sex"],
+            belt=_belt_level(row["belt_scope"], row["belt_rank"], row["belt_code"]),
+        ),
+        registration=RegistrationFacts(
+            declared_weight_kg=declared_weight_kg,
+            modality=modality,
+            category_key=None,
+            status=None,
+            superseded=False,
+            representation=None,
         ),
     )

@@ -607,5 +607,15 @@
     "readiness_blocker_category_incompatible": "De categorie is niet compatibel.",
     "readiness_blocker_no_compatible_category": "Er is geen compatibele categorie.",
     "readiness_blocker_invalid_category_belt_range": "Het bandbereik van de categorie is ongeldig.",
-    "f3_reason_category_change": "Categoriewijziging"
+    "f3_reason_category_change": "Categoriewijziging",
+    "f3_academies_title": "Academies",
+    "f3_academies_description": "Sportclubs van het toernooi. Het logo wordt gebruikt in inschrijvingen en lijsten.",
+    "f3_profile_age_label": "Leeftijd",
+    "f3_profile_age_value": "{{age}} jaar",
+    "f3_profile_age_note": "(berekend uit de geboortedatum)",
+    "f3_registration_category_catalog_note": "Aangemelde categorieën van het toernooi. De compatibiliteit wordt bij inschrijving door de classificatie-engine bepaald.",
+    "f3_academies_empty_title": "Nog geen academies",
+    "f3_academies_empty_description": "Zodra de club zijn academies vastlegt, verschijnen ze hier met hun logo.",
+    "f3_registration_preview_title": "Voorbeeldclassificatie",
+    "f3_registration_preview_hint": "Met deelnemer, gewicht en modaliteit controleren we de passende categorieën vóór de inschrijving."
 }

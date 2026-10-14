@@ -570,15 +570,25 @@ def _classification_verdict(verdict: CategoryVerdict) -> ClassificationCategoryV
 
 def _classification_response(
     assessment: RegistrationClassification,
+    *,
+    with_chosen_category: bool = True,
 ) -> RegistrationClassificationResponse:
-    """Contrato de §6: compatibles, recomendada (solo con una unica), bloqueos y avisos."""
+    """Contrato de §6: compatibles, recomendada (solo con una unica), bloqueos y avisos.
+
+    ``with_chosen_category=False`` proyecta el resultado **sin** el veredicto de la categoria
+    elegida: lo usa la clasificacion **previa** al alta (S4.8d §2), donde todavia no hay categoria
+    declarada y su ausencia no es un defecto de los datos declarados. No oculta ningun otro bloqueo:
+    los que salen del motor y de los hechos declarados se publican igual. La clasificacion de una
+    inscripcion existente no cambia porque el defecto es ``True``.
+    """
     recommended = assessment.result.recommended_category
+    blockers = assessment.result.blockers if not with_chosen_category else assessment.blockers
     return RegistrationClassificationResponse(
         compatible_categories=[
             _classification_verdict(verdict) for verdict in assessment.result.compatible_categories
         ],
         recommended_category=None if recommended is None else _classification_verdict(recommended),
-        blockers=list(assessment.blockers),
+        blockers=list(blockers),
         warnings=list(assessment.warnings),
     )
 

@@ -1,7 +1,7 @@
 import { Select } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-import { BELT_SCOPES, Belt } from '@components/utils/f3_competitor_contract';
+import { BELT_SCOPES, Belt, BeltScope } from '@components/utils/f3_competitor_contract';
 import { beltOptions, beltScopeLabelKey } from '@components/utils/f3_sports_profile';
 
 /**
@@ -12,6 +12,11 @@ import { beltOptions, beltScopeLabelKey } from '@components/utils/f3_sports_prof
  * escala. La etiqueta es la traducción si existe y, si no, la canónica del backend.
  *
  * Es un componente «tonto»: no lee ni escribe, solo presenta el catálogo y avisa del cambio.
+ *
+ * `scopes` acota las escalas que se ofrecen. Por defecto las dos (`BELT_SCOPES`); el perfil del
+ * competidor pasa solo la escala adulto, que es el catálogo de competición de este proyecto
+ * (Blanco · Azul · Violeta · Marrón · Negro, S4.8d §4). La escala juvenil sigue en el catálogo del
+ * backend (`scope = JUVENILE`, `active = true`): no se borra nada, solo se deja de ofrecer aquí.
  */
 export default function BeltSelect({
   belts,
@@ -19,12 +24,14 @@ export default function BeltSelect({
   value,
   onChange,
   disabled = false,
+  scopes = BELT_SCOPES,
 }: {
   belts: Belt[];
   isLoading?: boolean;
   value: number | null;
   onChange: (beltId: number | null) => void;
   disabled?: boolean;
+  scopes?: BeltScope[];
 }) {
   const { t } = useTranslation();
 
@@ -34,13 +41,15 @@ export default function BeltSelect({
     return translated === key ? null : translated;
   };
 
-  const choices = beltOptions(belts, BELT_SCOPES, lookup);
-  const data = BELT_SCOPES.map((scope) => ({
-    group: t(beltScopeLabelKey(scope)),
-    items: choices
-      .filter((choice) => choice.scope === scope)
-      .map((choice) => ({ value: choice.value, label: choice.label })),
-  })).filter((group) => group.items.length > 0);
+  const choices = beltOptions(belts, scopes, lookup);
+  const data = scopes
+    .map((scope) => ({
+      group: t(beltScopeLabelKey(scope)),
+      items: choices
+        .filter((choice) => choice.scope === scope)
+        .map((choice) => ({ value: choice.value, label: choice.label })),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <Select

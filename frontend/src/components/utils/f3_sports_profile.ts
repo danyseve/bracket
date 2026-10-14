@@ -7,8 +7,10 @@
  *
  * Reglas duras que respeta este módulo:
  *
- * - **no duplica reglas deportivas**: no calcula edad, no decide categoría, no impone qué campos
- *   son obligatorios por reglamento; el backend es la autoridad (`bracket/logic/classification`);
+ * - **no duplica reglas deportivas**: no decide categoría, no impone qué campos son obligatorios por
+ *   reglamento; el backend es la autoridad (`bracket/logic/classification`). La **edad** que calcula
+ *   `derivedAge` es solo presentación: se deriva de `date_of_birth` + fecha de referencia, no se
+ *   envía nunca al backend y no decide escala de cinturón ni categoría (S4.8d §3);
  * - **no hardcodea el orden del catálogo**: el orden de cinturones sale del `rank`/`code` que publica
  *   el backend y del orden de escalas (`BELT_SCOPES`) del contrato; el módulo recibe esos datos;
  * - `MIXED` **nunca** es una opción de sexo de competidor: describe una categoría, no a una persona
@@ -121,7 +123,11 @@ export function beltOptions(
   scopeOrder: readonly BeltScope[],
   lookup: (key: string) => string | null
 ): BeltChoice[] {
-  return sortBelts(belts, scopeOrder).map((belt) => ({
+  // Solo las escalas pedidas: el catálogo trae la escala juvenil y la adulta, y el perfil de
+  // competición debe ofrecer únicamente la adulta (S4.8d §4). Antes se devolvían todas las escalas
+  // y el filtrado dependía de que el componente las agrupara.
+  const inScope = belts.filter((belt) => scopeOrder.includes(belt.scope));
+  return sortBelts(inScope, scopeOrder).map((belt) => ({
     value: String(belt.id),
     label: beltLabel(belt, lookup),
     scope: belt.scope,
@@ -279,6 +285,49 @@ export function dateOfBirthError(value: string, today: string, required = false)
   }
   return null;
 }
+
+/* ------------------------------------------------------------- edad derivada (S4.8d §3) -------- */
+
+/**
+ * Edad **derivada** del competidor, en años cumplidos.
+ *
+ * La edad no es un dato del competidor: se calcula aquí para mostrarla (read-only) a partir de
+ * `date_of_birth` y de una fecha de referencia (hoy, o la fecha del torneo si se conoce). Devolver
+ * `null` cuando no hay fecha o no es una fecha real es intencionado: la UI no inventa edades ni
+ * las envía al backend (§3).
+ *
+ * Comparación por fecha local (`YYYY-MM-DD`), sin `Date` de zona horaria: el cumpleaños cuenta al
+ * llegar el día, no antes.
+ */
+export function derivedAge(
+  dateOfBirth: string | null | undefined,
+  referenceDate: string
+): number | null {
+  const birth = (dateOfBirth ?? '').trim();
+  if (!isRealDate(birth) || !isRealDate(referenceDate)) {
+    return null;
+  }
+
+  const [birthYear, birthMonth, birthDay] = birth.split('-').map(Number);
+  const [refYear, refMonth, refDay] = referenceDate.split('-').map(Number);
+
+  let age = refYear - birthYear;
+  const beforeBirthday = refMonth < birthMonth || (refMonth === birthMonth && refDay < birthDay);
+  if (beforeBirthday) {
+    age -= 1;
+  }
+  return age < 0 ? null : age;
+}
+
+/** Clave i18n de la etiqueta de edad mostrada junto a la fecha de nacimiento. */
+export const DERIVED_AGE_LABEL_KEY = 'f3_profile_age_label';
+
+/**
+ * Escalas de cinturón que ofrece el perfil del competidor: la **adulto**, que es el catálogo de
+ * competición de este proyecto (Blanco · Azul · Violeta · Marrón · Negro, S4.8d §4). La escala
+ * juvenil no se borra del catálogo del backend: queda para un flujo juvenil futuro.
+ */
+export const COMPETITION_BELT_SCOPES: BeltScope[] = ['ADULT'];
 
 /* ------------------------------------------------------------- logo de academia (§7) ------------ */
 

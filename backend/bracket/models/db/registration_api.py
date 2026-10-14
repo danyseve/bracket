@@ -99,6 +99,27 @@ class RegistrationCreateBody(RegistrationRequestModel):
         )
 
 
+class RegistrationClassificationPreviewBody(RegistrationRequestModel):
+    """Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d §2).
+
+    Solo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay
+    ``representation``, ni academia, ni motivos, ni ``status``: nada de eso interviene en la
+    compatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de
+    los dos campos declarados es un atributo permanente del competidor: el peso es de **esta**
+    inscripcion.
+
+    ``declared_weight_kg`` y ``modality`` son opcionales a proposito: el formulario puede preguntar
+    la previa mientras todavia no los ha rellenado, y el motor responde entonces ``MISSING_WEIGHT``
+    o ``MISSING_MODALITY``. Eso es informacion para el UI, no un error de la peticion. Un valor
+    presente, en cambio, se valida con las mismas reglas que un alta (peso ``> 0`` y ``<= 300``,
+    modalidad ``GI`` o ``NO_GI``) y un valor invalido se rechaza igual que alli.
+    """
+
+    competitor_id: CompetitorId
+    declared_weight_kg: Decimal | None = None
+    modality: Modality | None = None
+
+
 class RegistrationLifecycleBody(RegistrationRequestModel):
     """Motivo de una transicion del ciclo de vida.
 

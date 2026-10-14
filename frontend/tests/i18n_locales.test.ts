@@ -69,6 +69,10 @@ const COMPONENT_SOURCES = [
   '../src/pages/tournaments/[id]/registrations.tsx',
   '../src/pages/tournaments/[id]/brackets.tsx',
   '../src/pages/tournaments/[id]/tatamis.tsx',
+  // S4.8d — integración de UI: catálogo de categorías, opciones de inscripción y academias
+  '../src/components/utils/f3_category_catalog.ts',
+  '../src/components/utils/f3_registration_options.ts',
+  '../src/pages/tournaments/[id]/academies.tsx',
 ];
 
 /** Los 12 idiomas que publica el proyecto. */

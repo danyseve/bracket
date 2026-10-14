@@ -734,12 +734,119 @@
         "title": "CompetitorLifecycleBody",
         "type": "object"
       },
+      "CompetitorListItem": {
+        "description": "Competidor de la lista **mas su afiliacion actual** (S4.8d \u00a73, solo lectura).\n\nEs la unica forma de que el formulario de inscripcion pueda mostrar \"academia / independiente\"\nsin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el\nmismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.\n\n``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)\npara que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio\ncertificado la academia representada se **elige** en el alta, y esto solo evita que el usuario\ntenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa \"sin afiliacion\nabierta\": no se deduce ni se inventa ninguna academia.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "affiliation_mode": {
+            "$ref": "#/components/schemas/RegistrationRepresentation"
+          },
+          "belt_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Belt Id"
+          },
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompetitorSex"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sports_club_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sports Club Id"
+          },
+          "sports_club_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sports Club Name"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "active",
+          "created",
+          "updated_at",
+          "date_of_birth",
+          "sex",
+          "belt_id",
+          "affiliation_mode",
+          "sports_club_id",
+          "sports_club_name"
+        ],
+        "title": "CompetitorListItem",
+        "type": "object"
+      },
       "CompetitorListResponse": {
         "description": "Pagina de competidores con el total del **filtro**, no el de la pagina.",
         "properties": {
           "competitors": {
             "items": {
-              "$ref": "#/components/schemas/CompetitorResponse"
+              "$ref": "#/components/schemas/CompetitorListItem"
             },
             "title": "Competitors",
             "type": "array"
@@ -2909,6 +3016,48 @@
           "reason_note"
         ],
         "title": "RegistrationCategoryBody",
+        "type": "object"
+      },
+      "RegistrationClassificationPreviewBody": {
+        "additionalProperties": false,
+        "description": "Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d \u00a72).\n\nSolo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay\n``representation``, ni academia, ni motivos, ni ``status``: nada de eso interviene en la\ncompatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de\nlos dos campos declarados es un atributo permanente del competidor: el peso es de **esta**\ninscripcion.\n\n``declared_weight_kg`` y ``modality`` son opcionales a proposito: el formulario puede preguntar\nla previa mientras todavia no los ha rellenado, y el motor responde entonces ``MISSING_WEIGHT``\no ``MISSING_MODALITY``. Eso es informacion para el UI, no un error de la peticion. Un valor\npresente, en cambio, se valida con las mismas reglas que un alta (peso ``> 0`` y ``<= 300``,\nmodalidad ``GI`` o ``NO_GI``) y un valor invalido se rechaza igual que alli.",
+        "properties": {
+          "competitor_id": {
+            "title": "Competitor Id",
+            "type": "integer"
+          },
+          "declared_weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Weight Kg"
+          },
+          "modality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Modality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "competitor_id",
+          "declared_weight_kg",
+          "modality"
+        ],
+        "title": "RegistrationClassificationPreviewBody",
         "type": "object"
       },
       "RegistrationClassificationResponse": {
@@ -5250,7 +5399,7 @@
     }
   },
   "info": {
-    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Sports Clubs](#tag/Sports-Clubs)\n\n- [Catalog](#tag/Catalog)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
+    "description": "\n### Description\nThis API allows you to do everything the frontend of [Bracket](https://github.com/evroon/bracket)\nallows you to do (the frontend uses this API as well).\n\nFore more information, see the [documentation](https://docs.bracketapp.nl).\n\n### Table of Contents\n*(links only work for [ReDoc](https://api.bracketapp.nl/redoc), not for Swagger UI)*\n\n- [Auth](#tag/Auth)\n\n- [Clubs](#tag/Clubs)\n\n- [Competitors](#tag/Competitors)\n\n- [Sports Clubs](#tag/Sports-Clubs)\n\n- [Catalog](#tag/Catalog)\n\n- [Courts](#tag/Courts)\n\n- [Court Queue](#tag/Court-Queue)\n\n- [Internals](#tag/Internals)\n\n- [Matches](#tag/Matches)\n\n- [Players](#tag/Players)\n\n- [Rankings](#tag/Rankings)\n\n- [Rounds](#tag/Rounds)\n\n- [Stage Items](#tag/Stage-Items)\n\n- [Stage Item Inputs](#tag/Stage-Item-Inputs)\n\n- [Stages](#tag/Stages)\n\n- [Teams](#tag/Teams)\n\n- [Stage Item Court](#tag/Stage-Item-Court)\n\n- [Tournament Registrations](#tag/Tournament-Registrations)\n\n- [Tournament Registration Classification](#tag/Tournament-Registration-Classification)\n\n- [Tournaments](#tag/Tournaments)\n\n- [Domain Schedule](#tag/Domain-Schedule)\n\n- [Public Schedule](#tag/Public-Schedule)\n\n- [Users](#tag/Users)\n\n### Links\nGitHub: <https://github.com/evroon/bracket>\n\nDocs: <https://docs.bracketapp.nl>\n\nDemo: <https://www.bracketapp.nl/demo>\n\nAPI docs (Redoc): <https://api.bracketapp.nl/redoc>\n\nAPI docs (Swagger UI): <https://api.bracketapp.nl/docs>\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.en.html"
@@ -8518,6 +8667,64 @@
         "summary": "Create Registration Endpoint",
         "tags": [
           "Tournament Registrations"
+        ]
+      }
+    },
+    "/tournaments/{tournament_id}/registrations/classification-preview": {
+      "post": {
+        "description": "Clasificacion previa al alta: que categorias encajan con lo que se va a declarar (\u00a72).\n\nNo escribe nada: sin inscripcion, sin auditoria y sin idempotencia. Mismo 404 de recurso\ninexistente y mismo 400 de peso o modalidad invalidos que el alta.\n\nLa proyeccion es la compartida con el alta, sin el veredicto de la categoria elegida: la previa\ncorre **antes** de elegir categoria (\u00a72), asi que un ``CATEGORY_NOT_RESOLVED`` por no haberla\nelegido todavia no es un defecto de los datos declarados. Los bloqueos y avisos que si salen de\nlos hechos declarados y del motor se publican integros.",
+        "operationId": "preview_registration_classification_endpoint_tournaments__tournament_id__registrations_classification_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tournament_id",
+            "required": true,
+            "schema": {
+              "title": "Tournament Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationClassificationPreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationClassificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Preview Registration Classification Endpoint",
+        "tags": [
+          "Tournament Registration Classification"
         ]
       }
     },

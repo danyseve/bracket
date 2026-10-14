@@ -11,6 +11,8 @@ import {
   RegistrationCategoryBody,
   registrationCategoryUrl,
   RegistrationClassification,
+  RegistrationClassificationPreviewBody,
+  registrationClassificationPreviewUrl,
   registrationClassificationUrl,
   SportsClub,
   sportsClubLogoUrl,
@@ -62,12 +64,20 @@ import { createAxios } from '@services/adapter';
 
 export type F3WriteOutcome<T> = { ok: true; data: T } | { ok: false; failure: F3Failure };
 
+/**
+ * Resultado de una operación que puede fallar, con el **mismo** trato de error que una escritura.
+ *
+ * La clasificación previa es de lectura pero viaja como POST (lleva cuerpo): reutiliza esta forma
+ * para que el formulario no tenga dos maneras distintas de leer un error.
+ */
+export type F3ReadOutcome<T> = { ok: true; data: T } | { ok: false; failure: F3Failure };
+
 const fetcher = (url: string) =>
   createAxios()
     .get(url)
     .then((response) => response.data);
 
-async function write<T>(perform: () => Promise<{ data: T }>): Promise<F3WriteOutcome<T>> {
+async function outcome<T>(perform: () => Promise<{ data: T }>): Promise<F3WriteOutcome<T>> {
   try {
     const response = await perform();
     return { ok: true, data: response.data };
@@ -75,6 +85,8 @@ async function write<T>(perform: () => Promise<{ data: T }>): Promise<F3WriteOut
     return { ok: false, failure: describeF3Failure(error) };
   }
 }
+
+const write = outcome;
 
 function idempotentHeaders(key: string) {
   return { headers: { [IDEMPOTENCY_KEY_HEADER]: key } };
@@ -174,6 +186,22 @@ export function getRegistrationClassification(
       ? null
       : registrationClassificationUrl(tournament_id, registration_id),
     fetcher
+  );
+}
+
+/**
+ * Clasificación **previa** al alta (S4.8d §2), solo lectura.
+ *
+ * Mismo motor y mismo veredicto que `getRegistrationClassification`, pero antes de que exista la
+ * inscripción: el formulario puede pintar categorías compatibles, recomendada, bloqueos y avisos sin
+ * escribir nada. No lleva `Idempotency-Key` porque no hay operación que reintentar.
+ */
+export async function previewRegistrationClassification(
+  tournament_id: number,
+  body: RegistrationClassificationPreviewBody
+): Promise<F3ReadOutcome<RegistrationClassification>> {
+  return outcome(() =>
+    createAxios().post(registrationClassificationPreviewUrl(tournament_id), body)
   );
 }
 

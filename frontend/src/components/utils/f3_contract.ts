@@ -10,7 +10,7 @@
  * Los textos visibles son claves de traducción, nunca frases: el copy vive en `public/locales`.
  */
 
-import type { Modality } from './f3_competitor_contract.ts';
+import type { CompetitorSex, Modality } from './f3_competitor_contract.ts';
 
 /** Cabecera del protocolo de idempotencia (S3.3b). No se muestra al usuario. */
 export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
@@ -52,10 +52,29 @@ export type BracketReadinessBlocker =
   | 'NO_COMPATIBLE_CATEGORY'
   | 'INVALID_CATEGORY_BELT_RANGE';
 
+/**
+ * Competidor tal y como lo devuelve `GET /clubs/{club_id}/competitors`
+ * (`bracket/models/db/competitor_api.py`). Incluye el perfil deportivo desde S4.8a: `date_of_birth`,
+ * `sex` y `belt_id` — la lista ya los trae, así que el formulario de inscripción puede etiquetar
+ * cada opción y el perfil puede abrirse con los valores reales de la fila en lugar de nulls (S4.8d
+ * §3 y §6). La **edad** no está aquí a propósito: se deriva en el cliente y nunca se persiste.
+ *
+ * Desde S4.8d §3 la **misma** respuesta publica además la afiliación **actual** del competidor
+ * (`affiliation_mode`, `sports_club_id`, `sports_club_name`), que es lo único que hace falta para
+ * mostrar "academia / independiente" en el desplegable sin una consulta por competidor. Es el
+ * estado actual, no una decisión: la academia representada de cada inscripción se sigue eligiendo en
+ * el alta. `INDEPENDENT` con los dos campos en `null` = sin afiliación abierta.
+ */
 export interface Competitor {
   id: number;
   display_name: string;
   active: boolean;
+  date_of_birth: string | null;
+  sex: CompetitorSex | null;
+  belt_id: number | null;
+  affiliation_mode: RegistrationRepresentation;
+  sports_club_id: number | null;
+  sports_club_name: string | null;
   created: string;
   updated_at: string | null;
 }

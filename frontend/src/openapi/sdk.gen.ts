@@ -214,6 +214,9 @@ import type {
   LoginForAccessTokenTokenPostResponses,
   PingPingGetData,
   PingPingGetResponses,
+  PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostData,
+  PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostErrors,
+  PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostResponses,
   PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostData,
   PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostErrors,
   PromoteAffiliationEndpointClubsClubIdCompetitorsCompetitorIdAffiliationsAffiliationIdPrimaryPostResponses,
@@ -1643,6 +1646,41 @@ export const createRegistrationEndpointTournamentsTournamentIdRegistrationsPost 
       ...options.headers,
     },
   });
+
+/**
+ * Preview Registration Classification Endpoint
+ *
+ * Clasificacion previa al alta: que categorias encajan con lo que se va a declarar (§2).
+ *
+ * No escribe nada: sin inscripcion, sin auditoria y sin idempotencia. Mismo 404 de recurso
+ * inexistente y mismo 400 de peso o modalidad invalidos que el alta.
+ *
+ * La proyeccion es la compartida con el alta, sin el veredicto de la categoria elegida: la previa
+ * corre **antes** de elegir categoria (§2), asi que un ``CATEGORY_NOT_RESOLVED`` por no haberla
+ * elegido todavia no es un defecto de los datos declarados. Los bloqueos y avisos que si salen de
+ * los hechos declarados y del motor se publican integros.
+ */
+export const previewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPost =
+  <ThrowOnError extends boolean = false>(
+    options: Options<
+      PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostData,
+      ThrowOnError
+    >
+  ) =>
+    (options.client ?? client).post<
+      PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostResponses,
+      PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostErrors,
+      ThrowOnError
+    >({
+      responseType: 'json',
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/tournaments/{tournament_id}/registrations/classification-preview',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
 
 /**
  * Close Registrations Endpoint

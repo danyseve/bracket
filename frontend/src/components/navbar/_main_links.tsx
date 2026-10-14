@@ -5,6 +5,7 @@ import {
   IconBrackets,
   IconBrandGithub,
   IconBrowser,
+  IconBuildingStore,
   IconCalendar,
   IconClipboardList,
   IconDots,
@@ -161,6 +162,11 @@ export function TournamentLinks({ tournament_id }: any) {
       icon: IconUsersGroup,
       label: capitalize(t('competitors_title')),
       link: `${tm_prefix}/competitors`,
+    },
+    {
+      icon: IconBuildingStore,
+      label: capitalize(t('f3_academies_title')),
+      link: `${tm_prefix}/academies`,
     },
     {
       icon: IconClipboardList,

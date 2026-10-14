@@ -208,6 +208,22 @@ class CompetitorXSportsClub(BaseModelORM):
     created: datetime_utc
 
 
+class OpenPrimaryAffiliation(BaseModelORM):
+    """Afiliacion **primaria abierta** de un competidor, con el nombre actual de la academia.
+
+    No es una tabla: es la proyeccion de lectura que necesita el listado de competidores (S4.8d §3)
+    para que el formulario pueda proponer la academia **sin** una consulta por competidor. El nombre
+    sale de ``sports_clubs.name`` (el vigente), nunca del historial de nombres.
+
+    Solo aparece un registro por competidor, y solo si tiene una fila abierta (``valid_to IS NULL``)
+    marcada como primaria: es la situacion actual del competidor, que es lo que se proyecta.
+    """
+
+    competitor_id: CompetitorId
+    sports_club_id: SportsClubId
+    sports_club_name: str
+
+
 class TournamentRegistration(BaseModelORM):
     """Inscripcion de un competidor en un torneo, con su revision y snapshots.
 

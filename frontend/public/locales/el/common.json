@@ -607,5 +607,15 @@
     "readiness_blocker_category_incompatible": "Η κατηγορία δεν είναι συμβατή.",
     "readiness_blocker_no_compatible_category": "Δεν υπάρχει συμβατή κατηγορία.",
     "readiness_blocker_invalid_category_belt_range": "Το εύρος ζώνης της κατηγορίας δεν είναι έγκυρο.",
-    "f3_reason_category_change": "Αλλαγή κατηγορίας"
+    "f3_reason_category_change": "Αλλαγή κατηγορίας",
+    "f3_academies_title": "Ακαδημίες",
+    "f3_academies_description": "Αθλητικοί σύλλογοι του τουρνουά. Το λογότυπο χρησιμοποιείται στις εγγραφές και στις λίστες.",
+    "f3_profile_age_label": "Ηλικία",
+    "f3_profile_age_value": "{{age}} έτη",
+    "f3_profile_age_note": "(υπολογισμένη από την ημερομηνία γέννησης)",
+    "f3_registration_category_catalog_note": "Δηλωμένες κατηγορίες του τουρνουά. Η συμβατότητα κρίνεται από τη μηχανή κατάταξης κατά την εγγραφή.",
+    "f3_academies_empty_title": "Δεν υπάρχουν ακόμη ακαδημίες",
+    "f3_academies_empty_description": "Όταν ο σύλλογος καταχωρίσει τις ακαδημίες του, θα εμφανιστούν εδώ με το λογότυπό τους.",
+    "f3_registration_preview_title": "Προεπισκόπηση κατάταξης",
+    "f3_registration_preview_hint": "Με αθλητή, βάρος και κατηγορία αγώνα ελέγχουμε τις συμβατές κατηγορίες πριν από την εγγραφή."
 }

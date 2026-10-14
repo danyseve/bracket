@@ -248,6 +248,21 @@ export interface RegistrationCategoryBody {
   reason_note?: string | null;
 }
 
+/**
+ * Cuerpo de la **clasificación previa** al alta (S4.8d §2).
+ *
+ * Sólo los tres datos que deciden: el competidor y lo que se declara en el formulario. No viaja la
+ * representación ni la academia (no intervienen en la compatibilidad deportiva) ni ningún estado: la
+ * previa es precisamente antes de que exista la inscripción. Peso y modalidad pueden ir nulos
+ * mientras el usuario todavía no los ha rellenado; el motor responderá `MISSING_WEIGHT` /
+ * `MISSING_MODALITY`, que es información y no un error.
+ */
+export interface RegistrationClassificationPreviewBody {
+  competitor_id: number;
+  declared_weight_kg: string | null;
+  modality: Modality | null;
+}
+
 /* --- logo de academia (domain_sports_clubs.py) ------------------------------------------------- */
 
 /** Tamaño máximo del logo (`MAX_LOGO_BYTES`, domain_sports_clubs.py:63). */
@@ -313,6 +328,17 @@ export function registrationClassificationUrl(
 /** Asignación de categoría (`POST .../category`). */
 export function registrationCategoryUrl(tournament_id: number, registration_id: number): string {
   return `tournaments/${tournament_id}/registrations/${registration_id}/category`;
+}
+
+/**
+ * Clasificación **previa** al alta (S4.8d §2): `POST .../registrations/classification-preview`.
+ *
+ * Es POST porque transporta un cuerpo, no porque escriba: el endpoint es funcionalmente de lectura
+ * (no crea inscripción, no escribe auditoría, no consume clave de idempotencia), razón por la cual
+ * aquí no hay `idempotentHeaders`.
+ */
+export function registrationClassificationPreviewUrl(tournament_id: number): string {
+  return `tournaments/${tournament_id}/registrations/classification-preview`;
 }
 
 /** Logo de academia: subir, reemplazar (con fichero) o quitar (sin fichero). */

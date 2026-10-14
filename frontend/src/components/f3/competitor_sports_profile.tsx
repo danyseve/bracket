@@ -11,9 +11,12 @@ import { COMPETITOR_SEXES, CompetitorSex } from '@components/utils/f3_competitor
 import { describeF3Failure, F3Failure } from '@components/utils/f3_errors';
 import {
   affiliationAction,
+  COMPETITION_BELT_SCOPES,
   CompetitorProfileTarget,
   currentSportsClubId,
   dateOfBirthError,
+  DERIVED_AGE_LABEL_KEY,
+  derivedAge,
   profileBody,
   profileChanged,
   sexOptions,
@@ -106,6 +109,8 @@ export default function CompetitorSportsProfile({
   }, [opened, swrAffiliations.data]);
 
   const today = toIsoDate(new Date());
+  // Edad de presentación: derivada en el cliente (§3). No viaja en `profileBody` ni decide nada.
+  const age = derivedAge(dateOfBirth, today);
   const selectedClub = clubs.find((club) => String(club.id) === clubChoice) ?? null;
 
   async function handleSave() {
@@ -189,6 +194,12 @@ export default function CompetitorSportsProfile({
           {t('f3_profile_description')}
         </Text>
 
+        {competitor != null ? (
+          <Text fw={600} data-profile-competitor-name>
+            {competitor.display_name}
+          </Text>
+        ) : null}
+
         <F3ErrorAlert
           failure={swrProfile.error != null ? describeF3Failure(swrProfile.error) : null}
         />
@@ -209,6 +220,15 @@ export default function CompetitorSportsProfile({
           error={validationError != null ? t(validationError) : null}
         />
 
+        {age != null ? (
+          <Text size="sm" data-derived-age>
+            {t(DERIVED_AGE_LABEL_KEY)}: {t('f3_profile_age_value', { age })}{' '}
+            <Text span size="xs" c="dimmed">
+              {t('f3_profile_age_note')}
+            </Text>
+          </Text>
+        ) : null}
+
         <Select
           label={t('f3_sex_label')}
           data={sexOptions(COMPETITOR_SEXES).map((option) => ({
@@ -227,6 +247,7 @@ export default function CompetitorSportsProfile({
           isLoading={swrBelts.isLoading}
           value={beltId}
           onChange={setBeltId}
+          scopes={COMPETITION_BELT_SCOPES}
         />
         <F3ErrorAlert failure={swrBelts.error != null ? describeF3Failure(swrBelts.error) : null} />
 

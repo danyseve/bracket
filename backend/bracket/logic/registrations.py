@@ -304,6 +304,21 @@ def _resolve_modality(value: object) -> Modality | None:
     raise InvalidRegistrationDataError("modality debe ser GI o NO_GI")
 
 
+def resolve_declared_weight(value: object) -> Decimal | None:
+    """Peso declarado validado, expuesto para la **clasificacion previa** (S4.8d §2).
+
+    Envoltura publica de :func:`_resolve_weight`: la previa acepta y rechaza exactamente el mismo
+    peso que un alta porque el juicio sigue teniendo un unico dueno. No se relaja ni se reimplementa
+    la regla aqui; solo se deja de ser privado para el segundo lector legitimo.
+    """
+    return _resolve_weight(value)
+
+
+def resolve_declared_modality(value: object) -> Modality | None:
+    """Modalidad declarada validada: envoltura publica de :func:`_resolve_modality` (S4.8d §2)."""
+    return _resolve_modality(value)
+
+
 def _resolve_category(data: RegistrationDraftData) -> tuple[str | None, str | None]:
     """Clave estable + etiqueta congelada: las dos o ninguna. Nunca se inventa la clave."""
     key, label = data.category_key, data.category_label

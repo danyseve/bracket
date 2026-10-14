@@ -34,12 +34,15 @@ antes el tenant (``user_owner_for_club`` y equivalentes). Ninguna de ellas usa
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from bracket.database import database
 from bracket.models.db.domain import (
     Belt,
     Competitor,
     CompetitorNameHistory,
     CompetitorXSportsClub,
+    OpenPrimaryAffiliation,
     SportsClub,
     SportsClubNameHistory,
     TournamentRegistration,
@@ -359,6 +362,47 @@ async def get_competitor_affiliations(
         query=query, values={"competitor_id": competitor_id, "tenant_club_id": tenant_club_id}
     )
     return [CompetitorXSportsClub.model_validate(dict(record._mapping)) for record in records]
+
+
+async def get_open_primary_affiliations(
+    competitor_ids: Sequence[CompetitorId], *, tenant_club_id: ClubId
+) -> list[OpenPrimaryAffiliation]:
+    """Afiliacion primaria abierta de cada competidor pedido, en **una** consulta (S4.8d §3).
+
+    Existe para que el listado de competidores pueda publicar la academia actual sin una consulta
+    por fila. La alternativa (leer las afiliaciones de cada competidor con
+    :func:`get_competitor_affiliations`) seria un N+1 y, ademas, leeria el historial entero para
+    quedarse con una fila.
+
+    Solo devuelve las filas **abiertas** (``valid_to IS NULL``) y **primarias**: la situacion actual
+    del competidor. Un competidor sin primaria abierta **no aparece** en el resultado, y quien lo
+    consume lo interpreta como "sin afiliacion": aqui no se inventa ninguna academia ni se cae al
+    historial. El ``JOIN`` con ``sports_clubs`` es interior a proposito: la proyeccion publica un
+    club con nombre, asi que una academia inexistente no se publica a medias.
+
+    El ambito del tenant va en el ``JOIN`` con ``competitors``, no despues de leer: los id de otro
+    club no se pueden proyectar. ``DISTINCT ON`` + orden por vigencia deja como mucho una fila por
+    competidor aunque el estado tuviera dos primarias abiertas (el escritor no lo produce; la
+    lectura no depende de eso).
+    """
+    if not competitor_ids:
+        return []
+    query = """
+        SELECT DISTINCT ON (a.competitor_id)
+            a.competitor_id, a.sports_club_id, s.name AS sports_club_name
+        FROM competitors_x_sports_clubs a
+        JOIN competitors c ON c.id = a.competitor_id AND c.managed_by_club_id = :tenant_club_id
+        JOIN sports_clubs s ON s.id = a.sports_club_id
+        WHERE a.competitor_id = ANY(:competitor_ids)
+            AND a.valid_to IS NULL
+            AND a.is_primary
+        ORDER BY a.competitor_id, a.valid_from DESC, a.id DESC
+    """
+    records = await database.fetch_all(
+        query=query,
+        values={"competitor_ids": list(competitor_ids), "tenant_club_id": tenant_club_id},
+    )
+    return [OpenPrimaryAffiliation.model_validate(dict(record._mapping)) for record in records]
 
 
 async def get_tournament_registrations(

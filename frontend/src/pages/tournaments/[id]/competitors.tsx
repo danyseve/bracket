@@ -32,6 +32,7 @@ import {
   Competitor,
 } from '@components/utils/f3_contract';
 import { F3Failure, describeF3Failure } from '@components/utils/f3_errors';
+import { CompetitorProfileTarget } from '@components/utils/f3_sports_profile';
 import { actionScope } from '@components/utils/f3_write';
 import useF3Write from '@components/utils/f3_write_hook';
 import { capitalize, getTournamentIdFromRouter } from '@components/utils/util';
@@ -68,7 +69,9 @@ export default function CompetitorsPage() {
   const [failure, setFailure] = useState<F3Failure | null>(null);
   const [createOpened, setCreateOpened] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Competitor | null>(null);
-  const [profileTarget, setProfileTarget] = useState<Competitor | null>(null);
+  // El perfil deportivo recibe los valores **reales** de la fila (antes se forzaban a null, así que
+  // el formulario sólo se rellenaba cuando respondía su propia petición). S4.8d §3.
+  const [profileTarget, setProfileTarget] = useState<CompetitorProfileTarget | null>(null);
   const [lifecycleTarget, setLifecycleTarget] = useState<{
     competitor: Competitor;
     active: boolean;
@@ -106,6 +109,17 @@ export default function CompetitorsPage() {
       setCreateOpened(false);
       showNotification({ color: 'green', message: t('competitors_create_success') });
       await swrCompetitors.mutate();
+      // El alta sólo pide el nombre: se encadena el perfil deportivo para que los campos que faltan
+      // (fecha de nacimiento, sexo, cinturón, academia) aparezcan en el mismo flujo (§3/§10).
+      const created = outcome.value.data;
+      setFailure(null);
+      setProfileTarget({
+        id: created.id,
+        display_name: created.display_name,
+        date_of_birth: null,
+        sex: null,
+        belt_id: null,
+      });
       return;
     }
     setFailure(outcome.value != null && !outcome.value.ok ? outcome.value.failure : null);
@@ -390,17 +404,7 @@ export default function CompetitorsPage() {
         onClose={() => setProfileTarget(null)}
         club_id={club_id}
         canManageAcademy={organizerActions}
-        competitor={
-          profileTarget != null
-            ? {
-                id: profileTarget.id,
-                display_name: profileTarget.display_name,
-                date_of_birth: null,
-                sex: null,
-                belt_id: null,
-              }
-            : null
-        }
+        competitor={profileTarget}
         onSaved={() => {
           void swrCompetitors.mutate();
         }}

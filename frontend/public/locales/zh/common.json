@@ -607,5 +607,15 @@
     "readiness_blocker_category_incompatible": "级别不兼容。",
     "readiness_blocker_no_compatible_category": "没有兼容的级别。",
     "readiness_blocker_invalid_category_belt_range": "级别的腰带范围无效。",
-    "f3_reason_category_change": "级别变更"
+    "f3_reason_category_change": "级别变更",
+    "f3_academies_title": "学院",
+    "f3_academies_description": "赛事的体育俱乐部。徽标用于报名和列表。",
+    "f3_profile_age_label": "年龄",
+    "f3_profile_age_value": "{{age}} 岁",
+    "f3_profile_age_note": "（根据出生日期计算）",
+    "f3_registration_category_catalog_note": "赛事已声明的级别。兼容性由报名时的分级引擎判定。",
+    "f3_academies_empty_title": "尚无学院",
+    "f3_academies_empty_description": "俱乐部登记其学院后，将连同徽标显示在此处。",
+    "f3_registration_preview_title": "分级预览",
+    "f3_registration_preview_hint": "根据选手、体重和比赛类型，在报名前核对适用的组别。"
 }

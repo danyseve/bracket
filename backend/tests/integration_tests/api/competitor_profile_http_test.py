@@ -57,6 +57,10 @@ COMPETITOR_FIELDS: Final = {
     "sex",
     "belt_id",
 }
+#: Afiliacion actual: la publica **solo** el listado (S4.8d §3). El detalle sigue cerrado.
+AFFILIATION_FIELDS: Final = {"affiliation_mode", "sports_club_id", "sports_club_name"}
+#: Proyeccion del listado: el detalle mas la afiliacion actual.
+COMPETITOR_LISTING_FIELDS: Final = COMPETITOR_FIELDS | AFFILIATION_FIELDS
 #: Detalle fijo del rechazo por datos invalidos (no repite el valor recibido).
 INVALID_DETAIL: Final = "Competitor request is invalid"
 NOT_FOUND_DETAIL: Final = "Not Found"
@@ -576,7 +580,11 @@ async def test_the_read_routes_publish_the_sports_profile() -> None:
             assert list_status == status.HTTP_200_OK, listing
             published = [item for item in listing["competitors"] if item["id"] == body["id"]]
             assert len(published) == 1
-            assert set(published[0]) == COMPETITOR_FIELDS, set(published[0])
+            assert set(published[0]) == COMPETITOR_LISTING_FIELDS, set(published[0])
             assert published[0]["date_of_birth"] == "1979-12-31"
+            # Sin afiliacion abierta el listado lo dice explicitamente: no se inventa club.
+            assert published[0]["affiliation_mode"] == "INDEPENDENT", published[0]
+            assert published[0]["sports_club_id"] is None
+            assert published[0]["sports_club_name"] is None
         finally:
             await delete_belts((belt,))

@@ -26,14 +26,15 @@ from bracket.logic.competitors import (
 from bracket.models.db.competitor_api import (
     CompetitorCreateBody,
     CompetitorLifecycleBody,
+    CompetitorListItem,
     CompetitorListResponse,
     CompetitorRenameBody,
     CompetitorResponse,
 )
-from bracket.models.db.domain import Competitor
+from bracket.models.db.domain import Competitor, OpenPrimaryAffiliation
 from bracket.routes import domain_competitors
 from bracket.routes.f3_write_gate import require_f3_write_enabled
-from bracket.utils.id_types import ClubId, CompetitorId
+from bracket.utils.id_types import ClubId, CompetitorId, SportsClubId
 
 #: Las doce rutas de la fase, con su metodo. El ambito es el club, no el torneo.
 EXPECTED_ROUTES: Final = {
@@ -72,6 +73,12 @@ PUBLIC_FIELDS: Final = {
     "sex",
     "belt_id",
 }
+#: Lo que anade **solo** el listado (S4.8d §3): la afiliacion actual para etiquetar el desplegable.
+LISTING_FIELDS: Final = PUBLIC_FIELDS | {
+    "affiliation_mode",
+    "sports_club_id",
+    "sports_club_name",
+}
 
 
 def a_competitor() -> Competitor:
@@ -95,8 +102,43 @@ def test_the_public_projection_is_closed_and_hides_the_tenant() -> None:
     assert set(body) == PUBLIC_FIELDS
     assert "managed_by_club_id" not in body
     assert not {"tenant_club_id", "managed_by_club_id"} & set(CompetitorResponse.model_fields)
-    listing = CompetitorListResponse(count=1, competitors=[response])
+    listing = CompetitorListResponse(
+        count=1, competitors=[CompetitorListItem.from_competitor(a_competitor())]
+    )
     assert set(listing.model_dump()) == {"count", "competitors"}
+
+
+def test_the_competitor_response_alone_does_not_publish_the_affiliation() -> None:
+    """La afiliacion es del **listado** (S4.8d §3): la ficha de un competidor sigue cerrada."""
+    assert not {"affiliation_mode", "sports_club_id", "sports_club_name"} & set(
+        CompetitorResponse.model_fields
+    )
+
+
+def test_the_listing_publishes_the_affiliation_without_inventing_a_club() -> None:
+    """Sin afiliacion primaria abierta: ``INDEPENDENT`` y **los dos** campos en nulo."""
+    item = CompetitorListItem.from_competitor(a_competitor())
+
+    assert set(item.model_dump()) == LISTING_FIELDS
+    assert item.affiliation_mode == "INDEPENDENT"
+    assert item.sports_club_id is None
+    assert item.sports_club_name is None
+
+
+def test_the_listing_projects_the_open_primary_affiliation() -> None:
+    affiliation = OpenPrimaryAffiliation(
+        competitor_id=CompetitorId(1),
+        sports_club_id=SportsClubId(4),
+        sports_club_name="Academia de prueba",
+    )
+
+    item = CompetitorListItem.from_competitor(a_competitor(), affiliation)
+
+    assert item.affiliation_mode == "CLUB"
+    assert item.sports_club_id == SportsClubId(4)
+    assert item.sports_club_name == "Academia de prueba"
+    # El resto de la proyeccion no cambia por tener academia.
+    assert set(item.model_dump()) == LISTING_FIELDS
 
 
 @pytest.mark.parametrize(

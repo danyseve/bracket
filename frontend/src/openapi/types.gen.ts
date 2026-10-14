@@ -475,6 +475,62 @@ export type CompetitorLifecycleBody = {
 };
 
 /**
+ * CompetitorListItem
+ *
+ * Competidor de la lista **mas su afiliacion actual** (S4.8d §3, solo lectura).
+ *
+ * Es la unica forma de que el formulario de inscripcion pueda mostrar "academia / independiente"
+ * sin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el
+ * mismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.
+ *
+ * ``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)
+ * para que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio
+ * certificado la academia representada se **elige** en el alta, y esto solo evita que el usuario
+ * tenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa "sin afiliacion
+ * abierta": no se deduce ni se inventa ninguna academia.
+ */
+export type CompetitorListItem = {
+  /**
+   * Active
+   */
+  active: boolean;
+  affiliation_mode: RegistrationRepresentation;
+  /**
+   * Belt Id
+   */
+  belt_id: number | null;
+  /**
+   * Created
+   */
+  created: string;
+  /**
+   * Date Of Birth
+   */
+  date_of_birth: string | null;
+  /**
+   * Display Name
+   */
+  display_name: string;
+  /**
+   * Id
+   */
+  id: number;
+  sex: CompetitorSex | null;
+  /**
+   * Sports Club Id
+   */
+  sports_club_id: number | null;
+  /**
+   * Sports Club Name
+   */
+  sports_club_name: string | null;
+  /**
+   * Updated At
+   */
+  updated_at: string | null;
+};
+
+/**
  * CompetitorListResponse
  *
  * Pagina de competidores con el total del **filtro**, no el de la pagina.
@@ -483,7 +539,7 @@ export type CompetitorListResponse = {
   /**
    * Competitors
    */
-  competitors: Array<CompetitorResponse>;
+  competitors: Array<CompetitorListItem>;
   /**
    * Count
    */
@@ -1645,6 +1701,35 @@ export type RegistrationCategoryBody = {
    * Reason Note
    */
   reason_note: string | null;
+};
+
+/**
+ * RegistrationClassificationPreviewBody
+ *
+ * Lo que hace falta para clasificar **antes** de crear la inscripcion (S4.8d §2).
+ *
+ * Solo tres datos: el competidor del tenant y lo que se declara en el formulario. No hay
+ * ``representation``, ni academia, ni motivos, ni ``status``: nada de eso interviene en la
+ * compatibilidad deportiva (el club viaja como contexto en el motor, no como regla) y ninguno de
+ * los dos campos declarados es un atributo permanente del competidor: el peso es de **esta**
+ * inscripcion.
+ *
+ * ``declared_weight_kg`` y ``modality`` son opcionales a proposito: el formulario puede preguntar
+ * la previa mientras todavia no los ha rellenado, y el motor responde entonces ``MISSING_WEIGHT``
+ * o ``MISSING_MODALITY``. Eso es informacion para el UI, no un error de la peticion. Un valor
+ * presente, en cambio, se valida con las mismas reglas que un alta (peso ``> 0`` y ``<= 300``,
+ * modalidad ``GI`` o ``NO_GI``) y un valor invalido se rechaza igual que alli.
+ */
+export type RegistrationClassificationPreviewBody = {
+  /**
+   * Competitor Id
+   */
+  competitor_id: number;
+  /**
+   * Declared Weight Kg
+   */
+  declared_weight_kg: number | string | null;
+  modality: Modality | null;
 };
 
 /**
@@ -5008,6 +5093,41 @@ export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostRe
 
 export type CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponse =
   CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses[keyof CreateRegistrationEndpointTournamentsTournamentIdRegistrationsPostResponses];
+
+export type PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostData =
+  {
+    body: RegistrationClassificationPreviewBody;
+    path: {
+      /**
+       * Tournament Id
+       */
+      tournament_id: number;
+    };
+    query?: never;
+    url: '/tournaments/{tournament_id}/registrations/classification-preview';
+  };
+
+export type PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostErrors =
+  {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+  };
+
+export type PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostError =
+  PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostErrors[keyof PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostErrors];
+
+export type PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostResponses =
+  {
+    /**
+     * Successful Response
+     */
+    200: RegistrationClassificationResponse;
+  };
+
+export type PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostResponse =
+  PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostResponses[keyof PreviewRegistrationClassificationEndpointTournamentsTournamentIdRegistrationsClassificationPreviewPostResponses];
 
 export type CloseRegistrationsEndpointTournamentsTournamentIdRegistrationsClosePostData = {
   /**

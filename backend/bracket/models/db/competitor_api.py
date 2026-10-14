@@ -29,7 +29,13 @@ from datetime import date
 from heliclockter import datetime_utc
 from pydantic import BaseModel, ConfigDict
 
-from bracket.models.db.domain import Competitor, CompetitorSex, CompetitorXSportsClub
+from bracket.models.db.domain import (
+    Competitor,
+    CompetitorSex,
+    CompetitorXSportsClub,
+    OpenPrimaryAffiliation,
+    RegistrationRepresentation,
+)
 from bracket.utils.id_types import BeltId, CompetitorId, SportsClubId
 
 
@@ -129,11 +135,47 @@ class CompetitorResponse(BaseModel):
         )
 
 
+class CompetitorListItem(CompetitorResponse):
+    """Competidor de la lista **mas su afiliacion actual** (S4.8d §3, solo lectura).
+
+    Es la unica forma de que el formulario de inscripcion pueda mostrar "academia / independiente"
+    sin una consulta por competidor. Se publica dentro de la **misma** respuesta del listado, con el
+    mismo orden y la misma paginacion: no hay endpoint nuevo ni N+1.
+
+    ``affiliation_mode`` es el **estado actual** del competidor (su afiliacion primaria abierta)
+    para que el formulario pueda proponerlo. No es una decision de la inscripcion: en el dominio
+    certificado la academia representada se **elige** en el alta, y esto solo evita que el usuario
+    tenga que recordarla. ``INDEPENDENT`` con los dos campos en ``NULL`` significa "sin afiliacion
+    abierta": no se deduce ni se inventa ninguna academia.
+    """
+
+    affiliation_mode: RegistrationRepresentation
+    sports_club_id: SportsClubId | None = None
+    sports_club_name: str | None = None
+
+    @classmethod
+    def from_competitor(
+        cls,
+        competitor: Competitor,
+        affiliation: OpenPrimaryAffiliation | None = None,
+    ) -> CompetitorListItem:
+        """Proyecta la fila y su afiliacion abierta (si la tiene) a la respuesta del listado."""
+        base = CompetitorResponse.from_competitor(competitor)
+        if affiliation is None:
+            return cls(**base.model_dump(), affiliation_mode="INDEPENDENT")
+        return cls(
+            **base.model_dump(),
+            affiliation_mode="CLUB",
+            sports_club_id=affiliation.sports_club_id,
+            sports_club_name=affiliation.sports_club_name,
+        )
+
+
 class CompetitorListResponse(BaseModel):
     """Pagina de competidores con el total del **filtro**, no el de la pagina."""
 
     count: int
-    competitors: list[CompetitorResponse]
+    competitors: list[CompetitorListItem]
 
 
 class CompetitorAffiliationBody(CompetitorRequestModel):
