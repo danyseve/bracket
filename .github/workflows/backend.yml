@@ -75,3 +75,12 @@ jobs:
       - name: Run vulture
         run: '! uv run vulture |grep "unused function\|unused class\|unused method"'
         working-directory: backend
+
+      - name: Run production startup gate
+        run: uv run python -c "import bracket.app; print('production-startup-gate OK')"
+        working-directory: backend
+        env:
+          ENVIRONMENT: PRODUCTION
+          API_PREFIX: /api
+          SERVE_FRONTEND: 'true'
+          JWT_SECRET: production-startup-gate-only

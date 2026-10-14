@@ -24,6 +24,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 
+from bracket.config import config
 from bracket.logic.classification.engine import classify_input
 from bracket.logic.registration_core import RegistrationDomainError
 from bracket.logic.registrations import resolve_declared_modality, resolve_declared_weight
@@ -41,7 +42,7 @@ from bracket.routes.domain_registrations import (
 from bracket.sql.classification import get_preview_classification_input
 from bracket.utils.id_types import TournamentId
 
-router = APIRouter()
+router = APIRouter(prefix=config.api_prefix)
 
 
 @router.post(
